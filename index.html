@@ -385,7 +385,7 @@ const CHARACTERS = {
       id: 'glory',
       name: '榮光延續',
       icon: 'skill_glory',
-      cooldown: 10,              // 冷卻秒數（從啟動時開始計算，包含持續時間）
+      cooldown: 10,              // 冷卻秒數（效果結束後才開始計算）
       duration: 5,               // 持續秒數
       dmgMult: 2,                // 持續期間傷害倍率（10 → 20）
       desc: '提升自身火力：5 秒內所有子彈傷害 ×2（每發 20）。',
@@ -810,10 +810,10 @@ const dodgeCooldown = (D) => 10 * 15 / (15 + D.dodge) + (HEAVY_CLASSES.includes(
 const dodgeCharges = (v) => Math.min(3, 1 + Math.floor(v / 40));
 function useSkill() {
   const sk = cfg.skill;
-  if (state !== 'play' || !player || !sk || player.skillCd > 0 || player.skillArmed) return;
+  if (state !== 'play' || !player || !sk || player.skillCd > 0 || player.skillArmed || player.buffT > 0) return;
   if (sk.id === 'glory') {
-    // 榮光延續：立即生效，冷卻從啟動時開始
-    player.buffT = sk.duration; player.skillCd = sk.cooldown;
+    // 榮光延續：立即生效，效果結束後才開始冷卻
+    player.buffT = sk.duration;
     burst(player.x, player.y, '#ffb347', 14); floatText(player.x, player.y - 46, '傷害 ×' + sk.dmgMult, '#ffb347');
   } else player.skillArmed = true;           // 裂傷紀錄：強化下一發
   sfx.skill(); updateSkill();
@@ -826,7 +826,9 @@ function updateSkill() {
     btn.classList.toggle('armed', !!player.skillArmed || player.buffT > 0);
     const f = player.skillCd > 0 ? player.skillCd / sk.cooldown : 0;
     cdEl.style.background = f > 0 ? 'conic-gradient(rgba(4,14,20,.72) ' + (f * 360) + 'deg, transparent 0)' : 'none';
-    num.textContent = player.skillCd > 0 ? Math.ceil(player.skillCd) : '';
+    // 效果中顯示剩餘效果秒數（橘色），冷卻中顯示冷卻秒數
+    num.textContent = player.buffT > 0 ? Math.ceil(player.buffT) : player.skillCd > 0 ? Math.ceil(player.skillCd) : '';
+    num.style.color = player.buffT > 0 ? '#ffd27a' : '';
   }
 }
 function startDodge() {
@@ -906,7 +908,11 @@ function update(dt) {
   }
   $('dodgeBar').style.width = player.charges < maxC ? (100 * (1 - player.chargeT / dodgeCooldown(cfg))) + '%' : '0';
   player.invT = Math.max(0, player.invT - dt);
-  if (player.buffT > 0) { player.buffT = Math.max(0, player.buffT - dt); if (player.buffT <= 0) updateSkill(); }
+  if (player.buffT > 0) {
+    player.buffT = Math.max(0, player.buffT - dt);
+    if (player.buffT <= 0) player.skillCd = cfg.skill.cooldown;   // 效果結束 → 開始冷卻
+    updateSkill();
+  }
   if (player.skillCd > 0) { player.skillCd = Math.max(0, player.skillCd - dt); updateSkill(); }
   if (player.dodgeT > 0) {
     // 撲出去：先快後慢，期間不能轉向、不能開火
