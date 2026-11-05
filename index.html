@@ -249,7 +249,7 @@ const CHARACTERS = {
     maxHp: 150,
     speed: 150,                  // 每秒移動距離
     lockRange: 250,              // 自動鎖敵距離
-    dodge: 14,                   // 閃避值 → 冷卻 4.1 秒、1 次
+    dodge: 14,                   // 閃避值 → 冷卻 5.2 秒、1 次
     armor: { value: 22, blockLow: 0.7, blockHigh: 0.5 },  // 護甲值；傷害 ≤ 護甲／> 護甲時的格擋機率
     weapon: {
       name: '霰彈槍',
@@ -272,7 +272,7 @@ const CHARACTERS = {
     maxHp: 100,
     speed: 210,                  // 速度、鎖敵、武器其餘數值為突擊步槍暫定值
     lockRange: 300,
-    dodge: 45,                   // 閃避值 → 冷卻 2.4 秒、可累積 2 次
+    dodge: 45,                   // 閃避值 → 冷卻 2.5 秒、可累積 2 次
     armor: { value: 0, blockLow: 0, blockHigh: 0 },       // 沒有護甲
     weapon: {
       name: '突擊步槍',
@@ -632,10 +632,13 @@ function burst(x, y, color, n = 8) {
 }
 function floatText(x, y, text, color) { floaters.push({ x, y, text, color, life: 0.7, max: 0.7 }); }
 const bulletRange = (D) => D.lockRange * D.rangeScale + D.rangeAdd;
-/* 閃避值換算（越高越好、效益遞減）
-   冷卻時間 = 6 × 30 ÷ (30 + 閃避值)　→ 14：4.1 秒、45：2.4 秒、80：1.6 秒
-   可累積次數 = 1 + ⌊閃避值 ÷ 40⌋，最多 3 次 → 14：1 次、45：2 次、80：3 次 */
-const dodgeCooldown = (v) => 6 * 30 / (30 + v);
+/* 閃避值換算（範圍 9～128，越高越好、效益遞減）
+   冷卻時間 = 10 × 15 ÷ (15 + 閃避值)
+     9：6.3 秒｜14：5.2 秒｜30：3.3 秒｜45：2.5 秒｜80：1.6 秒｜128：1.05 秒
+   可累積次數 = 1 + ⌊閃避值 ÷ 40⌋，最多 3 次
+     9～39：1 次｜40～79：2 次｜80 以上：3 次
+   霰彈槍人形閃避值低 → 冷卻長，靠護甲生存；其他人形閃避值高 → 冷卻短、可連閃 */
+const dodgeCooldown = (v) => 10 * 15 / (15 + v);
 const dodgeCharges = (v) => Math.min(3, 1 + Math.floor(v / 40));
 function startDodge() {
   if (state !== 'play' || !player || player.dodgeT > 0 || player.charges <= 0) return;
