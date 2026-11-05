@@ -193,6 +193,10 @@ const ASSETS = {"triple_crown":{"meta":{"cx":720,"cy":720,"body":[307,192,1137,9
    ═══════════════════════════════════════════════════════════════ */
 const CHARACTER_BASE = {
   radius: 20,                    // 碰撞半徑
+  // 子彈射程＝鎖敵距離 × rangeScale ＋ rangeAdd
+  // 例：1.2 倍 → rangeScale: 1.2, rangeAdd: 0；鎖敵距離 ＋50 → rangeScale: 1, rangeAdd: 50
+  rangeScale: 1.2,
+  rangeAdd: 0,
   anim: {
     scale: 0.0738,               // 1440px 原圖縮放到遊戲內的比例
     runCycle: 0.44,              // 跑完一輪奔跑動畫的秒數（不論幾幀）
@@ -241,7 +245,7 @@ const CHARACTERS = {
       pellets: 5,                // 每發彈丸數
       damage: 7,                 // 每顆彈丸傷害
       spread: 0.105, jitter: 0.027,
-      speed: [460, 540], life: 0.62, radius: 3.5,
+      speed: [460, 540], radius: 3.5,
       cooldown: 0.8,             // 開火間隔（秒）
       reloadMode: 'shell',       // shell＝逐發裝填；magazine＝整個彈匣一次換
       reload: 0.48,              // 逐發：每發秒數；整匣：換彈秒數
@@ -263,7 +267,7 @@ const CHARACTERS = {
       pellets: 1,
       damage: 10,
       spread: 0, jitter: 0.035,
-      speed: [640, 680], life: 0.6, radius: 2.6,
+      speed: [640, 680], radius: 2.6,
       cooldown: 0.11,            // 全自動，約每秒 9 發
       reloadMode: 'magazine',
       reload: 1.8,
@@ -609,6 +613,7 @@ function burst(x, y, color, n = 8) {
   }
 }
 function floatText(x, y, text, color) { floaters.push({ x, y, text, color, life: 0.7, max: 0.7 }); }
+const bulletRange = (D) => D.lockRange * D.rangeScale + D.rangeAdd;
 function reload() {
   if (state !== 'play' || player.ammo >= cfg.weapon.magazine || player.reload > 0) return;
   player.reload = cfg.weapon.reload;
@@ -621,7 +626,8 @@ function shootPlayer() {
   const mz = muzzleWorld(player), mx = mz.x, my = mz.y;
   for (let i = 0; i < wp.pellets; i++) {
     const a = player.angle + (i - mid) * wp.spread + rand(-wp.jitter, wp.jitter), sp = rand(wp.speed[0], wp.speed[1]);
-    bullets.push({ x: mx, y: my, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp, age: 0, life: wp.life, r: wp.radius, team: 'p' });
+    const life = bulletRange(cfg) / sp;   // 不論子彈速度，飛到射程就消失
+    bullets.push({ x: mx, y: my, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp, age: 0, life, maxLife: life, r: wp.radius, team: 'p' });
   }
   burst(mx, my, '#f6cb76', 6);
   return true;
@@ -927,7 +933,7 @@ function draw(t) {
   }
   ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
   for (const b of bullets) {
-    const q = proj(b.x, b.y), lift = 7 * Math.sin(Math.min(1, b.age / b.life) * Math.PI);
+    const q = proj(b.x, b.y), lift = 7 * Math.sin(Math.min(1, b.age / (b.maxLife || b.life + b.age)) * Math.PI);
     ctx.fillStyle = 'rgba(4,24,32,0.4)'; ctx.beginPath(); ctx.ellipse(q.x + 3 * q.k, q.y + 5 * q.k, 6 * q.k, 3 * q.k * VIEW3D.squash, 0, 0, Math.PI * 2); ctx.fill();
     ctx.fillStyle = b.team === 'p' ? '#d5fff1' : '#ffb2a6';
     ctx.beginPath(); ctx.arc(q.x, q.y - lift * q.k, b.r * q.k, 0, Math.PI * 2); ctx.fill();
