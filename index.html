@@ -249,10 +249,11 @@ const CHARACTERS = {
     maxHp: 150,
     speed: 150,                  // 每秒移動距離
     lockRange: 250,              // 自動鎖敵距離
-    dodge: 14,                   // 閃避值 → 冷卻 5.2 秒、1 次
+    dodge: 14,                   // 閃避值 → 冷卻 5.2 秒＋霰彈槍 10 秒＝15.2 秒、1 次
     armor: { value: 22, blockLow: 0.7, blockHigh: 0.5 },  // 護甲值；傷害 ≤ 護甲／> 護甲時的格擋機率
     weapon: {
       name: '霰彈槍',
+      class: 'SG',               // 武器分類：AR 突擊步槍｜SMG 衝鋒槍｜RF 步槍｜SG 霰彈槍｜MG 機槍
       magazine: 3,               // 彈匣容量
       pellets: 5,                // 每發彈丸數
       damage: 7,                 // 每顆彈丸傷害
@@ -276,6 +277,7 @@ const CHARACTERS = {
     armor: { value: 0, blockLow: 0, blockHigh: 0 },       // 沒有護甲
     weapon: {
       name: '突擊步槍',
+      class: 'AR',
       magazine: 30,
       pellets: 1,
       damage: 10,
@@ -638,7 +640,9 @@ const bulletRange = (D) => D.lockRange * D.rangeScale + D.rangeAdd;
    可累積次數 = 1 + ⌊閃避值 ÷ 40⌋，最多 3 次
      9～39：1 次｜40～79：2 次｜80 以上：3 次
    霰彈槍人形閃避值低 → 冷卻長，靠護甲生存；其他人形閃避值高 → 冷卻短、可連閃 */
-const dodgeCooldown = (v) => 10 * 15 / (15 + v);
+// 霰彈槍（SG）、機槍（MG）人形靠護甲生存，閃避冷卻額外 +10 秒
+const HEAVY_CLASSES = ['SG', 'MG'], HEAVY_DODGE_PENALTY = 10;
+const dodgeCooldown = (D) => 10 * 15 / (15 + D.dodge) + (HEAVY_CLASSES.includes(D.weapon.class) ? HEAVY_DODGE_PENALTY : 0);
 const dodgeCharges = (v) => Math.min(3, 1 + Math.floor(v / 40));
 function startDodge() {
   if (state !== 'play' || !player || player.dodgeT > 0 || player.charges <= 0) return;
@@ -646,7 +650,7 @@ function startDodge() {
   // 有移動輸入就往移動方向撲，沒有就往面向（準星）方向撲
   player.dodgeDir = player.moving ? player.moveAngle : player.angle;
   player.dodgeT = dm.time; player.invT = dm.time + dm.afterInvuln;
-  player.charges--; if (player.chargeT <= 0) player.chargeT = dodgeCooldown(cfg.dodge);
+  player.charges--; if (player.chargeT <= 0) player.chargeT = dodgeCooldown(cfg);
   player.trail = []; player.trailClock = 0;
   if (Math.abs(Math.cos(player.dodgeDir)) > 0.2) player.faceLeft = Math.cos(player.dodgeDir) < 0;
   sfx.dodge(); updateDodge();
@@ -711,9 +715,9 @@ function update(dt) {
   const maxC = dodgeCharges(cfg.dodge);
   if (player.charges < maxC) {
     player.chargeT -= dt;
-    if (player.chargeT <= 0) { player.charges++; player.chargeT = player.charges < maxC ? dodgeCooldown(cfg.dodge) : 0; updateDodge(); }
+    if (player.chargeT <= 0) { player.charges++; player.chargeT = player.charges < maxC ? dodgeCooldown(cfg) : 0; updateDodge(); }
   }
-  $('dodgeBar').style.width = player.charges < maxC ? (100 * (1 - player.chargeT / dodgeCooldown(cfg.dodge))) + '%' : '0';
+  $('dodgeBar').style.width = player.charges < maxC ? (100 * (1 - player.chargeT / dodgeCooldown(cfg))) + '%' : '0';
   player.invT = Math.max(0, player.invT - dt);
   if (player.dodgeT > 0) {
     // 撲出去：先快後慢，期間不能轉向、不能開火
