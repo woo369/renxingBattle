@@ -142,14 +142,14 @@ body:not(.touch) #touchui{display:none}
 .skill-card .cd{color:var(--gold);font-size:12.5px;font-weight:700;margin-left:6px}
 .skill-none{color:var(--muted);font-size:14px;padding:10px 0}
 /* 技能按鈕（HUD／手機） */
-#skillBtn{position:relative;width:52px;height:52px;padding:0;border-radius:50%;border:2px solid #31515d;background:#071a26c7;cursor:pointer;align-self:center}
+#skillBtn{position:relative;width:40px;height:40px;padding:0;border-radius:50%;border:2px solid #31515d;background:#071a26c7;cursor:pointer;align-self:center}
 body.touch #skillBtn{display:none}
 #skillBtn img,#tSkill img{width:100%;height:100%;border-radius:50%;display:block}
 .skill-cd{position:absolute;inset:0;border-radius:50%;pointer-events:none}
-.skill-cd-num{position:absolute;inset:0;display:grid;place-items:center;font-weight:800;font-size:15px;color:#fff;text-shadow:0 1px 3px #000;pointer-events:none;font-variant-numeric:tabular-nums}
+.skill-cd-num{position:absolute;inset:0;display:grid;place-items:center;font-weight:800;font-size:13px;color:#fff;text-shadow:0 1px 3px #000;pointer-events:none;font-variant-numeric:tabular-nums}
 .skill-key{position:absolute;right:-2px;bottom:-2px;font-size:10px;font-weight:800;background:#071a26;border:1px solid var(--line);border-radius:5px;padding:0 4px;color:var(--muted)}
 #skillBtn.armed,#tSkill.armed{border-color:#c48bff;box-shadow:0 0 0 2px #c48bff88,0 0 14px #b06bffcc}
-#tSkill{width:58px;height:58px;padding:0;right:calc(max(20px,env(safe-area-inset-right,0px)) + 104px);bottom:calc(98px + env(safe-area-inset-bottom,0px));overflow:hidden}
+#tSkill{width:46px;height:46px;padding:0;right:calc(max(20px,env(safe-area-inset-right,0px)) + 112px);bottom:calc(104px + env(safe-area-inset-bottom,0px));overflow:hidden}
 :focus-visible{outline:3px solid var(--gold);outline-offset:3px}
 @media (prefers-reduced-motion:reduce){#hpFill{transition:none}}
 </style>
@@ -339,11 +339,11 @@ const CHARACTERS = {
       id: 'laceration',
       name: '裂傷紀錄',
       icon: 'skill_laceration',
-      cooldown: 10,              // 冷卻秒數（從子彈射出後開始計算）
-      knockback: 60,             // 整發（5 顆彈丸全中）的擊退距離
+      cooldown: 5,               // 冷卻秒數（從子彈射出後開始計算）
+      knockback: 20,             // 每顆彈丸的擊退距離（5 顆全中＝100）
       purpleAfter: 200,          // 彈丸飛行超過這個距離 → 變紫色
       purpleMult: 2,             // 紫色彈丸傷害倍率（7 → 14）
-      desc: '強化下一發子彈：命中時把敵人擊退。彈丸飛行超過 200 距離後會轉為紫色，造成雙倍傷害（每顆 14）。',
+      desc: '強化下一發子彈：每顆彈丸命中時把敵人擊退 20。彈丸飛行超過 200 距離後會轉為紫色，造成雙倍傷害（每顆 14）。',
     },
     portrait: 'portrait_triple_crown',
     assets: ASSETS.triple_crown,
@@ -999,7 +999,7 @@ function update(dt) {
           if (b.purple) floatText(e.x + rand(-8, 8), e.y - 20, String(dmg), '#c48bff');
           if (b.lacer) {
             // 擊退：沿子彈方向推開，先快後慢
-            const sp = Math.hypot(b.vx, b.vy) || 1, imp = cfg.skill.knockback * 8 / cfg.weapon.pellets;
+            const sp = Math.hypot(b.vx, b.vy) || 1, imp = cfg.skill.knockback * 8;   // 衰減係數 8 → 總位移＝knockback
             e.kvx = (e.kvx || 0) + b.vx / sp * imp; e.kvy = (e.kvy || 0) + b.vy / sp * imp;
           }
           if (e.hp <= 0) {
