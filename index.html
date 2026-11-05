@@ -91,8 +91,14 @@ body:not(.touch) #touchui{display:none}
 .tbtn{position:absolute;pointer-events:auto;touch-action:none;border-radius:50%;border:1px solid #8cecd2aa;background:#103640e0;color:#e7fff6;font-weight:800;font-size:16px;display:grid;place-items:center;box-shadow:0 5px 18px #03172088}
 .tbtn.held{filter:brightness(1.35);transform:scale(.96)}
 #tFire{width:88px;height:88px;right:max(20px,env(safe-area-inset-right,0px));bottom:calc(22px + env(safe-area-inset-bottom,0px));background:#258d83}
+#dodgeBlock{min-width:60px}
+#dodgePips{display:flex;gap:5px;margin-top:6px}
+.dpip{width:12px;height:12px;border-radius:50%;border:1.5px solid #53dfcb;background:transparent}
+.dpip.on{background:var(--aqua);box-shadow:0 0 6px #53dfcb99}
+#dodgeBar{height:3px;margin-top:5px;border-radius:2px;background:var(--gold);width:0}
+#tDodge{width:62px;height:62px;right:max(32px,env(safe-area-inset-right,0px));bottom:calc(122px + env(safe-area-inset-bottom,0px));background:#2b5b6b}
 #tReload{width:62px;height:62px;right:calc(max(20px,env(safe-area-inset-right,0px)) + 100px);bottom:calc(22px + env(safe-area-inset-bottom,0px))}
-@media (max-height:430px){#tFire{width:76px;height:76px}#tReload{width:56px;height:56px;right:calc(max(20px,env(safe-area-inset-right,0px)) + 88px)}.hud-num{font-size:18px}}
+@media (max-height:430px){#tDodge{width:56px;height:56px;bottom:calc(106px + env(safe-area-inset-bottom,0px))}#tFire{width:76px;height:76px}#tReload{width:56px;height:56px;right:calc(max(20px,env(safe-area-inset-right,0px)) + 88px)}.hud-num{font-size:18px}}
 #hpText{white-space:nowrap;gap:8px}
 @media (max-width:520px){#ammoBlock .hud-label,#hpText span:first-child{display:none}#ammoBlock{min-width:0}#hudHp{min-width:70px}}
 @media (max-width:520px){#hud{gap:8px}.hud-block{padding:5px 9px}#hudScore{gap:10px}.hud-num{font-size:18px}.icon-btn{width:38px}}
@@ -116,6 +122,7 @@ body:not(.touch) #touchui{display:none}
     <div id="hpTrack"><div id="hpFill"></div></div>
   </div>
   <div id="hudRight">
+    <div class="hud-block" id="dodgeBlock"><span class="hud-label">閃避</span><div id="dodgePips"></div><div id="dodgeBar"></div></div>
     <div class="hud-block" id="ammoBlock"><span class="hud-label" id="ammoLabel">彈藥</span><span class="hud-num" id="ammoNum">3 / 3</span><div id="reloadBar"></div></div>
     <button class="icon-btn" id="muteBtn" type="button" aria-label="音效開關" title="音效">
       <svg viewBox="0 0 24 24"><path d="M4 9v6h4l5 4V5L8 9H4z"/><path id="muteWave" d="M16.5 8.5a5 5 0 0 1 0 7M19 6a8.5 8.5 0 0 1 0 12"/></svg>
@@ -129,6 +136,7 @@ body:not(.touch) #touchui{display:none}
 <div id="touchui" hidden>
   <div id="stickRing"><div id="stickKnob"></div></div>
   <button class="tbtn" id="tReload" type="button">裝彈</button>
+  <button class="tbtn" id="tDodge" type="button">閃避</button>
   <button class="tbtn" id="tFire" type="button">開火</button>
 </div>
 
@@ -139,8 +147,8 @@ body:not(.touch) #touchui{display:none}
     <p class="lede">在無限延伸的戰場上移動、瞄準，擊碎金色方塊，迎戰黑色剪影敵人。選一名人形出擊，每個角色的武器與數值都不同。</p>
     <div class="roster" id="roster"></div>
     <button id="startBtn" class="btn primary" type="button" disabled>載入中…</button>
-    <p class="help only-mouse">WASD／方向鍵移動 · 滑鼠瞄準 · 左鍵或空白鍵開火 · R 裝彈 · 滾輪縮放 · P／Esc 暫停</p>
-    <p class="help only-touch">左半邊螢幕拖曳移動 · 右下角開火、裝彈 · 範圍內自動鎖定最近的敵人</p>
+    <p class="help only-mouse">WASD／方向鍵移動 · 滑鼠瞄準 · 左鍵或空白鍵開火 · Shift 或右鍵閃避 · R 裝彈 · 滾輪縮放 · P／Esc 暫停</p>
+    <p class="help only-touch">左半邊螢幕拖曳移動 · 右下角開火、裝彈、閃避 · 範圍內自動鎖定最近的敵人</p>
     <p class="best" id="bestLine"></p>
   </div>
 </div>
@@ -197,6 +205,9 @@ const CHARACTER_BASE = {
   // 例：1.2 倍 → rangeScale: 1.2, rangeAdd: 0；鎖敵距離 ＋50 → rangeScale: 1, rangeAdd: 50
   rangeScale: 1.2,
   rangeAdd: 0,
+  // 閃避：向前撲一段距離，撲出去的期間＋停下後 afterInvuln 秒無敵
+  // 冷卻與可累積次數由各角色的「閃避值」換算（見 dodgeCooldown／dodgeCharges）
+  dodgeMove: { distance: 120, time: 0.22, afterInvuln: 0.5 },
   anim: {
     scale: 0.0738,               // 1440px 原圖縮放到遊戲內的比例
     runCycle: 0.44,              // 跑完一輪奔跑動畫的秒數（不論幾幀）
@@ -238,6 +249,7 @@ const CHARACTERS = {
     maxHp: 150,
     speed: 150,                  // 每秒移動距離
     lockRange: 250,              // 自動鎖敵距離
+    dodge: 14,                   // 閃避值 → 冷卻 4.1 秒、1 次
     armor: { value: 22, blockLow: 0.7, blockHigh: 0.5 },  // 護甲值；傷害 ≤ 護甲／> 護甲時的格擋機率
     weapon: {
       name: '霰彈槍',
@@ -260,6 +272,7 @@ const CHARACTERS = {
     maxHp: 100,
     speed: 210,                  // 速度、鎖敵、武器其餘數值為突擊步槍暫定值
     lockRange: 300,
+    dodge: 45,                   // 閃避值 → 冷卻 2.4 秒、可累積 2 次
     armor: { value: 0, blockLow: 0, blockHigh: 0 },       // 沒有護甲
     weapon: {
       name: '突擊步槍',
@@ -380,6 +393,7 @@ const sfx = {
   hurt() { tone('sawtooth', 160, 60, 0.16, 0.2); },
   block() { tone('square', 900, 700, 0.07, 0.1); },
   reload() { tone('square', 1100, 700, 0.04, 0.08); },
+  dodge() { noise(0.16, 0.18, 900); tone('sine', 380, 160, 0.14, 0.08); },
   crate() { noise(0.1, 0.25, 2500); },
 };
 function syncMute() {
@@ -522,11 +536,12 @@ function startGame() {
   audio();
   cfg = CHARACTERS[selectedId];
   score = 0; kills = 0; gameTime = 0; spawnClock = 0; shake = 0; hurtT = 0;
-  player = { x: 0, y: 0, r: cfg.radius, hp: cfg.maxHp, maxHp: cfg.maxHp, ammo: cfg.weapon.magazine, angle: 0, moveAngle: 0, cool: 0, reload: 0, shot: 0, def: cfg, moving: false };
+  player = { x: 0, y: 0, r: cfg.radius, hp: cfg.maxHp, maxHp: cfg.maxHp, ammo: cfg.weapon.magazine, angle: 0, moveAngle: 0, cool: 0, reload: 0, shot: 0, def: cfg, moving: false,
+    charges: dodgeCharges(cfg.dodge), chargeT: 0, dodgeT: 0, invT: 0, dodgeDir: 0, trail: [] };
   cam = { x: 0, y: 0 }; chunks.clear(); coverCache = null; computeZoom(); stream();
   enemies = []; bullets = []; particles = []; floaters = [];
   for (let i = 0; i < ENEMY.initial; i++) addEnemy();
-  $('score').textContent = '0'; $('kills').textContent = '0'; $('ammoLabel').textContent = cfg.weapon.name + '彈藥'; updateAmmo(); updateHp();
+  updateDodge(); $('score').textContent = '0'; $('kills').textContent = '0'; $('ammoLabel').textContent = cfg.weapon.name + '彈藥'; updateAmmo(); updateHp();
   setState('play'); last = performance.now();
 }
 function endGame() {
@@ -545,6 +560,7 @@ window.addEventListener('keydown', (e) => {
   if (state === 'play' && ['Space', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.code)) e.preventDefault();
   if (e.repeat) { keys.add(e.code); return; }
   if (e.code === 'KeyR' && state === 'play') reload();
+  if ((e.code === 'ShiftLeft' || e.code === 'ShiftRight' || e.code === 'KeyK') && state === 'play') startDodge();
   if ((e.code === 'KeyP' || e.code === 'Escape')) { state === 'play' ? pauseGame() : resumeGame(); }
   if ((e.code === 'Equal' || e.code === 'NumpadAdd') && state === 'play') setZoom(userZoom * 1.1);
   if ((e.code === 'Minus' || e.code === 'NumpadSubtract') && state === 'play') setZoom(userZoom / 1.1);
@@ -567,6 +583,7 @@ function endStick() {
 canvas.addEventListener('pointerdown', (e) => {
   if (e.pointerType === 'mouse') {
     setTouchMode(false);
+    if (state === 'play' && e.button === 2) { startDodge(); return; }
     if (state !== 'play' || e.button !== 0) return;
     try { canvas.setPointerCapture(e.pointerId); } catch (_) {}
     mouseDown = true; mouse.x = e.offsetX; mouse.y = e.offsetY; mouse.seen = true;
@@ -595,6 +612,7 @@ tFire.addEventListener('pointerdown', (e) => { e.preventDefault(); try { tFire.s
 const fireUp = () => { fireHeld = false; tFire.classList.remove('held'); };
 ['pointerup', 'pointercancel', 'lostpointercapture'].forEach((t) => tFire.addEventListener(t, fireUp));
 tReload.addEventListener('pointerdown', (e) => { e.preventDefault(); if (state === 'play') reload(); });
+$('tDodge').addEventListener('pointerdown', (e) => { e.preventDefault(); startDodge(); });
 
 $('startBtn').addEventListener('click', startGame);
 $('retryBtn').addEventListener('click', startGame);
@@ -614,6 +632,27 @@ function burst(x, y, color, n = 8) {
 }
 function floatText(x, y, text, color) { floaters.push({ x, y, text, color, life: 0.7, max: 0.7 }); }
 const bulletRange = (D) => D.lockRange * D.rangeScale + D.rangeAdd;
+/* 閃避值換算（越高越好、效益遞減）
+   冷卻時間 = 6 × 30 ÷ (30 + 閃避值)　→ 14：4.1 秒、45：2.4 秒、80：1.6 秒
+   可累積次數 = 1 + ⌊閃避值 ÷ 40⌋，最多 3 次 → 14：1 次、45：2 次、80：3 次 */
+const dodgeCooldown = (v) => 6 * 30 / (30 + v);
+const dodgeCharges = (v) => Math.min(3, 1 + Math.floor(v / 40));
+function startDodge() {
+  if (state !== 'play' || !player || player.dodgeT > 0 || player.charges <= 0) return;
+  const dm = cfg.dodgeMove;
+  // 有移動輸入就往移動方向撲，沒有就往面向（準星）方向撲
+  player.dodgeDir = player.moving ? player.moveAngle : player.angle;
+  player.dodgeT = dm.time; player.invT = dm.time + dm.afterInvuln;
+  player.charges--; if (player.chargeT <= 0) player.chargeT = dodgeCooldown(cfg.dodge);
+  player.trail = []; player.trailClock = 0;
+  if (Math.abs(Math.cos(player.dodgeDir)) > 0.2) player.faceLeft = Math.cos(player.dodgeDir) < 0;
+  sfx.dodge(); updateDodge();
+}
+function updateDodge() {
+  const max = dodgeCharges(cfg.dodge), box = $('dodgePips');
+  if (box.children.length !== max) { box.textContent = ''; for (let i = 0; i < max; i++) { const d = document.createElement('span'); d.className = 'dpip'; box.appendChild(d); } }
+  [...box.children].forEach((d, i) => d.classList.toggle('on', i < player.charges));
+}
 function reload() {
   if (state !== 'play' || player.ammo >= cfg.weapon.magazine || player.reload > 0) return;
   player.reload = cfg.weapon.reload;
@@ -637,6 +676,7 @@ function shootEnemy(e) {
   bullets.push({ x: mz.x, y: mz.y, vx: Math.cos(a) * ENEMY.bulletSpeed, vy: Math.sin(a) * ENEMY.bulletSpeed, age: 0, life: ENEMY.bulletLife, r: ENEMY.bulletR, team: 'e' });
 }
 function damage(amount) {
+  if (player.invT > 0) return;   // 閃避無敵中
   // 沒有受擊無敵：每一次命中都會判定
   const ar = cfg.armor;
   const blocked = amount <= ar.value ? Math.random() < ar.blockLow : Math.random() < ar.blockHigh;
@@ -663,14 +703,32 @@ function update(dt) {
   dx += stick.x; dy += stick.y;
   const len = Math.hypot(dx, dy), mag = Math.min(1, len);
   player.moving = len > 0.08;
-  if (len) moveWithCover(player, dx / len * mag * cfg.speed * dt, dy / len * mag * cfg.speed * dt);
   if (len > 0.08) player.moveAngle = Math.atan2(dy, dx);
+  // 閃避充能：一次補一格
+  const maxC = dodgeCharges(cfg.dodge);
+  if (player.charges < maxC) {
+    player.chargeT -= dt;
+    if (player.chargeT <= 0) { player.charges++; player.chargeT = player.charges < maxC ? dodgeCooldown(cfg.dodge) : 0; updateDodge(); }
+  }
+  $('dodgeBar').style.width = player.charges < maxC ? (100 * (1 - player.chargeT / dodgeCooldown(cfg.dodge))) + '%' : '0';
+  player.invT = Math.max(0, player.invT - dt);
+  if (player.dodgeT > 0) {
+    // 撲出去：先快後慢，期間不能轉向、不能開火
+    const dm = cfg.dodgeMove, k = player.dodgeT / dm.time;
+    const v = dm.distance / dm.time * 2 * k;
+    moveWithCover(player, Math.cos(player.dodgeDir) * v * dt, Math.sin(player.dodgeDir) * v * dt);
+    player.dodgeT = Math.max(0, player.dodgeT - dt);
+    player.trailClock -= dt;
+    if (player.trailClock <= 0) { player.trailClock = 0.04; player.trail.push({ x: player.x, y: player.y, life: 0.25 }); }
+    player.moving = true;
+  } else if (len) moveWithCover(player, dx / len * mag * cfg.speed * dt, dy / len * mag * cfg.speed * dt);
+  for (let i = player.trail.length - 1; i >= 0; i--) { player.trail[i].life -= dt; if (player.trail[i].life <= 0) player.trail.splice(i, 1); }
   player.shot = Math.max(0, player.shot - dt);
 
   // 鎖定目標：範圍內最近的敵人
   let target = null, best = Infinity;
   for (const e of enemies) { const d = Math.hypot(e.x - player.x, e.y - player.y); if (d <= cfg.lockRange && d < best) { best = d; target = e; } }
-  const wantsFire = mouseDown || fireHeld || keys.has('Space') || keys.has('KeyJ');
+  const wantsFire = (mouseDown || fireHeld || keys.has('Space') || keys.has('KeyJ')) && player.dodgeT <= 0;
 
   // 瞄準
   if (!isTouch() && mouse.seen) {
@@ -693,8 +751,8 @@ function update(dt) {
   // 動畫狀態：停下、按住開火、開火後一小段時間 → 分體瞄準；其餘奔跑 → 原本的提槍奔跑
   player.aimT = Math.max(0, (player.aimT || 0) - dt);
   if (wantsFire) player.aimT = cfg.anim.aimHold;
-  player.aiming = !player.moving || player.shot > 0 || player.aimT > 0;
-  if (player.moving && Math.abs(Math.cos(player.moveAngle)) > 0.2) player.faceLeft = Math.cos(player.moveAngle) < 0;
+  player.aiming = (!player.moving || player.shot > 0 || player.aimT > 0) && player.dodgeT <= 0;
+  if (player.dodgeT <= 0 && player.moving && Math.abs(Math.cos(player.moveAngle)) > 0.2) player.faceLeft = Math.cos(player.moveAngle) < 0;
   // 瞄準中且移動方向與面向相反＝後退
   player.backward = player.aiming && player.moving && Math.cos(player.moveAngle) * (Math.cos(player.angle) < 0 ? -1 : 1) < -0.3;
 
@@ -737,7 +795,7 @@ function update(dt) {
     if (e.cool <= 0 && dist <= ENEMY.stopRange) { shootEnemy(e); e.cool = ENEMY.fireCooldown; e.shot = e.shotMax = 0.22; }
     // 接觸傷害：每隻敵人各自冷卻，避免每一幀都扣血
     e.touchCd = Math.max(0, e.touchCd - dt);
-    if (dist < e.r + player.r && e.touchCd <= 0) { damage(ENEMY.contactDmg); e.touchCd = ENEMY.contactEvery; }
+    if (dist < e.r + player.r && e.touchCd <= 0 && player.invT <= 0) { damage(ENEMY.contactDmg); e.touchCd = ENEMY.contactEvery; }
   }
 
   const blocks = covers();
@@ -746,6 +804,7 @@ function update(dt) {
     if (b.life <= 0 || Math.hypot(b.x - player.x, b.y - player.y) > far) { bullets.splice(i, 1); continue; }
     let hit = false;
     if (b.team === 'e') {
+      if (player.invT > 0) continue;   // 無敵時子彈直接穿過
       if (Math.hypot(b.x - player.x, b.y - player.y) < b.r + player.r) { damage(ENEMY.bulletDmg); hit = true; }
     } else {
       for (const e of enemies) {
@@ -827,7 +886,7 @@ function muzzleWorld(en) {
   if (p.left) x = -x;
   return { x: en.x + x, y: en.y + y + p.by };
 }
-function drawCharacter(en, isEnemy) {
+function drawCharacter(en, isEnemy, ghost) {
   const D = en.def || cfg, m = D.assets.meta, box = imgs[D.id] || {};
   const q = proj(en.x, en.y);
   // 用投影後的螢幕角度畫槍，槍口才會對準畫面上的準星
@@ -837,7 +896,8 @@ function drawCharacter(en, isEnemy) {
   if (!bodyIm || !gunIm) return;
   const [bx, byy, bw, bh] = m.body;
   const sc = p.sc, left = p.left;
-  // 碰撞半徑圈（視覺輔助）與朝向箭頭：貼地
+  // 碰撞半徑圈（視覺輔助）與朝向箭頭：貼地（殘影不畫）
+  if (!ghost) {
   ground(q, en.x, en.y);
   ctx.strokeStyle = 'rgba(202,160,255,0.55)'; ctx.lineWidth = 1.5;
   ctx.beginPath(); ctx.arc(en.x, en.y, en.r, 0, Math.PI * 2); ctx.stroke();
@@ -845,13 +905,17 @@ function drawCharacter(en, isEnemy) {
   ctx.translate(en.x + Math.cos(en.angle) * (en.r + 6), en.y + Math.sin(en.angle) * (en.r + 6)); ctx.rotate(en.angle + Math.PI);
   ctx.fillStyle = '#f9cf70'; ctx.font = '800 13px sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText('<', 0, 0);
   ctx.restore();
+  }
   upright(q, en.x, en.y);
   ctx.save();
   ctx.translate(en.x, en.y + p.by);
   if (left) ctx.scale(-1, 1);
   ctx.imageSmoothingEnabled = true; ctx.imageSmoothingQuality = 'high';
   if (isEnemy) ctx.globalAlpha = 0.9;
+  if (ghost) ctx.globalAlpha = ghost;
+  else if (!isEnemy && en.invT > 0 && en.dodgeT <= 0) ctx.globalAlpha = 0.55 + 0.35 * Math.abs(Math.sin(gameTime * 18));   // 停下後的無敵：閃爍
   if (p.full) {
+    if (en.dodgeT > 0 || ghost) { const fy = 28; ctx.translate(0, fy); ctx.rotate(0.38); ctx.translate(0, -fy); }   // 向前撲：身體前傾
     ctx.drawImage(isEnemy ? silhouette(bodyIm) : bodyIm, (bx - m.cx) * sc, (byy - m.cy) * sc, bw * sc, bh * sc);
     ctx.restore();
     return;
@@ -929,7 +993,11 @@ function draw(t) {
       upright(q, it.x, it.y);
       ctx.fillStyle = '#26343b'; ctx.fillRect(it.x - 18, it.y - 42, 36, 4);
       ctx.fillStyle = '#ff988c'; ctx.fillRect(it.x - 18, it.y - 42, 36 * Math.max(0, it.hp) / ENEMY.hp, 4);
-    } else drawCharacter(it, false);
+    } else {
+      // 閃避殘影
+      for (const g of it.trail || []) drawCharacter({ ...it, x: g.x, y: g.y, dodgeT: 1, moving: true, aiming: false, shot: 0 }, false, 0.28 * g.life / 0.25);
+      drawCharacter(it, false);
+    }
   }
   ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
   for (const b of bullets) {
