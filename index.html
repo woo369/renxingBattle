@@ -555,8 +555,8 @@ const BOSSES = {
     magazine: 12,
     reload: 5,
     lockRange: 285,
-    speed: 250,
-    keepDist: 260,               // 與玩家保持的距離
+    speed: 225,
+    keepDist: 240,               // 與玩家保持的距離
     evade: 0,                    // 迴避率（未指定，暫定 0）
     radius: 28,
     // 體型：素材已縮放成一般角色的 1.25 倍
@@ -1179,7 +1179,9 @@ function updateBoss(e, dt, toward, dist) {
   let mx = ux * radial + -uy * e.strafe * 0.85, my = uy * radial + ux * e.strafe * 0.85;
   if (e.jinkT > 0) { mx = mx * 0.3 + e.jx * 1.6; my = my * 0.3 + e.jy * 1.6; }
   const ml = Math.hypot(mx, my) || 1, k = Math.min(1, ml);
-  const tvx = mx / ml * B.speed * k, tvy = my / ml * B.speed * k, a = 1 - Math.exp(-dt * 6);
+  // 射擊時站定不動（範圍內且沒在填裝）；只有填裝或距離太遠時才移動、閃躲
+  const firing = e.reloadT <= 0 && dist <= B.lockRange;
+  const tvx = firing ? 0 : mx / ml * B.speed * k, tvy = firing ? 0 : my / ml * B.speed * k, a = 1 - Math.exp(-dt * 6);
   e.vx += (tvx - e.vx) * a; e.vy += (tvy - e.vy) * a;
   if (e.kvx || e.kvy) { e.vx += e.kvx * 0.3; e.vy += e.kvy * 0.3; e.kvx = e.kvy = 0; }
   moveWithCover(e, e.vx * dt, e.vy * dt);
