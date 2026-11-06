@@ -171,6 +171,7 @@ body.touch #skillBtn{display:none}
     <div><span class="hud-label">分數</span><span class="hud-num" id="score">0</span></div>
     <div><span class="hud-label">擊敗</span><span class="hud-num" id="kills">0</span></div>
   </div>
+  <div class="hud-block" id="phaseBlock" hidden><span class="hud-label" id="phaseName">第一階段</span><span class="hud-num" id="phaseTime">3:00</span></div>
   <div class="hud-block" id="hudHp">
     <div id="hpText"><span>生命</span><span><span id="hpNum">150 / 150</span><span id="shieldNum"></span></span></div>
     <div id="hpTrack"><div id="hpFill"></div><div class="shield-fill" id="shieldFill"></div><div class="shield-fill" id="shieldFill2"></div></div>
@@ -243,7 +244,7 @@ body.touch #skillBtn{display:none}
 
 <div id="over" class="overlay" hidden>
   <div class="sheet" style="max-width:400px">
-    <h2>本回合結束</h2>
+    <h2 id="overTitle">本回合結束</h2>
     <p class="stats-line" style="margin-bottom:0">你的最終得分</p>
     <p class="big-score" id="finalScore">0</p>
     <p class="stats-line" id="finalStats"></p>
@@ -506,11 +507,32 @@ const CLASS_NAMES = { AR: '突擊步槍', SMG: '衝鋒槍', HG: '手槍', RF: '�
 // 關卡：之後新增關卡就在這裡加
 const LEVELS = [
   { id: 'training', name: '訓練場', open: true, desc: '無限延伸的戰場，與跟你相同角色的影子敵人持續對戰，看能撐多久。' },
+  { id: 'war', name: '戰事', open: true, desc: '更強的敵人分階段進攻。第一階段（0:00～3:00）：撐過 3 分鐘即可過關。' },
   { id: 'locked1', name: '尚未解鎖', open: false, desc: '敬請期待' },
 ];
 let selectedLevel = 'training';
 // 影子敵人：hp 生命｜lockRange 開火距離｜stopRange 停下距離｜fireCooldown 開火間隔（秒）｜evade 迴避率
-const ENEMY = { hp: 30, radius: 19, speed: 36, wobble: 17, lockRange: 225, stopRange: 200, fireCooldown: 1, evade: 0.05, bulletDmg: 10, bulletSpeed: 245, bulletLife: 2, bulletR: 5.5, contactDmg: 12, contactEvery: 0.6, initial: 3 };
+// 訓練場的影子敵人
+const ENEMY = { hp: 30, radius: 19, speed: 36, wobble: 17, lockRange: 225, stopRange: 200, fireCooldown: 1, evade: 0.05, bulletDmg: 10, bulletSpeed: 245, bulletLife: 2, bulletR: 5.5, contactDmg: 12, contactEvery: 0.6, initial: 3,
+  magazine: 0, reload: 0 };   // magazine 0＝沒有彈匣限制
+
+/* 戰事：分階段進攻（外觀暫用影子敵人）
+   每個階段：time 結束時間（秒）、enemy 敵人數值、spawn 生成節奏 */
+const WAR_PHASES = [
+  {
+    name: '第一階段', end: 180,
+    enemy: { ...ENEMY,
+      hp: 80, bulletDmg: 10,
+      fireCooldown: 0.5,         // 半秒一發
+      magazine: 3, reload: 3,    // 彈匣 3 發，換彈 3 秒
+      lockRange: 270,            // 開火距離
+      stopRange: 240,            // 停下距離（暫定：鎖敵距離 −30）
+      evade: 0.05,               // 迴避率 5%（不會閃避）
+      initial: 4 },
+    spawn: { every: 3.2, min: 2.2, max: 10 },   // 每 3.2 秒生成一隻，逐漸加快到 2.2 秒；同時最多 10 隻
+  },
+];
+let E = ENEMY, phase = null;   // 本局使用的敵人數值與目前階段
 const CHUNK = 420;
 // 偽 3D：地面向後傾斜。squash＝地面壓扁程度，depth＝透視強度（越小越強），anchor＝玩家在畫面的高度比例
 const VIEW3D = { squash: 0.78, depth: 2.2, anchor: 0.58, haze: 0.5 };
@@ -808,13 +830,13 @@ function addShield(v) {
   floatText(player.x, player.y - 46, '＋護盾 ' + Math.round(v), '#9cc6ff');
 }
 function addEnemy() {
-  const maxN = Math.min(14, 9 + Math.floor(gameTime / 60));
+  const maxN = phase ? phase.spawn.max : Math.min(14, 9 + Math.floor(gameTime / 60));
   if (enemies.length >= maxN) return;
   const a = rand(0, Math.PI * 2), ca = Math.cos(a), sa = Math.sin(a);
   let d = 150;
   while (d < 4000 && onScreen(proj(player.x + ca * d, player.y + sa * d), 90)) d += 40;
   d += rand(20, 90);
-  enemies.push({ x: player.x + ca * d, y: player.y + sa * d, r: ENEMY.radius, hp: ENEMY.hp, angle: 0, cool: rand(1.2, 2), touchCd: 0, def: cfg, shot: 0, moving: true, phase: rand(0, 6) });
+  enemies.push({ x: player.x + ca * d, y: player.y + sa * d, r: E.radius, hp: E.hp, ammo: E.magazine, angle: 0, cool: rand(1.2, 2), touchCd: 0, def: cfg, shot: 0, moving: true, phase: rand(0, 6) });
 }
 function startGame() {
   audio();
@@ -824,12 +846,16 @@ function startGame() {
     charges: dodgeCharges(cfg.dodge), chargeT: 0, dodgeT: 0, invT: 0, dodgeDir: 0, trail: [] };
   cam = { x: 0, y: 0 }; chunks.clear(); coverCache = null; computeZoom(); stream();
   enemies = []; bullets = []; particles = []; floaters = []; grenades = []; blasts = []; runFx = [];
-  for (let i = 0; i < ENEMY.initial; i++) addEnemy();
+  // 依關卡決定敵人數值
+  if (selectedLevel === 'war') { phase = WAR_PHASES[0]; E = phase.enemy; } else { phase = null; E = ENEMY; }
+  $('phaseBlock').hidden = !phase;
+  for (let i = 0; i < E.initial; i++) addEnemy();
   if (cfg.skill) { $('skillImg').src = ASSETS.ui[cfg.skill.icon]; $('tSkillImg').src = ASSETS.ui[cfg.skill.icon]; }
   updateSkill(); updateDodge(); $('score').textContent = '0'; $('kills').textContent = '0'; $('ammoLabel').textContent = cfg.weapon.name + '彈藥'; updateAmmo(); updateHp();
   setState('play'); last = performance.now();
 }
-function endGame() {
+function endGame(cleared) {
+  $('overTitle').textContent = cleared ? '第一階段完成！' : '本回合結束';
   const isBest = score > best;
   if (isBest) { best = score; store.set('rxxlc-best', String(best)); }
   $('finalScore').textContent = score.toLocaleString('zh-TW');
@@ -1020,7 +1046,7 @@ function shootPlayer() {
 }
 function shootEnemy(e) {
   const a = e.angle, mz = muzzleWorld(e);
-  bullets.push({ x: mz.x, y: mz.y, vx: Math.cos(a) * ENEMY.bulletSpeed, vy: Math.sin(a) * ENEMY.bulletSpeed, age: 0, life: ENEMY.bulletLife, r: ENEMY.bulletR, team: 'e' });
+  bullets.push({ x: mz.x, y: mz.y, vx: Math.cos(a) * E.bulletSpeed, vy: Math.sin(a) * E.bulletSpeed, age: 0, life: E.bulletLife, r: E.bulletR, team: 'e' });
 }
 function damage(amount) {
   if (player.invT > 0) return;   // 閃避無敵中
@@ -1047,7 +1073,7 @@ function moveWithCover(en, dx, dy) {
   }
 }
 // 影子敵人的實際迴避率：受「迴避率降低」影響，最低 0%
-const enemyEvade = (e) => Math.max(0, ENEMY.evade - (e.debuffT > 0 ? e.evadeDown || 0 : 0));
+const enemyEvade = (e) => Math.max(0, E.evade - (e.debuffT > 0 ? e.evadeDown || 0 : 0));
 /* 暴擊：暴擊率＝攻擊者暴擊率（目前人形皆為 0%）＋目標易傷，暴擊時傷害 ×2
    例：易傷 20% 的敵人被 10 傷害的子彈打中 → 20% 機率受到 20 */
 const PLAYER_CRIT = 0;
@@ -1183,26 +1209,37 @@ function update(dt) {
 
   // 敵人生成（隨時間變快）
   spawnClock += dt;
-  if (spawnClock > Math.max(1.6, 4.2 - gameTime / 40)) { spawnClock = 0; addEnemy(); }
+  const every = phase ? Math.max(phase.spawn.min, phase.spawn.every - gameTime / phase.end * (phase.spawn.every - phase.spawn.min))
+                      : Math.max(1.6, 4.2 - gameTime / 40);
+  if (spawnClock > every) { spawnClock = 0; addEnemy(); }
+  if (phase) {
+    const left = Math.max(0, phase.end - gameTime), m = Math.floor(left / 60), sec = Math.floor(left % 60);
+    $('phaseTime').textContent = m + ':' + String(sec).padStart(2, '0');
+    if (left <= 0) { endGame(true); return; }
+  }
 
   const vb0 = viewBounds(), far = Math.max(vb0.hw, -vb0.t, vb0.b) * 1.8;
   for (let i = enemies.length - 1; i >= 0; i--) {
     const e = enemies[i], toward = Math.atan2(player.y - e.y, player.x - e.x), dist = Math.hypot(player.x - e.x, player.y - e.y);
     if (dist > far) { enemies.splice(i, 1); continue; }
-    e.angle = toward; e.phase += dt; e.moving = dist > ENEMY.stopRange;
+    e.angle = toward; e.phase += dt; e.moving = dist > E.stopRange;
     e.aiming = !e.moving || e.shot > 0; e.faceLeft = Math.cos(toward) < 0;
     if (e.kvx || e.kvy) {
       moveWithCover(e, e.kvx * dt, e.kvy * dt);
       const k = Math.exp(-8 * dt); e.kvx *= k; e.kvy *= k;
       if (Math.hypot(e.kvx, e.kvy) < 4) e.kvx = e.kvy = 0;
     }
-    if (e.moving) moveWithCover(e, (Math.cos(toward) * ENEMY.speed + Math.cos(e.phase * 1.7) * ENEMY.wobble) * dt, (Math.sin(toward) * ENEMY.speed + Math.sin(e.phase * 1.5) * ENEMY.wobble) * dt);
+    if (e.moving) moveWithCover(e, (Math.cos(toward) * E.speed + Math.cos(e.phase * 1.7) * E.wobble) * dt, (Math.sin(toward) * E.speed + Math.sin(e.phase * 1.5) * E.wobble) * dt);
     e.cool -= dt; e.shot = Math.max(0, e.shot - dt);
-    if (e.cool <= 0 && dist <= ENEMY.lockRange) { shootEnemy(e); e.cool = ENEMY.fireCooldown; e.shot = e.shotMax = 0.22; }
+    if (e.reloadT > 0) { e.reloadT -= dt; if (e.reloadT <= 0) e.ammo = E.magazine; }
+    else if (e.cool <= 0 && dist <= E.lockRange) {
+      shootEnemy(e); e.cool = E.fireCooldown; e.shot = e.shotMax = 0.22;
+      if (E.magazine) { e.ammo--; if (e.ammo <= 0) e.reloadT = E.reload; }   // 打完彈匣 → 換彈
+    }
     // 接觸傷害：每隻敵人各自冷卻，避免每一幀都扣血
     e.touchCd = Math.max(0, e.touchCd - dt);
     if (e.debuffT > 0) e.debuffT = Math.max(0, e.debuffT - dt);
-    if (dist < e.r + player.r && e.touchCd <= 0 && player.invT <= 0) { damage(ENEMY.contactDmg); e.touchCd = ENEMY.contactEvery; }
+    if (dist < e.r + player.r && e.touchCd <= 0 && player.invT <= 0) { damage(E.contactDmg); e.touchCd = E.contactEvery; }
   }
 
   const blocks = covers();
@@ -1217,7 +1254,7 @@ function update(dt) {
         if (Math.random() < evadeRate(cfg)) {
           // 迴避：子彈穿過、不扣血，也不會打斷霞光萍蹤的強化
           b.evaded = true; floatText(player.x, player.y - 40, 'MISS', '#bfefff'); sfx.evade();
-        } else { damage(ENEMY.bulletDmg); hit = true; }
+        } else { damage(E.bulletDmg); hit = true; }
       }
     } else {
       for (const e of enemies) {
@@ -1472,12 +1509,16 @@ function draw(t) {
       }
       drawCharacter(it, true);
       upright(q, it.x, it.y);
+      if (it.reloadT > 0) {
+        ctx.fillStyle = '#c9d6db'; ctx.font = '700 9px sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+        ctx.fillText('換彈中', it.x, it.y - 50);
+      }
       if (it.debuffT > 0) {
         ctx.fillStyle = '#ff5d8f'; ctx.font = '800 10px sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-        ctx.fillText('易傷', it.x, it.y - 50);
+        ctx.fillText('易傷', it.x, it.y - (it.reloadT > 0 ? 61 : 50));
       }
       ctx.fillStyle = '#26343b'; ctx.fillRect(it.x - 18, it.y - 42, 36, 4);
-      ctx.fillStyle = '#ff988c'; ctx.fillRect(it.x - 18, it.y - 42, 36 * Math.max(0, it.hp) / ENEMY.hp, 4);
+      ctx.fillStyle = '#ff988c'; ctx.fillRect(it.x - 18, it.y - 42, 36 * Math.max(0, it.hp) / E.hp, 4);
     } else {
       // 閃避殘影
       for (const g of it.trail || []) drawCharacter({ ...it, x: g.x, y: g.y, dodgeT: 1, moving: true, aiming: false, shot: 0 }, false, 0.28 * g.life / 0.25);
