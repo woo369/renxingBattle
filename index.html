@@ -624,7 +624,7 @@ const ENEMY = { hp: 30, radius: 19, speed: 150, wobble: 17, lockRange: 225, stop
   magazine: 0, reload: 0 };   // magazine 0＝沒有彈匣限制
 
 /* 戰事的敵人種類
-   armor 護甲：傷害 ≤ 護甲時 70% 完全格擋；傷害 > 護甲時 50% 機率減去護甲值（與人形護甲相同規則）
+   armor 護甲：傷害 ≤ 護甲時 70% 機率格擋、> 護甲時 50% 機率格擋；格擋後傷害 − 護甲值，最低剩 1（與人形護甲相同規則）
    pellets/spread：霰彈槍一次射出的彈丸數與散布角度 */
 const CYCLOPS = { ...ENEMY,
   name: '獨眼巨人',
@@ -1453,7 +1453,7 @@ function damage(amount, pierce) {
   // 沒有受擊無敵：每一次命中都會判定；pierce（電磁傷害）無視護甲
   const ar = cfg.armor;
   const blocked = !pierce && (amount <= ar.value ? Math.random() < ar.blockLow : Math.random() < ar.blockHigh);
-  const real = blocked ? Math.max(0, amount - ar.value) : amount;
+  const real = blocked ? Math.max(1, amount - ar.value) : amount;   // 格擋：傷害 − 護甲值，最低 1
   if (blocked) { floatText(player.x, player.y - 34, '格擋', '#f9cf70'); sfx.block(); }
   if (real > 0) { hurtT = 0.35; shake = Math.max(shake, 4); sfx.hurt(); }
   // 有護盾時優先扣護盾
@@ -1490,9 +1490,8 @@ function hitEnemy(e, dmg, color, small, critAdd) {
   // 敵人護甲（多眼巨人）：規則與人形護甲相同
   const ar = e.boss ? e.B.armor : e.T.armor;
   if (ar && (dmg <= ar ? Math.random() < 0.7 : Math.random() < 0.5)) {
-    dmg = Math.max(0, dmg - ar);
+    dmg = Math.max(1, dmg - ar);       // 格擋：傷害 − 護甲值，最低剩 1
     if (!small) floatText(e.x + rand(-10, 10), e.y - 34, '格擋', '#cfd8dc');
-    if (dmg <= 0) return 0;
   }
   e.hp -= dmg;
   const v = Math.round(dmg * 10) / 10;
@@ -1578,7 +1577,7 @@ function damageClone(c, amount) {
   if (c.invT > 0) return;
   const ar = cfg.armor;
   const blocked = amount <= ar.value ? Math.random() < ar.blockLow : Math.random() < ar.blockHigh;
-  const real = blocked ? Math.max(0, amount - ar.value) : amount;
+  const real = blocked ? Math.max(1, amount - ar.value) : amount;   // 格擋：傷害 − 護甲值，最低 1
   if (blocked) floatText(c.x, c.y - 34, '格擋', '#f9cf70');
   c.hp -= real; c.hitT = 2;
   burst(c.x, c.y, '#53dfcb', 4);
