@@ -362,7 +362,7 @@ const CHARACTERS = {
       class: 'SG',               // 武器分類：AR 突擊步槍｜SMG 衝鋒槍｜HG 手槍｜RF 步槍｜SG 霰彈槍｜MG 機槍
       magazine: 3,               // 彈匣容量
       pellets: 5,                // 每發彈丸數
-      damage: 7,                 // 每顆彈丸傷害
+      damage: 10,                // 每顆彈丸傷害
       spread: 0.105, jitter: 0.027,
       speed: [460, 540], radius: 3.5,
       cooldown: 0.8,             // 開火間隔（秒）
@@ -378,8 +378,8 @@ const CHARACTERS = {
       cooldown: 5,               // 冷卻秒數（從子彈射出後開始計算）
       knockback: 20,             // 每顆彈丸的擊退距離（5 顆全中＝100）
       purpleAfter: 200,          // 彈丸飛行超過這個距離 → 變紫色
-      purpleMult: 2,             // 紫色彈丸傷害倍率（7 → 14）
-      desc: '強化下一發子彈：每顆彈丸命中時把敵人擊退 20。彈丸飛行超過 200 距離後會轉為紫色，造成雙倍傷害（每顆 14）。',
+      purpleMult: 2,             // 紫色彈丸傷害倍率（10 → 20）
+      desc: '強化下一發子彈：每顆彈丸命中時把敵人擊退 20。彈丸飛行超過 200 距離後會轉為紫色，造成雙倍傷害（每顆 20）。',
     },
     portrait: 'portrait_triple_crown',
     assets: ASSETS.triple_crown,
@@ -442,7 +442,7 @@ const CHARACTERS = {
       class: 'SMG',
       magazine: 25,
       pellets: 1,
-      damage: 5,
+      damage: 6,
       spread: 0, jitter: 0.06,
       speed: [600, 640], radius: 2.4,
       cooldown: 1 / (1.875 * 3), // 每秒 1.875 × 3 ＝ 5.625 發（原作射速的 3 倍）
