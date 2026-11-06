@@ -162,6 +162,11 @@ body.touch #skillBtn{display:none}
   padding:12px 14px;border-radius:14px;border:2px solid var(--gold);background:#3a2c0ee6;color:#ffe7a8;font-size:18px;font-weight:800;cursor:pointer;box-shadow:0 0 16px #f9cf7066;animation:expPulse 1.2s ease-in-out infinite}
 #expandBtn small{font-size:11px;font-weight:700;color:#d9c48a}
 @keyframes expPulse{50%{box-shadow:0 0 26px #f9cf70aa}}
+/* 手機版：圓形按鈕，放在技能按鈕左邊 */
+body.touch #expandBtn{top:auto;transform:none;width:54px;height:54px;padding:0;border-radius:50%;justify-content:center;font-size:14px;
+  right:calc(max(20px,env(safe-area-inset-right,0px)) + 168px);bottom:calc(100px + env(safe-area-inset-bottom,0px))}
+body.touch #expandBtn small{display:none}
+@media (max-height:430px){body.touch #expandBtn{width:50px;height:50px;right:calc(max(20px,env(safe-area-inset-right,0px)) + 164px)}}
 @media (prefers-reduced-motion:reduce){#expandBtn{animation:none}}
 #bossSkip{display:block;margin-top:4px;font-size:11px;padding:3px 7px;border-radius:7px;border:1px dashed #ff8f83;background:#3a1f25;color:#ffd0d0;cursor:pointer}
 #bossBar{position:fixed;left:50%;transform:translateX(-50%);top:calc(68px + env(safe-area-inset-top,0px));z-index:5;width:min(460px,70vw);pointer-events:none}
@@ -185,7 +190,7 @@ body.touch #skillBtn{display:none}
   </div>
   <div class="hud-block" id="phaseBlock" hidden><span class="hud-label" id="phaseName">第一階段</span><span class="hud-num" id="phaseTime">3:00</span>
     <button id="bossSkip" type="button" hidden>召喚 Boss（測試）</button></div>
-  <div class="hud-block" id="partsBlock" hidden><span class="hud-label">零件</span><span class="hud-num" id="partsNum">0 / 10</span><span class="hud-label" id="cloneNum"></span></div>
+  <div class="hud-block" id="partsBlock" hidden><span class="hud-label">零件</span><span class="hud-num" id="partsNum">0</span></div>
   <div class="hud-block" id="hudHp">
     <div id="hpText"><span>生命</span><span><span id="hpNum">150 / 150</span><span id="shieldNum"></span></span></div>
     <div id="hpTrack"><div id="hpFill"></div><div class="shield-fill" id="shieldFill"></div><div class="shield-fill" id="shieldFill2"></div></div>
@@ -555,7 +560,7 @@ let E = ENEMY, phase = null;   // 本局使用的敵人數值與目前階段
 
 /* ───────── 零件與擴編（戰事關卡） ─────────
    地圖上會散落「零件」，撿到 10 個可以「擴編」：多一個跟隨自己的分身 */
-const PARTS = { initial: 3, every: 14, maxOnField: 5, minDist: 180, maxDist: 480, pickR: 16, cost: 10 };
+const PARTS = { initial: 3, every: 10, maxOnField: 5, minDist: 180, maxDist: 480, pickR: 16, cost: 10 };
 const CLONE = { maxCount: 4, hpRatio: 0.5, minGap: 20, maxGap: 100 };
 // 分身站位：以玩家為中心的方向與距離（距離＝玩家碰撞半徑＋20～100）
 const CLONE_SLOTS = [[Math.PI * 0.85, 45], [Math.PI * 0.15, 45], [Math.PI * 1.2, 80], [Math.PI * 1.8, 80]];
@@ -1151,10 +1156,9 @@ function spawnPart() {
   parts.push({ x: player.x + Math.cos(a) * d, y: player.y + Math.sin(a) * d, ph: rand(0, 6) });
 }
 function updateParts() {
-  $('partsNum').textContent = partCount + ' / ' + PARTS.cost;
+  $('partsNum').textContent = partCount;
   const can = state === 'play' && phase && partCount >= PARTS.cost && clones.length < CLONE.maxCount;
   $('expandBtn').hidden = !can;
-  $('cloneNum').textContent = clones.length ? '分身 ' + clones.length : '';
 }
 function expandEchelon() {
   if (state !== 'play' || partCount < PARTS.cost || clones.length >= CLONE.maxCount) return;
