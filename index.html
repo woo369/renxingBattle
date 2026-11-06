@@ -1337,7 +1337,6 @@ function tickEffects(u, dt) {
   u.effects = u.effects.filter((x) => x.t > 0);
   if (u === player) renderEffects(u.effects.length !== n);
 }
-let effT = 0;
 function renderEffects(rebuild) {
   const box = $('effects'), list = player ? player.effects : [];
   if (rebuild || box.children.length !== list.length) {
@@ -1451,11 +1450,32 @@ function shootPlayer() {
   burst(mx, my, lacer ? '#c48bff' : '#f6cb76', lacer ? 10 : 6);
   return true;
 }
-function spriteMuzzle(e) {
-  const m = ASSETS[e.T.sprite].meta, sc = m.scale;
-  let x = (m.muzzle[0] - m.cx) * sc; if (!e.faceLeft) x = -x;        // 素材面向左
-  return { x: e.x + x, y: e.y + (m.muzzle[1] - m.cy) * sc };
+/* ───────── 精靈圖敵人共用的小工具 ───────── */
+// 素材上的一個點（例如槍口）→ 世界座標；素材面向左，朝右時左右翻轉
+function spritePoint(e, m, pt, sc = m.scale) {
+  let x = (pt[0] - m.cx) * sc; if (!e.faceLeft) x = -x;
+  return { x: e.x + x, y: e.y + (pt[1] - m.cy) * sc };
 }
+// 依經過時間挑出動畫幀的名稱，例如 pickFrame(m.wait, 0.3, 'w') → 'w05'
+function pickFrame(seq, tt, prefix) {
+  const t = seq.t; let i = 0; while (i + 1 < t.length && t[i + 1] <= tt) i++;
+  return prefix + String(i + 1).padStart(2, '0');
+}
+// Boss 每幀共通的收尾：碰撞傷害冷卻、易傷倒數、碰撞傷害、血條
+function bossTail(e, dt, dist) {
+  e.touchCd = Math.max(0, e.touchCd - dt);
+  if (e.debuffT > 0) e.debuffT = Math.max(0, e.debuffT - dt);
+  if (dist < e.r + player.r && e.touchCd <= 0 && player.invT <= 0) { damage(ENEMY.contactDmg); e.touchCd = ENEMY.contactEvery; }
+  updateBossBar();
+}
+// 浮空 Boss 腳下的影子、碰撞圈、易傷圈（呼叫後畫布停在地面座標）
+function drawBossGround(e, q, sw, sh) {
+  ground(q, e.x, e.y);
+  ctx.fillStyle = 'rgba(4,18,26,0.4)'; ctx.beginPath(); ctx.ellipse(e.x, e.y + 6, sw, sh, 0, 0, Math.PI * 2); ctx.fill();
+  ctx.strokeStyle = 'rgba(255,120,110,0.45)'; ctx.lineWidth = 1.5; ctx.beginPath(); ctx.arc(e.x, e.y, e.r, 0, Math.PI * 2); ctx.stroke();
+  if (e.debuffT > 0) { ctx.strokeStyle = 'rgba(255,93,143,0.7)'; ctx.lineWidth = 2; ctx.setLineDash([4, 3]); ctx.beginPath(); ctx.arc(e.x, e.y, e.r + 6, 0, Math.PI * 2); ctx.stroke(); ctx.setLineDash([]); }
+}
+const spriteMuzzle = (e) => spritePoint(e, ASSETS[e.T.sprite].meta, ASSETS[e.T.sprite].meta.muzzle);
 function shootEnemy(e) {
   const T = e.T, mz = T.sprite ? spriteMuzzle(e) : muzzleWorld(e), a0 = T.sprite ? Math.atan2(player.y - mz.y, player.x - mz.x) : e.angle;
   if (T.sprite) e.atkT = 0;                                             // 從頭播放攻擊動畫
@@ -1683,17 +1703,10 @@ function updateBoss(e, dt, toward, dist) {
     }
   }
   e.aiming = !e.special && e.reloadT <= 0 && dist <= B.lockRange + 40;
-  e.touchCd = Math.max(0, e.touchCd - dt);
-  if (e.debuffT > 0) e.debuffT = Math.max(0, e.debuffT - dt);
-  if (dist < e.r + player.r && e.touchCd <= 0 && player.invT <= 0) { damage(ENEMY.contactDmg); e.touchCd = ENEMY.contactEvery; }
-  updateBossBar();
+  bossTail(e, dt, dist);
 }
 /* ───────── 稻草人：重裝型，三座浮游砲輪流射擊，慢慢貼近 ───────── */
-function scarecrowMuzzle(e, n) {
-  const m = e.B.assets.meta, sc = m.scale, mz = m.muzzles[n];
-  let x = (mz[0] - m.cx) * sc; if (!e.faceLeft) x = -x;
-  return { x: e.x + x, y: e.y + (mz[1] - m.cy) * sc };
-}
+const scarecrowMuzzle = (e, n) => spritePoint(e, e.B.assets.meta, e.B.assets.meta.muzzles[n]);
 function summonDrones(e) {
   const sp = e.B.special, have = enemies.filter((x) => x.T === DRONE).length;
   const n = Math.min(sp.summon, sp.maxDrones - have);
@@ -1715,9 +1728,7 @@ function updateScarecrow(e, dt, toward, dist) {
     e.special.t += dt; e.selfVuln = B.special.vuln; e.moving = false; e.firing = false;
     if (Math.random() < 0.5) { const a = rand(0, Math.PI * 2), d = rand(30, 60); particles.push({ x: e.x + Math.cos(a) * d, y: e.y + Math.sin(a) * d - 30, vx: -Math.cos(a) * d * 2, vy: -Math.sin(a) * d * 2, life: 0.35, max: 0.35, color: '#ffb36b' }); }
     if (e.special.t >= B.special.charge) { summonDrones(e); e.special = null; e.selfVuln = 0; e.ammo = B.magazine; e.gunT = null; }
-    e.touchCd = Math.max(0, e.touchCd - dt);
-    if (e.debuffT > 0) e.debuffT = Math.max(0, e.debuffT - dt);
-    updateBossBar();
+    bossTail(e, dt, Infinity);   // 蓄力中不造成碰撞傷害
     return;
   }
   // 移動：射程外用 100 靠近；射程內每秒 10 慢慢貼近，到 100 停下
@@ -1752,10 +1763,7 @@ function updateScarecrow(e, dt, toward, dist) {
     // 射程外：保持輪流的節奏，但不讓計時累積到負值
     for (let k = 0; k < 3; k++) e.gunT[k] = Math.max(e.gunT[k] - dt, k * B.gunStagger);
   }
-  e.touchCd = Math.max(0, e.touchCd - dt);
-  if (e.debuffT > 0) e.debuffT = Math.max(0, e.debuffT - dt);
-  if (dist < e.r + player.r && e.touchCd <= 0 && player.invT <= 0) { damage(ENEMY.contactDmg); e.touchCd = ENEMY.contactEvery; }
-  updateBossBar();
+  bossTail(e, dt, dist);
 }
 function updateDrone(e, dt, toward, dist) {
   const T = e.T, o = e.owner && enemies.includes(e.owner) ? e.owner : null;
@@ -1806,16 +1814,12 @@ function drawDrone(e) {
 function drawScarecrow(e) {
   const B = e.B, m = B.assets.meta, box = imgs['boss_' + e.id] || {}, sc = m.scale, q = proj(e.x, e.y);
   e.atkT = (e.atkT ?? 9) + (gameTime - (e.lastT ?? gameTime)); e.lastT = gameTime;
-  const pick = (seq, tt, p) => { const t = seq.t; let i = 0; while (i + 1 < t.length && t[i + 1] <= tt) i++; return p + String(i + 1).padStart(2, '0'); };
   let key, bx = m.box;
-  if (e.special) { bx = m.xbox; key = pick(m.summon, (e.special.t * m.summon.dur / B.special.charge) % m.summon.dur, 'x'); }   // 蓄力：浮游砲環繞
-  else if (e.firing) key = pick(m.attack, (gameTime + e.phase) % m.attack.dur, 'a');     // 開火中：持續播放攻擊動作
-  else if (e.moving) key = pick(m.move, gameTime % m.move.dur, 'm');
-  else key = pick(m.wait, (gameTime + e.phase) % m.wait.dur, 'w');
-  ground(q, e.x, e.y);
-  ctx.fillStyle = 'rgba(4,18,26,0.4)'; ctx.beginPath(); ctx.ellipse(e.x, e.y + 6, 28, 10, 0, 0, Math.PI * 2); ctx.fill();
-  ctx.strokeStyle = 'rgba(255,120,110,0.45)'; ctx.lineWidth = 1.5; ctx.beginPath(); ctx.arc(e.x, e.y, e.r, 0, Math.PI * 2); ctx.stroke();
-  if (e.debuffT > 0) { ctx.strokeStyle = 'rgba(255,93,143,0.7)'; ctx.lineWidth = 2; ctx.setLineDash([4, 3]); ctx.beginPath(); ctx.arc(e.x, e.y, e.r + 6, 0, Math.PI * 2); ctx.stroke(); ctx.setLineDash([]); }
+  if (e.special) { bx = m.xbox; key = pickFrame(m.summon, (e.special.t * m.summon.dur / B.special.charge) % m.summon.dur, 'x'); }   // 蓄力：浮游砲環繞
+  else if (e.firing) key = pickFrame(m.attack, (gameTime + e.phase) % m.attack.dur, 'a');     // 開火中：持續播放攻擊動作
+  else if (e.moving) key = pickFrame(m.move, gameTime % m.move.dur, 'm');
+  else key = pickFrame(m.wait, (gameTime + e.phase) % m.wait.dur, 'w');
+  drawBossGround(e, q, 28, 10);
   upright(q, e.x, e.y);
   const b = bx, hover = Math.sin(e.phase * 2) * 2;
   if (e.special) {
@@ -1843,16 +1847,8 @@ function drawScarecrow(e) {
   }
 }
 /* ───────── 夢想家：遠距離狙擊；目標太近就閃避後撤 ───────── */
-function dreamerMuzzle(e) {
-  const m = e.B.assets.meta, sc = m.scale;
-  let x = (m.muzzle[0] - m.cx) * sc; if (!e.faceLeft) x = -x;
-  return { x: e.x + x, y: e.y + (m.muzzle[1] - m.cy) * sc };
-}
-function dreamerSpMuzzle(e) {
-  const m = e.B.assets.meta, sc = m.scale;
-  let x = (m.smuzzle[0] - m.cx) * sc; if (!e.faceLeft) x = -x;
-  return { x: e.x + x, y: e.y + (m.smuzzle[1] - m.cy) * sc };
-}
+const dreamerMuzzle = (e) => spritePoint(e, e.B.assets.meta, e.B.assets.meta.muzzle);
+const dreamerSpMuzzle = (e) => spritePoint(e, e.B.assets.meta, e.B.assets.meta.smuzzle);
 function updateDreamerSpecial(e, dt) {
   const B = e.B, sp = B.special, m = B.assets.meta, S = e.special;
   S.t += dt;
@@ -1922,28 +1918,20 @@ function updateDreamer(e, dt, toward, dist) {
       else e.reloadT = B.reload;
     }
   }
-  e.touchCd = Math.max(0, e.touchCd - dt);
-  if (e.debuffT > 0) e.debuffT = Math.max(0, e.debuffT - dt);
-  if (dist < e.r + player.r && e.touchCd <= 0 && player.invT <= 0) { damage(ENEMY.contactDmg); e.touchCd = ENEMY.contactEvery; }
-  updateBossBar();
+  bossTail(e, dt, dist);
 }
 function drawDreamer(e) {
   const B = e.B, m = B.assets.meta, box = imgs['boss_' + e.id] || {}, sc = m.scale, q = proj(e.x, e.y);
   e.atkT = (e.atkT ?? 9) + (gameTime - (e.lastT ?? gameTime)); e.lastT = gameTime;
-  const pick = (seq, tt, p) => { const t = seq.t; let i = 0; while (i + 1 < t.length && t[i + 1] <= tt) i++; return p + String(i + 1).padStart(2, '0'); };
   let key, b = m.box;
   if (e.special) {
     // 特殊攻擊：架槍（s 幀）→ 蓄力與發射（f 幀）
     const t = e.special.t; b = m.sbox;
-    key = t < m.setup.dur ? pick(m.setup, t, 's') : pick(m.fire, Math.min(t - m.setup.dur, m.fire.dur - 0.01), 'f');
-  } else if (e.atkT < m.attack.dur) key = pick(m.attack, e.atkT, 'a');
-  else if (e.moving) key = pick(m.move, (gameTime * (e.dodgeT > 0 ? 1.8 : 1)) % m.move.dur, 'm');
-  else key = pick(m.wait, (gameTime + e.phase) % m.wait.dur, 'w');
-  // 懸浮影子、碰撞圈、易傷圈
-  ground(q, e.x, e.y);
-  ctx.fillStyle = 'rgba(4,18,26,0.4)'; ctx.beginPath(); ctx.ellipse(e.x, e.y + 6, 26, 9, 0, 0, Math.PI * 2); ctx.fill();
-  ctx.strokeStyle = 'rgba(255,120,110,0.45)'; ctx.lineWidth = 1.5; ctx.beginPath(); ctx.arc(e.x, e.y, e.r, 0, Math.PI * 2); ctx.stroke();
-  if (e.debuffT > 0) { ctx.strokeStyle = 'rgba(255,93,143,0.7)'; ctx.lineWidth = 2; ctx.setLineDash([4, 3]); ctx.beginPath(); ctx.arc(e.x, e.y, e.r + 6, 0, Math.PI * 2); ctx.stroke(); ctx.setLineDash([]); }
+    key = t < m.setup.dur ? pickFrame(m.setup, t, 's') : pickFrame(m.fire, Math.min(t - m.setup.dur, m.fire.dur - 0.01), 'f');
+  } else if (e.atkT < m.attack.dur) key = pickFrame(m.attack, e.atkT, 'a');
+  else if (e.moving) key = pickFrame(m.move, (gameTime * (e.dodgeT > 0 ? 1.8 : 1)) % m.move.dur, 'm');
+  else key = pickFrame(m.wait, (gameTime + e.phase) % m.wait.dur, 'w');
+  drawBossGround(e, q, 26, 9);   // 懸浮影子、碰撞圈、易傷圈
   const hover = Math.sin(e.phase * 2.4) * 3;
   const one = (x, y, left, alpha, k) => {
     const qq = proj(x, y); upright(qq, x, y);
@@ -2051,13 +2039,10 @@ function drawSpriteEnemy(e) {
   const m = ASSETS[e.T.sprite].meta, box = imgs['enemy_' + e.T.sprite] || {}, sc = m.scale, q = proj(e.x, e.y);
   e.atkT = (e.atkT ?? 9) + (gameTime - (e.lastT ?? gameTime)); e.lastT = gameTime;
   let key;
-  if (e.atkT < m.attack.dur) {
-    const t = m.attack.t; let i = 0; while (i + 1 < t.length && t[i + 1] <= e.atkT) i++; key = 'a' + String(i + 1).padStart(2, '0');
-  } else if (e.moving) {
+  if (e.atkT < m.attack.dur) key = pickFrame(m.attack, e.atkT, 'a');
+  else if (e.moving) {
     key = 'r' + String((Math.floor(gameTime / 0.34 * m.run.n + e.phase * 3) % m.run.n) + 1).padStart(2, '0');
-  } else {
-    const t = m.wait.t, tt = (gameTime + e.phase) % m.wait.dur; let i = 0; while (i + 1 < t.length && t[i + 1] <= tt) i++; key = 'w' + String(i + 1).padStart(2, '0');
-  }
+  } else key = pickFrame(m.wait, (gameTime + e.phase) % m.wait.dur, 'w');
   ground(q, e.x, e.y);
   ctx.strokeStyle = 'rgba(255,120,110,0.45)'; ctx.lineWidth = 1.5; ctx.beginPath(); ctx.arc(e.x, e.y, e.r, 0, Math.PI * 2); ctx.stroke();
   upright(q, e.x, e.y);
