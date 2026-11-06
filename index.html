@@ -582,6 +582,7 @@ const WAR_PHASES = [
     ],
     initial: 4,
     spawn: { every: 3.2, min: 2.2, max: 10 },
+    partsEvery: 8,               // 零件改成每 8 秒出現一個
   },
 ];
 let phase = null, phaseIdx = 0, phaseStart = 0, spawnIdx = 0;   // 目前階段、階段開始時間、輪到第幾種敵人
@@ -1756,7 +1757,7 @@ function update(dt) {
   // 零件：定時散落；靠近就撿起
   if (phase) {
     partClock += dt;
-    if (partClock > PARTS.every && parts.length < PARTS.maxOnField) { partClock = 0; spawnPart(); }
+    if (partClock > (phase.partsEvery || PARTS.every) && parts.length < PARTS.maxOnField) { partClock = 0; spawnPart(); }
     for (let i = parts.length - 1; i >= 0; i--) {
       const pt = parts[i], d = Math.hypot(pt.x - player.x, pt.y - player.y);
       if (d < player.r + PARTS.pickR) {
