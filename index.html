@@ -654,6 +654,7 @@ const WAR_PHASES = [
     name: '第一階段', end: 180,
     pattern: [CYCLOPS], initial: 4,
     spawn: { every: 3.2, min: 2.2, max: 10 },   // 每 3.2 秒生成一隻，逐漸加快到 2.2 秒；同時最多 10 隻
+    bossReward: { parts: 15 },   // 擊敗 Boss 獲得 15 個零件
     bossPool: 'elite',           // 時間到 → 從精英敵人中隨機抽一名當 Boss，擊敗後進入第二階段
   },
   {
@@ -666,7 +667,7 @@ const WAR_PHASES = [
     ],
     initial: 4,
     spawn: { every: 3.2, min: 2.2, max: 10 },
-    partsEvery: 8,               // 零件改成每 8 秒出現一個
+    partsEvery: 7,               // 零件改成每 7 秒出現一個
   },
 ];
 let phase = null, phaseIdx = 0, phaseStart = 0, spawnIdx = 0;   // 目前階段、階段開始時間、輪到第幾種敵人
@@ -1944,6 +1945,8 @@ function killEnemy(e) {
     enemies.splice(i, 1); kills++; score += 2000; boss = null; $('bossBar').hidden = true;
     $('kills').textContent = kills; $('score').textContent = score;
     burst(e.x, e.y, '#ff6b6b', 40); burst(e.x, e.y, '#f9cf70', 30); floatText(e.x, e.y - 60, '擊敗 ' + e.B.name + '！ +2000', '#f9cf70'); sfx.boom(); shake = 10;
+    const rw = phase && phase.bossReward;
+    if (rw && rw.parts) { partCount += rw.parts; updateParts(); floatText(player.x, player.y - 78, '零件 +' + rw.parts, '#f9cf70'); }
     setTimeout(nextPhase, 1500);
     return;
   }
