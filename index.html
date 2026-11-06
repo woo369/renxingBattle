@@ -158,6 +158,11 @@ body.touch #skillBtn{display:none}
 #skillBtn.glory.armed,#tSkill.glory.armed{border-color:#ffb347;box-shadow:0 0 0 2px #ffb34788,0 0 14px #ff9a1fcc}
 #tSkill{overflow:visible;width:46px;height:46px;padding:0;right:calc(max(20px,env(safe-area-inset-right,0px)) + 112px);bottom:calc(104px + env(safe-area-inset-bottom,0px));overflow:hidden}
 #phaseBlock{pointer-events:auto}
+#expandBtn{position:fixed;z-index:7;right:max(14px,env(safe-area-inset-right,0px));top:50%;transform:translateY(-50%);display:flex;flex-direction:column;align-items:center;gap:2px;
+  padding:12px 14px;border-radius:14px;border:2px solid var(--gold);background:#3a2c0ee6;color:#ffe7a8;font-size:18px;font-weight:800;cursor:pointer;box-shadow:0 0 16px #f9cf7066;animation:expPulse 1.2s ease-in-out infinite}
+#expandBtn small{font-size:11px;font-weight:700;color:#d9c48a}
+@keyframes expPulse{50%{box-shadow:0 0 26px #f9cf70aa}}
+@media (prefers-reduced-motion:reduce){#expandBtn{animation:none}}
 #bossSkip{display:block;margin-top:4px;font-size:11px;padding:3px 7px;border-radius:7px;border:1px dashed #ff8f83;background:#3a1f25;color:#ffd0d0;cursor:pointer}
 #bossBar{position:fixed;left:50%;transform:translateX(-50%);top:calc(68px + env(safe-area-inset-top,0px));z-index:5;width:min(460px,70vw);pointer-events:none}
 #bossHead{display:flex;justify-content:space-between;font-size:13px;color:#ffd0d0;text-shadow:0 1px 3px #000;margin-bottom:3px}
@@ -180,6 +185,7 @@ body.touch #skillBtn{display:none}
   </div>
   <div class="hud-block" id="phaseBlock" hidden><span class="hud-label" id="phaseName">第一階段</span><span class="hud-num" id="phaseTime">3:00</span>
     <button id="bossSkip" type="button" hidden>召喚 Boss（測試）</button></div>
+  <div class="hud-block" id="partsBlock" hidden><span class="hud-label">零件</span><span class="hud-num" id="partsNum">0 / 10</span><span class="hud-label" id="cloneNum"></span></div>
   <div class="hud-block" id="hudHp">
     <div id="hpText"><span>生命</span><span><span id="hpNum">150 / 150</span><span id="shieldNum"></span></span></div>
     <div id="hpTrack"><div id="hpFill"></div><div class="shield-fill" id="shieldFill"></div><div class="shield-fill" id="shieldFill2"></div></div>
@@ -196,6 +202,8 @@ body.touch #skillBtn{display:none}
     </button>
   </div>
 </div>
+
+<button id="expandBtn" type="button" hidden>擴編<small>消耗 10 零件</small></button>
 
 <div id="bossBar" hidden><div id="bossHead"><b id="bossName">Boss</b><span id="bossHpNum"></span></div><div id="bossTrack"><div id="bossHpFill"></div></div></div>
 
@@ -523,7 +531,7 @@ const LEVELS = [
 let selectedLevel = 'training';
 // 影子敵人：hp 生命｜lockRange 開火距離｜stopRange 停下距離｜fireCooldown 開火間隔（秒）｜evade 迴避率
 // 訓練場的影子敵人
-const ENEMY = { hp: 30, radius: 19, speed: 36, wobble: 17, lockRange: 225, stopRange: 200, fireCooldown: 1, evade: 0.05, bulletDmg: 10, bulletSpeed: 245, bulletLife: 2, bulletR: 5.5, contactDmg: 12, contactEvery: 0.6, initial: 3,
+const ENEMY = { hp: 30, radius: 19, speed: 150, wobble: 17, lockRange: 225, stopRange: 200, fireCooldown: 1, evade: 0.05, bulletDmg: 10, bulletSpeed: 245, bulletLife: 2, bulletR: 5.5, contactDmg: 12, contactEvery: 0.6, initial: 3,
   magazine: 0, reload: 0 };   // magazine 0＝沒有彈匣限制
 
 /* 戰事：分階段進攻（外觀暫用影子敵人）
@@ -545,17 +553,25 @@ const WAR_PHASES = [
 ];
 let E = ENEMY, phase = null;   // 本局使用的敵人數值與目前階段
 
+/* ───────── 零件與擴編（戰事關卡） ─────────
+   地圖上會散落「零件」，撿到 10 個可以「擴編」：多一個跟隨自己的分身 */
+const PARTS = { initial: 3, every: 14, maxOnField: 5, minDist: 180, maxDist: 480, pickR: 16, cost: 10 };
+const CLONE = { maxCount: 4, hpRatio: 0.5, minGap: 20, maxGap: 100 };
+// 分身站位：以玩家為中心的方向與距離（距離＝玩家碰撞半徑＋20～100）
+const CLONE_SLOTS = [[Math.PI * 0.85, 45], [Math.PI * 0.15, 45], [Math.PI * 1.2, 80], [Math.PI * 1.8, 80]];
+let parts = [], partCount = 0, partClock = 0, clones = [];
+
 /* ───────── Boss ───────── */
 const BOSSES = {
   ouroboros: {
     name: '銜尾蛇',
-    hp: 500,
+    hp: 750,
     bulletDmg: 10,
     fireRate: 4,                 // 每秒 4 發：4 根槍管輪流，每根每秒 1 發
     magazine: 12,
     reload: 5,
     lockRange: 285,
-    speed: 225,
+    speed: 215,
     keepDist: 240,               // 與玩家保持的距離
     evade: 0,                    // 迴避率（未指定，暫定 0）
     radius: 28,
@@ -839,7 +855,7 @@ function setState(s) {
   menu.hidden = s !== 'menu'; pauseEl.hidden = s !== 'pause'; overEl.hidden = s !== 'over';
   hud.hidden = !(s === 'play' || s === 'pause'); touchui.hidden = !(s === 'play');
   canvas.style.cursor = (s === 'play' && !isTouch()) ? 'none' : 'default';
-  if (s !== 'play') { releaseInputs(); }
+  if (s !== 'play') { releaseInputs(); $('expandBtn').hidden = true; } else if (player) updateParts();
 }
 function releaseInputs() {
   keys.clear(); fireHeld = false; mouseDown = false; endStick();
@@ -885,7 +901,10 @@ function startGame() {
   // 依關卡決定敵人數值
   if (selectedLevel === 'war') { phase = WAR_PHASES[0]; E = phase.enemy; } else { phase = null; E = ENEMY; }
   $('phaseBlock').hidden = !phase; $('bossSkip').hidden = !(phase && phase.boss);
-  boss = null; bossSpawned = false; $('bossBar').hidden = true; $('phaseName').textContent = phase ? phase.name : '';
+  boss = null; bossSpawned = false;
+  parts = []; partCount = 0; partClock = 0; clones = [];
+  $('partsBlock').hidden = !phase; updateParts();
+  if (phase) for (let i = 0; i < PARTS.initial; i++) spawnPart(); $('bossBar').hidden = true; $('phaseName').textContent = phase ? phase.name : '';
   for (let i = 0; i < E.initial; i++) addEnemy();
   if (cfg.skill) { $('skillImg').src = ASSETS.ui[cfg.skill.icon]; $('tSkillImg').src = ASSETS.ui[cfg.skill.icon]; }
   updateSkill(); updateDodge(); $('score').textContent = '0'; $('kills').textContent = '0'; $('ammoLabel').textContent = cfg.weapon.name + '彈藥'; updateAmmo(); updateHp();
@@ -969,6 +988,7 @@ $('tSkill').addEventListener('pointerdown', (e) => { e.preventDefault(); useSkil
 $('skillBtn').addEventListener('click', () => useSkill());
 
 $('startBtn').addEventListener('click', startGame);
+$('expandBtn').addEventListener('click', expandEchelon);
 $('bossSkip').addEventListener('click', () => { if (state === 'play' && phase && !bossSpawned) { gameTime = phase.end; } });
 $('retryBtn').addEventListener('click', startGame);
 $('menuBtn').addEventListener('click', () => { showBest(); setState('menu'); });
@@ -1080,6 +1100,7 @@ function shootPlayer() {
     const life = bulletRange(cfg) / sp;   // 不論子彈速度，飛到射程就消失
     bullets.push({ x: mx, y: my, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp, age: 0, life, maxLife: life, r: wp.radius, team: 'p', dist: 0, lacer, purple: false, buff: (player.buffT > 0 && cfg.skill.dmgMult) || 1, six: player.buffT > 0 && cfg.skill.id === 'sixkill' });
   }
+  if (clones.length) clonesShoot({ lacer, buff: (player.buffT > 0 && cfg.skill.dmgMult) || 1, six: player.buffT > 0 && cfg.skill.id === 'sixkill' });
   burst(mx, my, lacer ? '#c48bff' : '#f6cb76', lacer ? 10 : 6);
   return true;
 }
@@ -1124,6 +1145,69 @@ function hitEnemy(e, dmg, color, small) {
   if (crit) floatText(e.x + rand(-12, 12), e.y - 26 - rand(0, 10), '暴擊 ' + v, '#ff4d4d');
   else if (color) floatText(e.x + rand(-12, 12), e.y - (small ? 14 + rand(0, 16) : 20), String(v), color);
   return dmg;
+}
+function spawnPart() {
+  const a = rand(0, Math.PI * 2), d = rand(PARTS.minDist, PARTS.maxDist);
+  parts.push({ x: player.x + Math.cos(a) * d, y: player.y + Math.sin(a) * d, ph: rand(0, 6) });
+}
+function updateParts() {
+  $('partsNum').textContent = partCount + ' / ' + PARTS.cost;
+  const can = state === 'play' && phase && partCount >= PARTS.cost && clones.length < CLONE.maxCount;
+  $('expandBtn').hidden = !can;
+  $('cloneNum').textContent = clones.length ? '分身 ' + clones.length : '';
+}
+function expandEchelon() {
+  if (state !== 'play' || partCount < PARTS.cost || clones.length >= CLONE.maxCount) return;
+  partCount -= PARTS.cost;
+  const slot = CLONE_SLOTS[clones.length];
+  const hp = Math.round(cfg.maxHp * CLONE.hpRatio);
+  const c = { clone: true, slot, x: player.x, y: player.y, r: cfg.radius, hp, maxHp: hp, def: cfg, angle: player.angle, moveAngle: 0,
+    moving: false, aiming: false, shot: 0, faceLeft: player.faceLeft, invT: 0.6, dodgeT: 0, trail: [] };
+  clones.push(c);
+  burst(c.x, c.y, '#53dfcb', 18); floatText(player.x, player.y - 56, '擴編！', '#53dfcb'); sfx.skill();
+  updateParts();
+}
+function updateClones(dt) {
+  for (let i = clones.length - 1; i >= 0; i--) {
+    const c = clones[i];
+    // 跟著玩家：站在自己的位置上，動作與玩家同步
+    const [sa, sd] = c.slot, tx = player.x + Math.cos(sa) * (player.r + sd), ty = player.y + Math.sin(sa) * (player.r + sd) * 0.8;
+    const dx = tx - c.x, dy = ty - c.y, d = Math.hypot(dx, dy);
+    const sp = player.dodgeT > 0 ? cfg.dodgeMove.distance / cfg.dodgeMove.time * 2 : cfg.speed * 1.25;
+    if (d > 2) moveWithCover(c, dx / d * Math.min(d, sp * dt), dy / d * Math.min(d, sp * dt));
+    if (d > 400) { c.x = tx; c.y = ty; }                 // 卡住太遠就直接歸位
+    for (const k of ['angle', 'moveAngle', 'moving', 'aiming', 'shot', 'shotMax', 'faceLeft', 'backward', 'rest', 'dodgeT', 'dodgeDir', 'buffT', 'curSpeed'])
+      c[k] = player[k];
+    c.invT = Math.max(c.invT - dt, player.dodgeT > 0 ? player.invT : 0);
+  }
+}
+// 分身跟著玩家一起開火：同樣的傷害、射程，方向與玩家的瞄準方向平行
+function clonesShoot(flags) {
+  const wp = cfg.weapon, mid = (wp.pellets - 1) / 2;
+  for (const c of clones) {
+    const mz = muzzleWorld(c);
+    for (let i = 0; i < wp.pellets; i++) {
+      const a = player.angle + (i - mid) * wp.spread + rand(-wp.jitter, wp.jitter), sp = rand(wp.speed[0], wp.speed[1]);
+      const life = bulletRange(cfg) / sp;
+      bullets.push({ x: mz.x, y: mz.y, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp, age: 0, life, maxLife: life, r: wp.radius, team: 'p', dist: 0, ...flags, purple: false });
+    }
+    burst(mz.x, mz.y, '#f6cb76', 4);
+  }
+}
+function damageClone(c, amount) {
+  if (c.invT > 0) return;
+  const ar = cfg.armor;
+  const blocked = amount <= ar.value ? Math.random() < ar.blockLow : Math.random() < ar.blockHigh;
+  const real = blocked ? Math.max(0, amount - ar.value) : amount;
+  if (blocked) floatText(c.x, c.y - 34, '格擋', '#f9cf70');
+  c.hp -= real; c.hitT = 2;
+  burst(c.x, c.y, '#53dfcb', 4);
+  if (c.hp <= 0) {
+    clones.splice(clones.indexOf(c), 1);
+    // 剩下的分身補位
+    clones.forEach((k, i) => { k.slot = CLONE_SLOTS[i]; });
+    burst(c.x, c.y, '#ff8f83', 14); floatText(c.x, c.y - 30, '分身陣亡', '#ff8f83'); updateParts();
+  }
 }
 function spawnBoss(id) {
   const B = BOSSES[id]; bossSpawned = true;
@@ -1202,6 +1286,25 @@ function updateBoss(e, dt, toward, dist) {
   if (e.debuffT > 0) e.debuffT = Math.max(0, e.debuffT - dt);
   if (dist < e.r + player.r && e.touchCd <= 0 && player.invT <= 0) { damage(E.contactDmg); e.touchCd = E.contactEvery; }
   updateBossBar();
+}
+function drawPart(pt) {
+  const q = proj(pt.x, pt.y); if (!onScreen(q, 40)) return;
+  ground(q, pt.x, pt.y);
+  ctx.fillStyle = 'rgba(4,18,26,0.4)'; ctx.beginPath(); ctx.ellipse(pt.x, pt.y + 2, 9, 4, 0, 0, Math.PI * 2); ctx.fill();
+  ctx.strokeStyle = 'rgba(249,207,112,' + (0.25 + 0.2 * Math.sin(gameTime * 4 + pt.ph)) + ')'; ctx.lineWidth = 1.5;
+  ctx.beginPath(); ctx.arc(pt.x, pt.y, 14, 0, Math.PI * 2); ctx.stroke();
+  upright(q, pt.x, pt.y);
+  // 齒輪：8 齒，緩慢旋轉、上下浮動
+  const cx = pt.x, cy = pt.y - 12 - Math.sin(gameTime * 3 + pt.ph) * 2.5, R = 8, r0 = 6, n = 8, rot = gameTime * 1.2 + pt.ph;
+  ctx.beginPath();
+  for (let i = 0; i < n * 2; i++) {
+    const a1 = rot + i / (n * 2) * Math.PI * 2, a2 = rot + (i + 1) / (n * 2) * Math.PI * 2, rr = i % 2 ? r0 : R;
+    ctx.lineTo(cx + Math.cos(a1) * rr, cy + Math.sin(a1) * rr); ctx.lineTo(cx + Math.cos(a2) * rr, cy + Math.sin(a2) * rr);
+  }
+  ctx.closePath();
+  const g = ctx.createLinearGradient(cx - R, cy - R, cx + R, cy + R); g.addColorStop(0, '#ffe9a6'); g.addColorStop(1, '#b8862f');
+  ctx.fillStyle = g; ctx.fill(); ctx.strokeStyle = '#6d4c16'; ctx.lineWidth = 1; ctx.stroke();
+  ctx.fillStyle = '#4a3410'; ctx.beginPath(); ctx.arc(cx, cy, 2.4, 0, Math.PI * 2); ctx.fill();
 }
 function drawBoss(e) {
   const B = e.B, m = B.assets.meta, box = imgs['boss_' + e.id] || {}, sc = bossScale(e);
@@ -1414,6 +1517,12 @@ function update(dt) {
     if (b.life <= 0 || Math.hypot(b.x - player.x, b.y - player.y) > far) { bullets.splice(i, 1); continue; }
     let hit = false;
     if (b.team === 'e') {
+      let cHit = null;
+      for (const c of clones) if (!(b.missedC && b.missedC.has(c)) && Math.hypot(b.x - c.x, b.y - c.y) < b.r + c.r) { cHit = c; break; }
+      if (cHit && cHit.invT <= 0) {
+        if (Math.random() < evadeRate(cfg)) { (b.missedC || (b.missedC = new Set())).add(cHit); floatText(cHit.x, cHit.y - 36, 'MISS', '#bfefff'); }
+        else { damageClone(cHit, b.dmg || E.bulletDmg); bullets.splice(i, 1); continue; }
+      }
       if (player.invT > 0) continue;   // 無敵時子彈直接穿過
       if (!b.evaded && Math.hypot(b.x - player.x, b.y - player.y) < b.r + player.r) {
         if (Math.random() < evadeRate(cfg)) {
@@ -1462,6 +1571,19 @@ function update(dt) {
     }
     if (hit) bullets.splice(i, 1);
   }
+  // 零件：定時散落；靠近就撿起
+  if (phase) {
+    partClock += dt;
+    if (partClock > PARTS.every && parts.length < PARTS.maxOnField) { partClock = 0; spawnPart(); }
+    for (let i = parts.length - 1; i >= 0; i--) {
+      const pt = parts[i], d = Math.hypot(pt.x - player.x, pt.y - player.y);
+      if (d < player.r + PARTS.pickR) {
+        parts.splice(i, 1); partCount++; updateParts();
+        floatText(pt.x, pt.y - 20, '零件 +1', '#f9cf70'); burst(pt.x, pt.y, '#f9cf70', 8); sfx.reload();
+      } else if (d > 1600) parts.splice(i, 1);
+    }
+  }
+  updateClones(dt);
   // 手雷：飛行 → 爆炸
   for (let i = grenades.length - 1; i >= 0; i--) {
     const g = grenades[i]; g.t += dt;
@@ -1660,12 +1782,22 @@ function draw(t) {
     ctx.beginPath(); ctx.moveTo(q1.x, q1.y); ctx.lineTo(q2.x, q2.y); ctx.stroke();
   }
   ctx.lineCap = 'butt';
-  const actors = [...covers().map((it) => ({ it, k: 'c' })), ...enemies.map((it) => ({ it, k: 'e' })), ...(player && state !== 'menu' ? [{ it: player, k: 'p' }] : [])].sort((a, b) => a.it.y - b.it.y);
+  for (const pt of parts) drawPart(pt);
+  const actors = [...covers().map((it) => ({ it, k: 'c' })), ...enemies.map((it) => ({ it, k: 'e' })), ...(player && state !== 'menu' ? [{ it: player, k: 'p' }, ...clones.map((it) => ({ it, k: 'm' }))] : [])].sort((a, b) => a.it.y - b.it.y);
   for (const { it, k } of actors) {
     const q = proj(it.x, it.y);
     if (!onScreen(q, 120 * q.k)) continue;
     if (k === 'c') drawCrate(it);
     else if (k === 'e' && it.boss) drawBoss(it);
+    else if (k === 'm') {
+      // 擴編分身
+      ctx.save(); drawCharacter(it, false); ctx.restore();
+      if (it.hp < it.maxHp) {
+        upright(q, it.x, it.y);
+        ctx.fillStyle = '#d23b3b'; ctx.fillRect(it.x - 16, it.y - 44, 32, 4);
+        ctx.fillStyle = '#4fd36a'; ctx.fillRect(it.x - 16, it.y - 44, 32 * Math.max(0, it.hp) / it.maxHp, 4);
+      }
+    }
     else if (k === 'e') {
       if (it.debuffT > 0) {
         const qq = proj(it.x, it.y); ground(qq, it.x, it.y);
@@ -1675,13 +1807,9 @@ function draw(t) {
       }
       drawCharacter(it, true);
       upright(q, it.x, it.y);
-      if (it.reloadT > 0) {
-        ctx.fillStyle = '#c9d6db'; ctx.font = '700 9px sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-        ctx.fillText('換彈中', it.x, it.y - 50);
-      }
       if (it.debuffT > 0) {
         ctx.fillStyle = '#ff5d8f'; ctx.font = '800 10px sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-        ctx.fillText('易傷', it.x, it.y - (it.reloadT > 0 ? 61 : 50));
+        ctx.fillText('易傷', it.x, it.y - 50);
       }
       ctx.fillStyle = '#26343b'; ctx.fillRect(it.x - 18, it.y - 42, 36, 4);
       ctx.fillStyle = '#ff988c'; ctx.fillRect(it.x - 18, it.y - 42, 36 * Math.max(0, it.hp) / E.hp, 4);
