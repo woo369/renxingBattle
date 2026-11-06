@@ -278,9 +278,10 @@ const ASSETS = {"triple_crown":{"meta":{"cx":720,"cy":720,"body":[307,192,1137,9
    ═══════════════════════════════════════════════════════════════ */
 const CHARACTER_BASE = {
   radius: 20,                    // 碰撞半徑
-  // 子彈射程＝鎖敵距離 × rangeScale ＋ rangeAdd
-  // 例：1.2 倍 → rangeScale: 1.2, rangeAdd: 0；鎖敵距離 ＋50 → rangeScale: 1, rangeAdd: 50
+  // 子彈射程＝鎖敵距離 × 倍率 ＋ rangeAdd
+  // 手機版（有自動瞄準）用 rangeScale；電腦版（滑鼠手動瞄準）用 rangeScaleDesktop
   rangeScale: 1.2,
+  rangeScaleDesktop: 1.8,
   rangeAdd: 0,
   // 閃避：向前撲一段距離，撲出去的期間＋停下後 afterInvuln 秒無敵
   // 冷卻與可累積次數由各角色的「閃避值」換算（見 dodgeCooldown／dodgeCharges）
@@ -747,7 +748,7 @@ function buildCodex(id) {
   const h = document.createElement('p'); h.className = 'codex-name'; h.textContent = D.name;
   const sub = document.createElement('p'); sub.className = 'codex-sub'; sub.textContent = (CLASS_NAMES[w.class] || w.name) + (CLASS_NAMES[w.class] && CLASS_NAMES[w.class] !== w.name ? '｜' + w.name : '');
   const rows = [
-    ['生命', D.maxHp], ['移動速度', D.speed], ['鎖敵距離', D.lockRange], ['射程', fmt(bulletRange(D))],
+    ['生命', D.maxHp], ['移動速度', D.speed], ['鎖敵距離', D.lockRange], ['射程（電腦）', fmt(bulletRange(D, true))], ['射程（手機）', fmt(bulletRange(D, false))],
     ['護甲', D.armor.value || '無'], ['閃避值', D.dodge],
     ['閃避冷卻', fmt(dodgeCooldown(D)) + ' 秒'], ['閃避次數', dodgeCharges(D.dodge) + ' 次'],
     ['迴避率', fmt(+(evadeRate(D) * 100).toFixed(1)) + '%'],
@@ -920,7 +921,7 @@ function burst(x, y, color, n = 8) {
   }
 }
 function floatText(x, y, text, color) { floaters.push({ x, y, text, color, life: 0.7, max: 0.7 }); }
-const bulletRange = (D) => D.lockRange * D.rangeScale + D.rangeAdd;
+const bulletRange = (D, desktop = !isTouch()) => D.lockRange * (desktop ? D.rangeScaleDesktop : D.rangeScale) + D.rangeAdd;
 /* 閃避值換算（範圍 9～128，越高越好、效益遞減）
    冷卻時間 = 10 × 15 ÷ (15 + 閃避值)
      9：6.3 秒｜14：5.2 秒｜30：3.3 秒｜45：2.5 秒｜80：1.6 秒｜128：1.05 秒
