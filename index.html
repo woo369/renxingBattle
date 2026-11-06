@@ -333,7 +333,7 @@ const CHARACTERS = {
     armor: { value: 22, blockLow: 0.7, blockHigh: 0.5 },  // 護甲值；傷害 ≤ 護甲／> 護甲時的格擋機率
     weapon: {
       name: '霰彈槍',
-      class: 'SG',               // 武器分類：AR 突擊步槍｜SMG 衝鋒槍｜RF 步槍｜SG 霰彈槍｜MG 機槍
+      class: 'SG',               // 武器分類：AR 突擊步槍｜SMG 衝鋒槍｜HG 手槍｜RF 步槍｜SG 霰彈槍｜MG 機槍
       magazine: 3,               // 彈匣容量
       pellets: 5,                // 每發彈丸數
       damage: 7,                 // 每顆彈丸傷害
@@ -453,8 +453,8 @@ const CHARACTERS = {
     assets: ASSETS.type82,
   }),
 };
-const WEAPON_CLASSES = ['突擊步槍', '衝鋒槍', '步槍', '霰彈槍', '機槍'];
-const CLASS_NAMES = { AR: '突擊步槍', SMG: '衝鋒槍', RF: '步槍', SG: '霰彈槍', MG: '機槍' };
+const WEAPON_CLASSES = ['突擊步槍', '衝鋒槍', '手槍', '步槍', '霰彈槍', '機槍'];
+const CLASS_NAMES = { AR: '突擊步槍', SMG: '衝鋒槍', HG: '手槍', RF: '步槍', SG: '霰彈槍', MG: '機槍' };
 // 關卡：之後新增關卡就在這裡加
 const LEVELS = [
   { id: 'training', name: '訓練場', open: true, desc: '無限延伸的戰場，與跟你相同角色的黑色剪影持續對戰，看能撐多久。' },
@@ -557,6 +557,7 @@ const sfx = {
   reload() { tone('square', 1100, 700, 0.04, 0.08); },
   dodge() { noise(0.16, 0.18, 900); tone('sine', 380, 160, 0.14, 0.08); },
   skill() { tone('sawtooth', 220, 660, 0.18, 0.12); tone('sine', 880, 440, 0.25, 0.08); },
+  evade() { tone('sine', 1200, 1800, 0.08, 0.06); },
   boom() { noise(0.5, 0.6, 700); tone('sine', 90, 30, 0.45, 0.6); },
   crate() { noise(0.1, 0.25, 2500); },
 };
@@ -700,6 +701,7 @@ function buildCodex(id) {
     ['生命', D.maxHp], ['移動速度', D.speed], ['鎖敵距離', D.lockRange], ['射程', fmt(bulletRange(D))],
     ['護甲', D.armor.value || '無'], ['閃避值', D.dodge],
     ['閃避冷卻', fmt(dodgeCooldown(D)) + ' 秒'], ['閃避次數', dodgeCharges(D.dodge) + ' 次'],
+    ['迴避率', fmt(+(evadeRate(D) * 100).toFixed(1)) + '%'],
     ['彈匣', w.magazine + ' 發'], [w.pellets > 1 ? '每發彈丸' : '每發傷害', w.pellets > 1 ? w.pellets + ' 顆 × ' + w.damage : w.damage],
     ['射速', fmt(+(1 / w.cooldown).toFixed(2), 2).replace(/\.?0+$/, '') + ' 發／秒'], ['換彈', (w.reloadMode === 'magazine' ? '整匣 ' : '逐發 ') + fmt(w.reload, 2) + ' 秒'],
   ];
@@ -878,6 +880,11 @@ const bulletRange = (D) => D.lockRange * D.rangeScale + D.rangeAdd;
 const HEAVY_CLASSES = ['SG', 'MG'], HEAVY_DODGE_PENALTY = 10;
 const dodgeCooldown = (D) => 10 * 15 / (15 + D.dodge) + (HEAVY_CLASSES.includes(D.weapon.class) ? HEAVY_DODGE_PENALTY : 0);
 const dodgeCharges = (v) => Math.min(3, 1 + Math.floor(v / 40));
+/* 迴避率：被敵人子彈打中時，有機率直接無視這顆子彈
+   迴避率（%）＝ 閃避值 × 0.1，衝鋒槍（SMG）與手槍（HG）另外 +10%
+     三重冕 14 → 1.4%｜HK433 45 → 4.5%｜82式 84 → 8.4% + 10% ＝ 18.4% */
+const EVADE_BONUS_CLASSES = ['SMG', 'HG'], EVADE_BONUS = 10;
+const evadeRate = (D) => (D.dodge * 0.1 + (EVADE_BONUS_CLASSES.includes(D.weapon.class) ? EVADE_BONUS : 0)) / 100;
 function useSkill() {
   const sk = cfg.skill;
   if (state !== 'play' || !player || !sk || player.skillCd > 0 || player.skillArmed || player.buffT > 0) return;
@@ -1131,7 +1138,12 @@ function update(dt) {
     let hit = false;
     if (b.team === 'e') {
       if (player.invT > 0) continue;   // 無敵時子彈直接穿過
-      if (Math.hypot(b.x - player.x, b.y - player.y) < b.r + player.r) { damage(ENEMY.bulletDmg); hit = true; }
+      if (!b.evaded && Math.hypot(b.x - player.x, b.y - player.y) < b.r + player.r) {
+        if (Math.random() < evadeRate(cfg)) {
+          // 迴避：子彈穿過、不扣血，也不會打斷霞光萍蹤的強化
+          b.evaded = true; floatText(player.x, player.y - 40, '迴避', '#bfefff'); sfx.evade();
+        } else { damage(ENEMY.bulletDmg); hit = true; }
+      }
     } else {
       for (const e of enemies) {
         if (Math.hypot(b.x - e.x, b.y - e.y) < b.r + e.r) {
