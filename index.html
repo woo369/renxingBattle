@@ -233,7 +233,7 @@ body.touch #skillBtn{display:none}
 <div id="pause" class="overlay" hidden>
   <div class="sheet" style="max-width:380px">
     <h2>已暫停</h2>
-    <label class="field" for="zoomRange"><span>視野</span><input id="zoomRange" type="range" min="0.8" max="1.9" step="0.01" value="1"></label>
+    <label class="field" for="zoomRange"><span>視野</span><input id="zoomRange" type="range" min="0.4" max="1.4" step="0.01" value="1"></label>
     <div class="row">
       <button id="resumeBtn" class="btn primary" type="button">繼續</button>
       <button id="quitBtn" class="btn" type="button">回主選單</button>
@@ -858,8 +858,8 @@ document.addEventListener('visibilitychange', () => { if (document.hidden) pause
 document.addEventListener('contextmenu', (e) => e.preventDefault());
 canvas.addEventListener('wheel', (e) => { if (state === 'play') { e.preventDefault(); setZoom(userZoom * (e.deltaY < 0 ? 1.08 : 1 / 1.08)); } }, { passive: false });
 
-// 玩家可調整的視野倍率：0.8～1.9（初始 1）
-const ZOOM_MIN = 0.8, ZOOM_MAX = 1.9;
+// 玩家可調整的視野倍率：0.4～1.4（初始 1）
+const ZOOM_MIN = 0.4, ZOOM_MAX = 1.4;
 function setZoom(v) { userZoom = clamp(v, ZOOM_MIN, ZOOM_MAX); computeZoom(); stream(); }
 
 function endStick() {
