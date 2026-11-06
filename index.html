@@ -663,7 +663,7 @@ const DRONE = { ...ENEMY,
   hp: 30, armor: 0, evade: 0,
   radius: Math.round(ENEMY.radius / 2),   // 碰撞箱半徑是一般角色的一半
   speed: 100,                // 與稻草人相同
-  lockRange: 200,            // 發現距離／開火距離
+  lockRange: 230,            // 發現距離／開火距離（與稻草人相同）
   stopRange: 120,            // 湊到 120 左右停下來射擊
   orbit: 46,                 // 繞稻草人飛行的半徑
   bulletDmg: 5, fireCooldown: 1,   // 一秒一發，一發 5
@@ -677,6 +677,7 @@ const WAR_PHASES = [
   {
     name: '第一階段', end: 180,
     pattern: [CYCLOPS], initial: 4,
+    packs: ['cyc'],              // 這個階段要用的敵人素材包
     spawn: { every: 3.2, min: 2.2, max: 10 },   // 每 3.2 秒生成一隻，逐漸加快到 2.2 秒；同時最多 10 隻
     bossReward: { parts: 15 },   // 擊敗 Boss 獲得 15 個零件
     bossPool: 'elite',           // 時間到 → 從精英敵人中隨機抽一名當 Boss，擊敗後進入第二階段
@@ -689,6 +690,7 @@ const WAR_PHASES = [
       { ...CYCLOPS, hp: CYCLOPS.hp * 1.2, bulletDmg: CYCLOPS.bulletDmg * 1.2 },
       MULTI_EYE,
     ],
+    packs: ['cyc', 'meye'],
     initial: 4,
     spawn: { every: 3.2, min: 2.2, max: 10 },
     partsEvery: 7,               // 零件改成每 7 秒出現一個
@@ -783,7 +785,7 @@ const BOSSES = {
     speed: 100,                  // 射程外以 100 的速度靠近
     creepSpeed: 10,              // 射程內以每秒 10 的速度慢慢貼近
     stopDist: 100,               // 貼近到距離 100 就停下
-    lockRange: 200,              // 進入 200 以內開火
+    lockRange: 230,              // 進入 230 以內開火
     bulletDmg: 5,                // 每顆 5 傷害
     gunRate: 1,                  // 每座浮游砲每秒 1 發
     gunStagger: 0.2,             // 三座輪流發射：左 → 頭頂 → 右，各差 0.2 秒
@@ -860,18 +862,26 @@ function ensurePack(pid) {
   })))).then(() => { packReady[pid] = true; }).catch((err) => { delete packLoading[pid]; throw err; });   // 失敗可以重試
   return packLoading[pid];
 }
-// 開局一定要先載好的素材包：出擊人形；戰事再加上第一階段的獨眼巨人
-function packsFor(charId, level) {
-  const list = [packOf(CHARACTERS[charId].assets)];
-  if (level === 'war') list.push('cyc');
+// 戰事每個階段抽到的 Boss（開局就全部抽好）
+let phaseBoss = [];
+// 某個階段要用的素材包：該階段的敵人＋該階段的 Boss
+function phasePacks(i) {
+  const ph = WAR_PHASES[i]; if (!ph) return [];
+  const list = [...ph.packs];
+  if (phaseBoss[i]) list.push(packOf(BOSSES[phaseBoss[i]].assets));
   return list;
 }
-// 開局後才用得到的（第二階段的多眼巨人、3 分鐘後的 Boss）→ 遊戲進行中在背景下載
-function laterPacks(level, bossId) { return level === 'war' ? ['meye', packOf(BOSSES[bossId].assets)] : []; }
-// 在選單停留時先在背景下載開局必需的素材（人形；戰事再加獨眼巨人）。
-// Boss 與多眼巨人不在選單時下載，以免網路慢時跟開局素材搶頻寬——第一階段有 3 分鐘可以慢慢下載。
+// 開局一定要先載好的素材包：出擊人形；戰事再加上第一階段的敵人與第一階段的 Boss
+function packsFor(charId, level) {
+  const list = [packOf(CHARACTERS[charId].assets)];
+  if (level === 'war') list.push(...phasePacks(0));
+  return list;
+}
+// 在選單停留時先在背景下載：目前的人形；選了戰事再加第一階段的敵人（Boss 要等開局抽了才知道）
 function prefetch() {
-  for (const pid of packsFor(selectedId, selectedLevel)) ensurePack(pid).catch(() => {});
+  const list = [packOf(CHARACTERS[selectedId].assets)];
+  if (selectedLevel === 'war') list.push(...WAR_PHASES[0].packs);
+  for (const pid of list) ensurePack(pid).catch(() => {});
 }
 function silhouette(im) {
   let c = sil.get(im);
@@ -1230,11 +1240,11 @@ function setLoadingTips(on) {
   clearInterval(tipTimer);
   if (on) { showTip(); tipTimer = setInterval(showTip, 4000); }
 }
-let warBoss = null, gameLoading = false;
+let gameLoading = false;
 function startGame() {
   if (gameLoading) return;
   audio();
-  warBoss = selectedLevel === 'war' ? pickBoss(WAR_PHASES[0].bossPool) : null;   // 開局就抽好 Boss，第一階段時在背景下載牠的素材
+  phaseBoss = selectedLevel === 'war' ? WAR_PHASES.map((ph) => ph.bossPool ? pickBoss(ph.bossPool) : null) : [];   // 開局就抽好各階段的 Boss
   const need = packsFor(selectedId, selectedLevel);
   const btns = [$('startBtn'), $('retryBtn')], labels = btns.map((b) => b.textContent);
   gameLoading = true; btns.forEach((b) => { b.disabled = true; b.textContent = '載入素材中…'; });
@@ -1243,7 +1253,7 @@ function startGame() {
     gameLoading = false; btns.forEach((b, i) => { b.disabled = false; b.textContent = labels[i]; });
     setLoadingTips(false);
     beginGame();
-    for (const pid of laterPacks(selectedLevel, warBoss)) ensurePack(pid).catch(() => {});
+    if (selectedLevel === 'war') for (const pid of phasePacks(1)) ensurePack(pid).catch(() => {});   // 進場後開始下載下一階段
   }).catch(() => {
     gameLoading = false; btns.forEach((b) => { b.disabled = false; b.textContent = '載入失敗，點此重試'; });
     setLoadingTips(false);
@@ -1282,10 +1292,12 @@ function endGame(cleared) {
 // 進入下一個階段（擊敗 Boss 後）；沒有下一階段就過關
 function nextPhase() {
   if (state !== 'play' || !phase) return;
-  if (!packReady.meye) { ensurePack('meye').then(nextPhase, () => setTimeout(nextPhase, 1000)); return; }   // 第二階段的多眼巨人還沒下載完
+  const waitFor = phasePacks(phaseIdx + 1).filter((pid) => !packReady[pid]);   // 下一階段的素材還沒下載完就稍等
+  if (waitFor.length) { Promise.all(waitFor.map(ensurePack)).then(nextPhase, () => setTimeout(nextPhase, 1000)); return; }
   const nx = WAR_PHASES[phaseIdx + 1];
   if (!nx) { endGame(true); return; }
-  phaseIdx++; phase = nx; phaseStart = gameTime; spawnIdx = 0; spawnClock = 0; boss = null; bossSpawned = false;
+  phaseIdx++; phase = nx; phaseStart = gameTime;
+  for (const pid of phasePacks(phaseIdx + 1)) ensurePack(pid).catch(() => {});   // 再下一階段的素材先開始下載 spawnIdx = 0; spawnClock = 0; boss = null; bossSpawned = false;
   for (const e of enemies.slice()) if (!e.boss) burst(e.x, e.y, '#ff8f83', 8);
   enemies = enemies.filter((e) => e.boss);
   $('phaseName').textContent = phase.name; $('bossSkip').hidden = !phase.bossPool; $('phaseSkip').hidden = phaseIdx >= WAR_PHASES.length - 1;
@@ -2352,7 +2364,7 @@ function update(dt) {
     $('phaseTime').textContent = m + ':' + String(sec).padStart(2, '0');
     if (left <= 0 && !bossSpawned) {
       if (phase.bossPool) {
-        const bid = warBoss || pickBoss(phase.bossPool), pid = packOf(BOSSES[bid].assets);
+        const bid = phaseBoss[phaseIdx] || pickBoss(phase.bossPool), pid = packOf(BOSSES[bid].assets);
         if (packReady[pid]) spawnBoss(bid);
         else { ensurePack(pid).catch(() => {}); $('phaseTime').textContent = '載入中'; }   // 素材還沒下載完：稍等再出場
       } else { endGame(true); return; }
