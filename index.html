@@ -284,8 +284,9 @@ const CHARACTER_BASE = {
   // 閃避：向前撲一段距離，撲出去的期間＋停下後 afterInvuln 秒無敵
   // 冷卻與可累積次數由各角色的「閃避值」換算（見 dodgeCooldown／dodgeCharges）
   dodgeMove: { distance: 120, time: 0.22, afterInvuln: 0.5 },
-  // 奔跑特效（腳下塵土、速度線、身體前傾與起伏）：衝鋒槍或移動速度 ≥ 240 的人形自動開啟；角色可用 runFx: true/false 強制設定
-  runFxSpeed: 240,
+  // 奔跑特效（腳下塵土、速度線、身體前傾與起伏）：「當下實際移動速度」超過 runFxSpeed 才出現
+  // 手機搖桿推得淺、速度低時不會出現；角色可用 runFx: false 完全關閉
+  runFxSpeed: 250,
   anim: {
     scale: 0.0738,               // 1440px 原圖縮放到遊戲內的比例
     runCycle: 0.44,              // 跑完一輪奔跑動畫的秒數（不論幾幀）
@@ -313,7 +314,7 @@ function defineCharacter(def) {
     anim: { ...CHARACTER_BASE.anim, ...(def.anim || {}) },
     frames: { ...CHARACTER_BASE.frames, ...(def.frames || {}) },
     weapon: { reloadMode: 'shell', sound: 'shotgun', ...def.weapon },
-    runFx: def.runFx !== undefined ? def.runFx : (def.weapon.class === 'SMG' || def.speed >= CHARACTER_BASE.runFxSpeed),
+    runFx: def.runFx !== false,
   };
 }
 
@@ -999,6 +1000,7 @@ function update(dt) {
   dx += stick.x; dy += stick.y;
   const len = Math.hypot(dx, dy), mag = Math.min(1, len);
   player.moving = len > 0.08;
+  player.curSpeed = player.moving ? mag * cfg.speed : 0;   // 當下實際移動速度（搖桿推得淺就比較慢）
   if (len > 0.08) player.moveAngle = Math.atan2(dy, dx);
   // 閃避充能：一次補一格
   const maxC = dodgeCharges(cfg.dodge);
@@ -1025,7 +1027,7 @@ function update(dt) {
     player.moving = true;
   } else if (len) moveWithCover(player, dx / len * mag * cfg.speed * dt, dy / len * mag * cfg.speed * dt);
   // 奔跑特效：依移動距離產生腳下塵土與身後速度線
-  if (cfg.runFx && player.moving) {
+  if (cfg.runFx && (player.dodgeT > 0 || player.curSpeed > cfg.runFxSpeed)) {
     player.dustClock = (player.dustClock || 0) - dt;
     if (player.dustClock <= 0) {
       player.dustClock = player.dodgeT > 0 ? 0.03 : 0.065;
@@ -1265,7 +1267,7 @@ function drawCharacter(en, isEnemy, ghost) {
   else if (!isEnemy && en.invT > 0 && en.dodgeT <= 0) ctx.globalAlpha = 0.55 + 0.35 * Math.abs(Math.sin(gameTime * 18));   // 停下後的無敵：閃爍
   if (p.full) {
     if (en.dodgeT > 0 || ghost) { const fy = 28; ctx.translate(0, fy); ctx.rotate(0.38); ctx.translate(0, -fy); }   // 向前撲：身體前傾
-    else if (!isEnemy && D.runFx && en.moving) {
+    else if (!isEnemy && D.runFx && en.moving && en.curSpeed > D.runFxSpeed) {
       // 快速奔跑：身體前傾＋上下起伏（每步彈一次），補足動畫幅度
       const ph = gameTime / D.anim.runCycle * Math.PI * 2, fy = 28;
       ctx.translate(0, -Math.abs(Math.sin(ph)) * 3.2);
