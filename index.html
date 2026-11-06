@@ -375,7 +375,7 @@ const CHARACTERS = {
       damage: 12,
       spread: 0, jitter: 0.035,
       speed: [640, 680], radius: 2.6,
-      cooldown: 0.3,             // 0.3 秒一發
+      cooldown: 1 / (1.57 * 3),  // 每秒 1.57 × 3 ＝ 4.71 發（原作射速的 3 倍）
       reloadMode: 'magazine',
       reload: 1.8,
       anim: 0.1,
@@ -419,7 +419,7 @@ const CHARACTERS = {
       damage: 5,
       spread: 0, jitter: 0.06,
       speed: [600, 640], radius: 2.4,
-      cooldown: 0.2,             // 0.2 秒一發
+      cooldown: 1 / (1.875 * 3), // 每秒 1.875 × 3 ＝ 5.625 發（原作射速的 3 倍）
       reloadMode: 'magazine',
       reload: 1,
       anim: 0.1,
@@ -700,7 +700,7 @@ function buildCodex(id) {
     ['護甲', D.armor.value || '無'], ['閃避值', D.dodge],
     ['閃避冷卻', fmt(dodgeCooldown(D)) + ' 秒'], ['閃避次數', dodgeCharges(D.dodge) + ' 次'],
     ['彈匣', w.magazine + ' 發'], [w.pellets > 1 ? '每發彈丸' : '每發傷害', w.pellets > 1 ? w.pellets + ' 顆 × ' + w.damage : w.damage],
-    ['射速', fmt(1 / w.cooldown) + ' 發／秒'], ['換彈', (w.reloadMode === 'magazine' ? '整匣 ' : '逐發 ') + fmt(w.reload, 2) + ' 秒'],
+    ['射速', fmt(+(1 / w.cooldown).toFixed(2), 2).replace(/\.?0+$/, '') + ' 發／秒'], ['換彈', (w.reloadMode === 'magazine' ? '整匣 ' : '逐發 ') + fmt(w.reload, 2) + ' 秒'],
   ];
   const dl = document.createElement('dl'); dl.className = 'stat-grid';
   for (const [k, v] of rows) { const d = document.createElement('div'); const dt = document.createElement('dt'); dt.textContent = k; const dd = document.createElement('dd'); dd.textContent = v; d.append(dt, dd); dl.appendChild(d); }
