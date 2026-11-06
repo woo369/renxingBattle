@@ -836,7 +836,7 @@ const packBox = {};                                  // 素材包 → 解碼後�
 for (const def of Object.values(CHARACTERS)) packBox[packOf(def.assets)] = def.id;
 for (const id of ['cyc', 'meye']) packBox[id] = 'enemy_' + id;
 for (const [id, B] of Object.entries(BOSSES)) packBox[packOf(B.assets)] = 'boss_' + id;
-const packLoading = {};
+const packLoading = {}, packReady = {};
 function ensurePack(pid) {
   if (packLoading[pid]) return packLoading[pid];
   const A = ASSETS[pid];
@@ -848,19 +848,23 @@ function ensurePack(pid) {
     im.onload = () => { box[name] = im; res(); };
     im.onerror = () => rej(new Error('image ' + name));
     im.src = src;
-  })))).catch((err) => { delete packLoading[pid]; throw err; });   // 失敗可以重試
+  })))).then(() => { packReady[pid] = true; }).catch((err) => { delete packLoading[pid]; throw err; });   // 失敗可以重試
   return packLoading[pid];
 }
-// 這一場需要的素材包：出擊人形；戰事再加上獨眼巨人、多眼巨人與抽到的 Boss
-function packsFor(charId, level, bossId) {
+// 開局一定要先載好的素材包：出擊人形；戰事再加上第一階段的獨眼巨人
+function packsFor(charId, level) {
   const list = [packOf(CHARACTERS[charId].assets)];
-  if (level === 'war') list.push('cyc', 'meye', packOf(BOSSES[bossId].assets));
+  if (level === 'war') list.push('cyc');
   return list;
 }
-// 在選單停留時先在背景下載目前選擇的人形與關卡
+// 開局後才用得到的（第二階段的多眼巨人、3 分鐘後的 Boss）→ 遊戲進行中在背景下載
+function laterPacks(level, bossId) { return level === 'war' ? ['meye', packOf(BOSSES[bossId].assets)] : []; }
+// 戰事的 Boss 在選單時就先抽好，好讓牠的素材提早下載
+let nextBoss = null;
+// 在選單停留時先在背景下載：目前選擇的人形；選了戰事就連獨眼巨人、多眼巨人與下一場的 Boss 一起
 function prefetch() {
-  const list = [packOf(CHARACTERS[selectedId].assets)];
-  if (selectedLevel === 'war') list.push('cyc', 'meye');
+  if (selectedLevel === 'war' && !nextBoss) nextBoss = pickBoss(WAR_PHASES[0].bossPool);
+  const list = [...packsFor(selectedId, selectedLevel), ...(selectedLevel === 'war' ? laterPacks('war', nextBoss) : [])];
   for (const pid of list) ensurePack(pid).catch(() => {});
 }
 function silhouette(im) {
@@ -1189,13 +1193,15 @@ let warBoss = null, gameLoading = false;
 function startGame() {
   if (gameLoading) return;
   audio();
-  warBoss = selectedLevel === 'war' ? pickBoss(WAR_PHASES[0].bossPool) : null;   // 先抽好 Boss，才能一起載入牠的素材
-  const need = packsFor(selectedId, selectedLevel, warBoss);
+  warBoss = selectedLevel === 'war' ? (nextBoss || pickBoss(WAR_PHASES[0].bossPool)) : null;
+  nextBoss = null;
+  const need = packsFor(selectedId, selectedLevel);
   const btns = [$('startBtn'), $('retryBtn')], labels = btns.map((b) => b.textContent);
   gameLoading = true; btns.forEach((b) => { b.disabled = true; b.textContent = '載入素材中…'; });
   Promise.all(need.map(ensurePack)).then(() => {
     gameLoading = false; btns.forEach((b, i) => { b.disabled = false; b.textContent = labels[i]; });
     beginGame();
+    for (const pid of laterPacks(selectedLevel, warBoss)) ensurePack(pid).catch(() => {});
   }).catch(() => {
     gameLoading = false; btns.forEach((b) => { b.disabled = false; b.textContent = '載入失敗，點此重試'; });
   });
@@ -1220,6 +1226,7 @@ function beginGame() {
   setState('play'); last = performance.now();
 }
 function endGame(cleared) {
+  setTimeout(prefetch, 300);   // 結算時先在背景準備下一場（含下一隻 Boss）
   $('overTitle').textContent = cleared ? (phase ? phase.name : '') + '完成！' : '本回合結束';
   $('bossBar').hidden = true;
   const isBest = score > best;
@@ -1232,6 +1239,7 @@ function endGame(cleared) {
 // 進入下一個階段（擊敗 Boss 後）；沒有下一階段就過關
 function nextPhase() {
   if (state !== 'play' || !phase) return;
+  if (!packReady.meye) { ensurePack('meye').then(nextPhase, () => setTimeout(nextPhase, 1000)); return; }   // 第二階段的多眼巨人還沒下載完
   const nx = WAR_PHASES[phaseIdx + 1];
   if (!nx) { endGame(true); return; }
   phaseIdx++; phase = nx; phaseStart = gameTime; spawnIdx = 0; spawnClock = 0; boss = null; bossSpawned = false;
@@ -2300,7 +2308,11 @@ function update(dt) {
     const left = Math.max(0, phase.end - phaseClock()), m = Math.floor(left / 60), sec = Math.floor(left % 60);
     $('phaseTime').textContent = m + ':' + String(sec).padStart(2, '0');
     if (left <= 0 && !bossSpawned) {
-      if (phase.bossPool) spawnBoss(warBoss || pickBoss(phase.bossPool)); else { endGame(true); return; }
+      if (phase.bossPool) {
+        const bid = warBoss || pickBoss(phase.bossPool), pid = packOf(BOSSES[bid].assets);
+        if (packReady[pid]) spawnBoss(bid);
+        else { ensurePack(pid).catch(() => {}); $('phaseTime').textContent = '載入中'; }   // 素材還沒下載完：稍等再出場
+      } else { endGame(true); return; }
     }
     if (boss) { $('phaseTime').textContent = 'BOSS'; }
   }
