@@ -544,7 +544,7 @@ const CHARACTERS = {
     maxHp: 35,
     speed: 285,
     lockRange: 260,
-    dodge: 128,                  // 閃避值 → 冷卻約 1.6 秒、3 次；迴避率 12.8%＋手槍 10%
+    dodge: 128,                  // 閃避值 → 冷卻約 1.6 秒、3 次；迴避率 12.8%＋手槍 25%
     armor: { value: 0, blockLow: 0, blockHigh: 0 },
     weapon: {
       name: '手槍',
@@ -1142,10 +1142,10 @@ const HEAVY_CLASSES = ['SG', 'MG'], HEAVY_DODGE_PENALTY = 10;
 const dodgeCooldown = (D) => 10 * 15 / (15 + D.dodge) + (HEAVY_CLASSES.includes(D.weapon.class) ? HEAVY_DODGE_PENALTY : 0);
 const dodgeCharges = (v) => Math.min(3, 1 + Math.floor(v / 40));
 /* 迴避率：被敵人子彈打中時，有機率直接無視這顆子彈
-   迴避率（%）＝ 閃避值 × 0.1，衝鋒槍（SMG）與手槍（HG）另外 +10%
+   迴避率（%）＝ 閃避值 × 0.1，衝鋒槍（SMG）另外 +10%，手槍（HG）另外 +25%（手槍血量最少）
      三重冕 14 → 1.4%｜HK433 45 → 4.5%｜82式 84 → 8.4% + 10% ＝ 18.4% */
-const EVADE_BONUS_CLASSES = ['SMG', 'HG'], EVADE_BONUS = 10;
-const evadeRate = (D) => (D.dodge * 0.1 + (EVADE_BONUS_CLASSES.includes(D.weapon.class) ? EVADE_BONUS : 0)) / 100;
+const EVADE_BONUS = { SMG: 10, HG: 25 };
+const evadeRate = (D) => (D.dodge * 0.1 + (EVADE_BONUS[D.weapon.class] || 0)) / 100;
 /* 角色身上的效果（增益）：{ id, name, mark, color, dmg/rate/crit, t, max }
    同一種效果再次獲得時只重設時間；效果列顯示在畫面下方 */
 function addEffect(u, eff) {
