@@ -89,6 +89,13 @@ h2{margin:0 0 8px;font-size:26px;font-weight:800}
 .btn:disabled{opacity:.6;cursor:wait}
 .row{display:flex;gap:10px;justify-content:center;flex-wrap:wrap}
 .help{margin:14px 0 0;font-size:13px;line-height:1.6;color:var(--muted)}
+/* 載入素材時的人形小資訊 */
+.load-tip{margin:14px auto 0;max-width:30em;display:flex;align-items:center;gap:10px;padding:8px 12px;border-radius:12px;background:#0b2230;border:1px solid #1f4250;text-align:left;animation:tipIn .35s ease}
+.load-tip img{height:44px;width:auto;flex:none}
+.load-tip p{margin:0;font-size:13px;line-height:1.55;color:var(--ink)}
+.load-tip small{display:block;font-size:11px;letter-spacing:.12em;color:var(--accent);font-weight:800}
+#menu.loading .help{display:none}
+@keyframes tipIn{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:none}}
 .best{margin:6px 0 0;font-size:13px;color:var(--gold);font-variant-numeric:tabular-nums}
 .big-score{font-size:44px;font-weight:800;margin:4px 0 2px;font-variant-numeric:tabular-nums}
 .stats-line{margin:0 0 18px;color:var(--muted);font-size:14px;font-variant-numeric:tabular-nums}
@@ -258,6 +265,7 @@ body.touch #expandBtn small{display:none}
     <button id="startBtn" class="btn primary" type="button" disabled>載入中…</button>
     <p class="help only-mouse">WASD／方向鍵移動 · 滑鼠瞄準 · 左鍵或空白鍵開火 · Shift 或右鍵閃避 · Q 技能 · R 裝彈 · 滾輪縮放 · P／Esc 暫停</p>
     <p class="help only-touch">左半邊螢幕拖曳移動 · 右下角開火、裝彈、閃避、技能 · 範圍內自動鎖定最近的敵人</p>
+    <div class="load-tip" id="startTip" hidden></div>
     <p class="best" id="bestLine"></p>
   </div>
 </div>
@@ -309,6 +317,7 @@ body.touch #expandBtn small{display:none}
       <button id="retryBtn" class="btn primary" type="button">再玩一次</button>
       <button id="menuBtn" class="btn" type="button">選擇角色</button>
     </div>
+    <div class="load-tip" id="retryTip" hidden></div>
   </div>
 </div>
 
@@ -859,13 +868,10 @@ function packsFor(charId, level) {
 }
 // 開局後才用得到的（第二階段的多眼巨人、3 分鐘後的 Boss）→ 遊戲進行中在背景下載
 function laterPacks(level, bossId) { return level === 'war' ? ['meye', packOf(BOSSES[bossId].assets)] : []; }
-// 戰事的 Boss 在選單時就先抽好，好讓牠的素材提早下載
-let nextBoss = null;
-// 在選單停留時先在背景下載：目前選擇的人形；選了戰事就連獨眼巨人、多眼巨人與下一場的 Boss 一起
+// 在選單停留時先在背景下載開局必需的素材（人形；戰事再加獨眼巨人）。
+// Boss 與多眼巨人不在選單時下載，以免網路慢時跟開局素材搶頻寬——第一階段有 3 分鐘可以慢慢下載。
 function prefetch() {
-  if (selectedLevel === 'war' && !nextBoss) nextBoss = pickBoss(WAR_PHASES[0].bossPool);
-  const list = [...packsFor(selectedId, selectedLevel), ...(selectedLevel === 'war' ? laterPacks('war', nextBoss) : [])];
-  for (const pid of list) ensurePack(pid).catch(() => {});
+  for (const pid of packsFor(selectedId, selectedLevel)) ensurePack(pid).catch(() => {});
 }
 function silhouette(im) {
   let c = sil.get(im);
@@ -1189,21 +1195,58 @@ function addEnemy() {
   const T = phase ? phase.pattern[spawnIdx++ % phase.pattern.length] : ENEMY;
   enemies.push({ T, x: player.x + ca * d, y: player.y + sa * d, r: T.radius, hp: T.hp, ammo: T.magazine, angle: 0, cool: rand(1.2, 2), touchCd: 0, def: cfg, shot: 0, moving: true, phase: rand(0, 6) });
 }
+/* ───────── 載入素材時輪播的人形小資訊 ───────── */
+const TIPS = [
+  ['hummingbird', '蜂鳥最討厭別人把她當成小孩子了。'],
+  ['hummingbird', '蜂鳥喜歡占卜，自稱「歷史的旁觀者」。'],
+  ['triple_crown', '齊亞帕三重冕喜歡用雙眼或相機記錄身邊的一切。'],
+  ['triple_crown', '齊亞帕三重冕對於書寫作戰報告這種事很頭疼。'],
+  ['martini', '不要嘗試跟馬提尼亨利辯論她預測未來的結果。'],
+  ['martini', '馬提尼亨利是飛碟射擊運動協會的槍械調適人形。'],
+  ['martini', '馬提尼亨利有預測未來的習慣。'],
+  ['hk433', 'HK433 是追求完美的超級工作狂。'],
+  ['hk433', 'HK433 從不休息。'],
+  ['hk433', '可愛小貓會讓 HK433 臉紅心跳——她堅決否認這件事。'],
+  ['type82', '82式是 Galgame 大師，小心被她攻略。'],
+  ['type82', '82式隨身攜帶的蘋果，其實是手榴彈。'],
+];
+let tipTimer = null, tipLast = -1;
+function showTip() {
+  let i; do { i = Math.floor(Math.random() * TIPS.length); } while (TIPS.length > 1 && i === tipLast);
+  tipLast = i;
+  const [cid, text] = TIPS[i], def = CHARACTERS[cid];
+  for (const id of ['startTip', 'retryTip']) {
+    const box = $(id); box.textContent = '';
+    const im = new Image(); im.alt = ''; if (def) im.src = def.assets.imgs[def.frames.preview];
+    const p = document.createElement('p'), sm = document.createElement('small'); sm.textContent = '人形小資訊';
+    p.append(sm, text); box.append(im, p);
+    box.style.animation = 'none'; void box.offsetWidth; box.style.animation = '';   // 重新播放淡入
+  }
+}
+// 載入中：首頁下方的操作說明換成小資訊，每 4 秒換一則
+function setLoadingTips(on) {
+  $('menu').classList.toggle('loading', on);
+  $('startTip').hidden = $('retryTip').hidden = !on;
+  clearInterval(tipTimer);
+  if (on) { showTip(); tipTimer = setInterval(showTip, 4000); }
+}
 let warBoss = null, gameLoading = false;
 function startGame() {
   if (gameLoading) return;
   audio();
-  warBoss = selectedLevel === 'war' ? (nextBoss || pickBoss(WAR_PHASES[0].bossPool)) : null;
-  nextBoss = null;
+  warBoss = selectedLevel === 'war' ? pickBoss(WAR_PHASES[0].bossPool) : null;   // 開局就抽好 Boss，第一階段時在背景下載牠的素材
   const need = packsFor(selectedId, selectedLevel);
   const btns = [$('startBtn'), $('retryBtn')], labels = btns.map((b) => b.textContent);
   gameLoading = true; btns.forEach((b) => { b.disabled = true; b.textContent = '載入素材中…'; });
+  if (need.some((pid) => !packReady[pid])) setLoadingTips(true);
   Promise.all(need.map(ensurePack)).then(() => {
     gameLoading = false; btns.forEach((b, i) => { b.disabled = false; b.textContent = labels[i]; });
+    setLoadingTips(false);
     beginGame();
     for (const pid of laterPacks(selectedLevel, warBoss)) ensurePack(pid).catch(() => {});
   }).catch(() => {
     gameLoading = false; btns.forEach((b) => { b.disabled = false; b.textContent = '載入失敗，點此重試'; });
+    setLoadingTips(false);
   });
 }
 function beginGame() {
@@ -1226,7 +1269,7 @@ function beginGame() {
   setState('play'); last = performance.now();
 }
 function endGame(cleared) {
-  setTimeout(prefetch, 300);   // 結算時先在背景準備下一場（含下一隻 Boss）
+  setTimeout(prefetch, 300);   // 結算時先在背景準備下一場
   $('overTitle').textContent = cleared ? (phase ? phase.name : '') + '完成！' : '本回合結束';
   $('bossBar').hidden = true;
   const isBest = score > best;
