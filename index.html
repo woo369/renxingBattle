@@ -471,9 +471,9 @@ const CHARACTERS = {
         { radius: 25, damage: 25, shieldPct: 0 },
         { radius: 50, damage: 25, shieldPct: 0 },     // 強化 1：半徑 50
         { radius: 50, damage: 40, shieldPct: 0 },     // 強化 2：傷害 40
-        { radius: 50, damage: 40, shieldPct: 0.08 },  // 強化 3：每炸到 1 個敵人，獲得最大生命 8% 的護盾
+        { radius: 50, damage: 50, shieldPct: 0.08 },  // 強化 3：傷害 50，每炸到 1 個敵人，獲得最大生命 8% 的護盾
       ],
-      desc: '往準星方向丟出手雷，對半徑 25 內的敵人造成 25 傷害。被動：連續使用時強化，最多 3 層——強化 1：半徑擴大至 50；強化 2：傷害提升至 40；強化 3：每炸到 1 個敵人，獲得自身最大生命 8% 的護盾。受到傷害時強化全部歸零。',
+      desc: '往準星方向丟出手雷，對半徑 25 內的敵人造成 25 傷害。被動：連續使用時強化，最多 3 層——強化 1：半徑擴大至 50；強化 2：傷害提升至 40；強化 3：傷害提升至 50，每炸到 1 個敵人，獲得自身最大生命 8% 的護盾。手雷為爆炸傷害，無法被迴避。受到傷害時強化全部歸零。',
     },
     portrait: 'portrait_type82',
     assets: ASSETS.type82,
@@ -1777,7 +1777,8 @@ function update(dt) {
     for (let j = enemies.length - 1; j >= 0; j--) {
       const e = enemies[j];
       if (Math.hypot(e.x - g.tx, e.y - g.ty) > radius + e.r) continue;
-      hitN++; e.hp -= gd; floatText(e.x + rand(-8, 8), e.y - 22, String(gd), '#ff9a5a');
+      // 爆炸傷害：不可被迴避（與銜尾蛇導彈相同），仍會計算易傷暴擊與護甲
+      hitN++; hitEnemy(e, gd, '#ff9a5a');
       const a = Math.atan2(e.y - g.ty, e.x - g.tx); e.kvx = (e.kvx || 0) + Math.cos(a) * 160; e.kvy = (e.kvy || 0) + Math.sin(a) * 160;
       if (e.hp <= 0) killEnemy(e);
     }
