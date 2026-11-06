@@ -284,6 +284,8 @@ const CHARACTER_BASE = {
   // 閃避：向前撲一段距離，撲出去的期間＋停下後 afterInvuln 秒無敵
   // 冷卻與可累積次數由各角色的「閃避值」換算（見 dodgeCooldown／dodgeCharges）
   dodgeMove: { distance: 120, time: 0.22, afterInvuln: 0.5 },
+  // 奔跑特效（腳下塵土、速度線、身體前傾與起伏）：衝鋒槍或移動速度 ≥ 240 的人形自動開啟；角色可用 runFx: true/false 強制設定
+  runFxSpeed: 240,
   anim: {
     scale: 0.0738,               // 1440px 原圖縮放到遊戲內的比例
     runCycle: 0.44,              // 跑完一輪奔跑動畫的秒數（不論幾幀）
@@ -311,6 +313,7 @@ function defineCharacter(def) {
     anim: { ...CHARACTER_BASE.anim, ...(def.anim || {}) },
     frames: { ...CHARACTER_BASE.frames, ...(def.frames || {}) },
     weapon: { reloadMode: 'shell', sound: 'shotgun', ...def.weapon },
+    runFx: def.runFx !== undefined ? def.runFx : (def.weapon.class === 'SMG' || def.speed >= CHARACTER_BASE.runFxSpeed),
   };
 }
 
@@ -368,10 +371,10 @@ const CHARACTERS = {
       class: 'AR',
       magazine: 30,
       pellets: 1,
-      damage: 10,
+      damage: 12,
       spread: 0, jitter: 0.035,
       speed: [640, 680], radius: 2.6,
-      cooldown: 0.4,             // 0.4 秒一發
+      cooldown: 0.3,             // 0.3 秒一發
       reloadMode: 'magazine',
       reload: 1.8,
       anim: 0.1,
@@ -392,8 +395,8 @@ const CHARACTERS = {
       icon: 'skill_glory',
       cooldown: 8,               // 冷卻秒數（效果結束後才開始計算）
       duration: 5,               // 持續秒數
-      dmgMult: 2,                // 持續期間傷害倍率（10 → 20）
-      desc: '提升自身火力：5 秒內所有子彈傷害 ×2（每發 20）。',
+      dmgMult: 2,                // 持續期間傷害倍率（12 → 24）
+      desc: '提升自身火力：5 秒內所有子彈傷害 ×2（每發 24）。',
     },
     portrait: 'portrait_hk433',
     assets: ASSETS.hk433,
@@ -479,7 +482,7 @@ const stickRing = $('stickRing'), stickKnob = $('stickKnob');
 let W = 800, H = 500, DPR = 1, zoom = 1, userZoom = 1;
 let state = 'menu';                       // menu | play | pause | over
 let cfg = CHARACTERS.triple_crown, selectedId = cfg.id;
-let player = null, enemies = [], bullets = [], particles = [], floaters = [], grenades = [], blasts = [];
+let player = null, enemies = [], bullets = [], particles = [], floaters = [], grenades = [], blasts = [], runFx = [];
 let cam = { x: 0, y: 0 }, shake = 0, hurtT = 0;
 let score = 0, kills = 0, gameTime = 0, spawnClock = 0, last = 0, lockedTarget = null;
 let fireHeld = false, mouseDown = false;
@@ -766,7 +769,7 @@ function startGame() {
   player = { x: 0, y: 0, r: cfg.radius, hp: cfg.maxHp, maxHp: cfg.maxHp, ammo: cfg.weapon.magazine, angle: 0, moveAngle: 0, cool: 0, reload: 0, shot: 0, def: cfg, moving: false, skillCd: 0, skillArmed: false, buffT: 0, shield: 0, stacks: 0,
     charges: dodgeCharges(cfg.dodge), chargeT: 0, dodgeT: 0, invT: 0, dodgeDir: 0, trail: [] };
   cam = { x: 0, y: 0 }; chunks.clear(); coverCache = null; computeZoom(); stream();
-  enemies = []; bullets = []; particles = []; floaters = []; grenades = []; blasts = [];
+  enemies = []; bullets = []; particles = []; floaters = []; grenades = []; blasts = []; runFx = [];
   for (let i = 0; i < ENEMY.initial; i++) addEnemy();
   if (cfg.skill) { $('skillImg').src = ASSETS.ui[cfg.skill.icon]; $('tSkillImg').src = ASSETS.ui[cfg.skill.icon]; }
   updateSkill(); updateDodge(); $('score').textContent = '0'; $('kills').textContent = '0'; $('ammoLabel').textContent = cfg.weapon.name + '彈藥'; updateAmmo(); updateHp();
@@ -1021,6 +1024,21 @@ function update(dt) {
     if (player.trailClock <= 0) { player.trailClock = 0.04; player.trail.push({ x: player.x, y: player.y, life: 0.25 }); }
     player.moving = true;
   } else if (len) moveWithCover(player, dx / len * mag * cfg.speed * dt, dy / len * mag * cfg.speed * dt);
+  // 奔跑特效：依移動距離產生腳下塵土與身後速度線
+  if (cfg.runFx && player.moving) {
+    player.dustClock = (player.dustClock || 0) - dt;
+    if (player.dustClock <= 0) {
+      player.dustClock = player.dodgeT > 0 ? 0.03 : 0.065;
+      const dir = player.dodgeT > 0 ? player.dodgeDir : player.moveAngle, bx = -Math.cos(dir), by = -Math.sin(dir);
+      for (let n = 0; n < 2; n++) runFx.push({ kind: 'dust', x: player.x + bx * rand(6, 14) + rand(-6, 6), y: player.y + 16 + by * rand(4, 10) + rand(-3, 3), vx: bx * rand(20, 50) + rand(-12, 12), vy: by * rand(10, 30) - rand(0, 10), r: rand(3, 6), life: 0.5, max: 0.5 });
+      if (Math.random() < 0.7) runFx.push({ kind: 'line', x: player.x + bx * rand(14, 26), y: player.y + rand(-26, 4), dir, len: rand(14, 26), life: 0.16, max: 0.16 });
+    }
+  }
+  for (let i = runFx.length - 1; i >= 0; i--) {
+    const f = runFx[i]; f.life -= dt;
+    if (f.kind === 'dust') { f.x += f.vx * dt; f.y += f.vy * dt; f.vx *= 0.92; f.vy *= 0.92; f.r += 14 * dt; }
+    if (f.life <= 0) runFx.splice(i, 1);
+  }
   for (let i = player.trail.length - 1; i >= 0; i--) { player.trail[i].life -= dt; if (player.trail[i].life <= 0) player.trail.splice(i, 1); }
   player.shot = Math.max(0, player.shot - dt);
 
@@ -1247,6 +1265,12 @@ function drawCharacter(en, isEnemy, ghost) {
   else if (!isEnemy && en.invT > 0 && en.dodgeT <= 0) ctx.globalAlpha = 0.55 + 0.35 * Math.abs(Math.sin(gameTime * 18));   // 停下後的無敵：閃爍
   if (p.full) {
     if (en.dodgeT > 0 || ghost) { const fy = 28; ctx.translate(0, fy); ctx.rotate(0.38); ctx.translate(0, -fy); }   // 向前撲：身體前傾
+    else if (!isEnemy && D.runFx && en.moving) {
+      // 快速奔跑：身體前傾＋上下起伏（每步彈一次），補足動畫幅度
+      const ph = gameTime / D.anim.runCycle * Math.PI * 2, fy = 28;
+      ctx.translate(0, -Math.abs(Math.sin(ph)) * 3.2);
+      ctx.translate(0, fy); ctx.rotate(0.13 + Math.sin(ph * 2) * 0.03); ctx.translate(0, -fy);
+    }
     ctx.drawImage(isEnemy ? silhouette(bodyIm) : bodyIm, (bx - m.cx) * sc, (byy - m.cy) * sc, bw * sc, bh * sc);
     ctx.restore();
     return;
@@ -1314,6 +1338,23 @@ function draw(t) {
   if (state === 'menu' || state === 'over' && !player) { cam.x += 0.25; cam.y += 0.1; stream(); }
   shx = shake ? rand(-shake, shake) : 0; shy = shake ? rand(-shake, shake) : 0;
   drawGround(t);
+  ctx.setTransform(DPR, 0, 0, DPR, 0, 0);   // proj() 回傳螢幕座標
+  // 奔跑塵土：畫在地面上、角色之下
+  for (const f of runFx) {
+    if (f.kind !== 'dust') continue;
+    const q = proj(f.x, f.y), a = f.life / f.max;
+    ctx.fillStyle = 'rgba(196,186,160,' + (0.34 * a) + ')';
+    ctx.beginPath(); ctx.ellipse(q.x, q.y, f.r * q.k, f.r * q.k * 0.7, 0, 0, Math.PI * 2); ctx.fill();
+  }
+  // 速度線：身後的短白線
+  ctx.lineCap = 'round';
+  for (const f of runFx) {
+    if (f.kind !== 'line') continue;
+    const a = f.life / f.max, q1 = proj(f.x, f.y), q2 = proj(f.x - Math.cos(f.dir) * f.len, f.y - Math.sin(f.dir) * f.len);
+    ctx.strokeStyle = 'rgba(235,250,255,' + (0.55 * a) + ')'; ctx.lineWidth = 1.6 * q1.k;
+    ctx.beginPath(); ctx.moveTo(q1.x, q1.y); ctx.lineTo(q2.x, q2.y); ctx.stroke();
+  }
+  ctx.lineCap = 'butt';
   const actors = [...covers().map((it) => ({ it, k: 'c' })), ...enemies.map((it) => ({ it, k: 'e' })), ...(player && state !== 'menu' ? [{ it: player, k: 'p' }] : [])].sort((a, b) => a.it.y - b.it.y);
   for (const { it, k } of actors) {
     const q = proj(it.x, it.y);
