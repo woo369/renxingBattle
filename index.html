@@ -199,7 +199,7 @@ body.touch #skillBtn{display:none}
   <div class="sheet">
     <p class="eyebrow">SOLO ARCADE · 2D 平面對戰</p>
     <h1>人形訓練場</h1>
-    <p class="lede">在無限延伸的戰場上移動、瞄準，擊碎金色方塊，迎戰黑色剪影敵人。選一名人形出擊，每個角色的武器與數值都不同。</p>
+    <p class="lede">在無限延伸的戰場上移動、瞄準，擊碎金色方塊，迎戰影子敵人。選一名人形出擊，每個角色的武器與數值都不同。</p>
     <div class="roster" id="roster"></div>
     <div class="menu-row">
       <button id="levelBtn" class="btn" type="button">關卡：<b id="levelName">訓練場</b></button>
@@ -457,11 +457,12 @@ const WEAPON_CLASSES = ['突擊步槍', '衝鋒槍', '手槍', '步槍', '霰彈
 const CLASS_NAMES = { AR: '突擊步槍', SMG: '衝鋒槍', HG: '手槍', RF: '步槍', SG: '霰彈槍', MG: '機槍' };
 // 關卡：之後新增關卡就在這裡加
 const LEVELS = [
-  { id: 'training', name: '訓練場', open: true, desc: '無限延伸的戰場，與跟你相同角色的黑色剪影持續對戰，看能撐多久。' },
+  { id: 'training', name: '訓練場', open: true, desc: '無限延伸的戰場，與跟你相同角色的影子敵人持續對戰，看能撐多久。' },
   { id: 'locked1', name: '尚未解鎖', open: false, desc: '敬請期待' },
 ];
 let selectedLevel = 'training';
-const ENEMY = { hp: 20, radius: 19, speed: 36, wobble: 17, stopRange: 200, fireCooldown: 2, bulletDmg: 10, bulletSpeed: 245, bulletLife: 2, bulletR: 5.5, contactDmg: 12, contactEvery: 0.6, initial: 3 };
+// 影子敵人：hp 生命｜lockRange 開火距離｜stopRange 停下距離｜fireCooldown 開火間隔（秒）｜evade 迴避率
+const ENEMY = { hp: 30, radius: 19, speed: 36, wobble: 17, lockRange: 225, stopRange: 200, fireCooldown: 1, evade: 0.05, bulletDmg: 10, bulletSpeed: 245, bulletLife: 2, bulletR: 5.5, contactDmg: 12, contactEvery: 0.6, initial: 3 };
 const CHUNK = 420;
 // 偽 3D：地面向後傾斜。squash＝地面壓扁程度，depth＝透視強度（越小越強），anchor＝玩家在畫面的高度比例
 const VIEW3D = { squash: 0.78, depth: 2.2, anchor: 0.58, haze: 0.5 };
@@ -1124,7 +1125,7 @@ function update(dt) {
     }
     if (e.moving) moveWithCover(e, (Math.cos(toward) * ENEMY.speed + Math.cos(e.phase * 1.7) * ENEMY.wobble) * dt, (Math.sin(toward) * ENEMY.speed + Math.sin(e.phase * 1.5) * ENEMY.wobble) * dt);
     e.cool -= dt; e.shot = Math.max(0, e.shot - dt);
-    if (e.cool <= 0 && dist <= ENEMY.stopRange) { shootEnemy(e); e.cool = ENEMY.fireCooldown; e.shot = e.shotMax = 0.22; }
+    if (e.cool <= 0 && dist <= ENEMY.lockRange) { shootEnemy(e); e.cool = ENEMY.fireCooldown; e.shot = e.shotMax = 0.22; }
     // 接觸傷害：每隻敵人各自冷卻，避免每一幀都扣血
     e.touchCd = Math.max(0, e.touchCd - dt);
     if (dist < e.r + player.r && e.touchCd <= 0 && player.invT <= 0) { damage(ENEMY.contactDmg); e.touchCd = ENEMY.contactEvery; }
@@ -1141,12 +1142,15 @@ function update(dt) {
       if (!b.evaded && Math.hypot(b.x - player.x, b.y - player.y) < b.r + player.r) {
         if (Math.random() < evadeRate(cfg)) {
           // 迴避：子彈穿過、不扣血，也不會打斷霞光萍蹤的強化
-          b.evaded = true; floatText(player.x, player.y - 40, '迴避', '#bfefff'); sfx.evade();
+          b.evaded = true; floatText(player.x, player.y - 40, 'MISS', '#bfefff'); sfx.evade();
         } else { damage(ENEMY.bulletDmg); hit = true; }
       }
     } else {
       for (const e of enemies) {
+        if (b.missed && b.missed.has(e)) continue;
         if (Math.hypot(b.x - e.x, b.y - e.y) < b.r + e.r) {
+          // 影子敵人的迴避：子彈穿過這隻敵人，繼續往前飛
+          if (Math.random() < ENEMY.evade) { (b.missed || (b.missed = new Set())).add(e); floatText(e.x + rand(-6, 6), e.y - 30, 'MISS', '#bfefff'); continue; }
           const dmg = cfg.weapon.damage * (b.purple ? cfg.skill.purpleMult : 1) * (b.buff || 1);
           e.hp -= dmg; hit = true; burst(b.x, b.y, b.purple ? '#b06bff' : '#ff8f83', b.purple ? 7 : 4); sfx.hit();
           if (b.purple) floatText(e.x + rand(-8, 8), e.y - 20, String(dmg), '#c48bff');
