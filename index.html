@@ -1147,6 +1147,9 @@ function update(dt) {
   player.aimT = Math.max(0, (player.aimT || 0) - dt);
   if (wantsFire) player.aimT = cfg.anim.aimHold;
   player.aiming = (!player.moving || player.shot > 0 || player.aimT > 0) && player.dodgeT <= 0;
+  // 手機版：停下來、沒有鎖定敵人、也沒在開火 → 播原本的待機動畫（不瞄準）
+  // 電腦版永遠跟著滑鼠準星瞄準，所以不套用
+  player.rest = isTouch() && !player.moving && !lockedTarget && player.shot <= 0 && player.aimT <= 0 && player.dodgeT <= 0;
   if (player.dodgeT <= 0 && player.moving && Math.abs(Math.cos(player.moveAngle)) > 0.2) player.faceLeft = Math.cos(player.moveAngle) < 0;
   // 瞄準中且移動方向與面向相反＝後退
   player.backward = player.aiming && player.moving && Math.cos(player.moveAngle) * (Math.cos(player.angle) < 0 ? -1 : 1) < -0.3;
@@ -1295,6 +1298,10 @@ function pose(en, isEnemy, forceAim, ang) {
   if (en.moving && !en.aiming && !forceAim) {
     const n = fk.carry.length, i = ((Math.floor(gameTime / an.runCycle * n) % n) + n) % n;
     return { full: true, bodyKey: fk.carry[i], left: !!en.faceLeft, sc, by: 0 };
+  }
+  if (en.rest && !forceAim) {
+    // 靜止待機：整張原圖，面向最後移動的方向，加上呼吸起伏
+    return { full: true, bodyKey: fk.preview, left: !!en.faceLeft, sc, by: isEnemy ? 0 : Math.sin(gameTime * 2.6) * an.breath };
   }
   let bodyKey = fk.body.idle;
   const back = !!en.backward;
