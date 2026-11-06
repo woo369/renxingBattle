@@ -151,6 +151,17 @@ body:not(.touch) #touchui{display:none}
 .stat-grid dt{color:var(--muted)}
 .stat-grid dd{margin:0;font-weight:700;font-variant-numeric:tabular-nums;text-align:right}
 .codex-h{margin:4px 0 8px;font-size:13px;letter-spacing:.12em;color:var(--aqua);font-weight:800}
+.ecodex-group{margin:4px 0 2px;text-align:center;font-size:12px;font-weight:800;letter-spacing:.14em;color:var(--muted)}
+.ecodex-group.elite{color:var(--gold)}
+#ecodexTabs .codex-tabs{margin:6px 0 12px}
+.codex-tab.elite{border-color:#8a6a2e;background:#2a2412}
+.codex-tab.elite.is-on{border-color:var(--gold);box-shadow:0 0 0 2px #f9cf7055}
+.codex-portrait img.shadow{filter:brightness(0);opacity:.88}
+.codex-tab img.shadow{filter:brightness(0);opacity:.88}
+.rank{display:inline-block;margin-left:8px;padding:1px 8px;border-radius:999px;font-size:11px;font-weight:800;vertical-align:3px;background:#2a4651;color:var(--ink)}
+.rank.elite{background:var(--gold);color:#2a1d00}
+.codex-text{margin:0 0 12px;font-size:13.5px;line-height:1.65;color:var(--ink)}
+.codex-where{margin:0 0 12px;font-size:12.5px;color:var(--muted)}
 .skill-card{display:flex;gap:12px;align-items:flex-start;background:#102a35;border:1px solid var(--line);border-radius:14px;padding:12px}
 .skill-card img{width:52px;height:52px;border-radius:50%;flex:none}
 .skill-card b{font-size:16px}
@@ -242,6 +253,7 @@ body.touch #expandBtn small{display:none}
     <div class="menu-row">
       <button id="levelBtn" class="btn" type="button">關卡：<b id="levelName">訓練場</b></button>
       <button id="codexBtn" class="btn" type="button">人形圖鑑</button>
+      <button id="ecodexBtn" class="btn" type="button">敵人圖鑑</button>
     </div>
     <button id="startBtn" class="btn primary" type="button" disabled>載入中…</button>
     <p class="help only-mouse">WASD／方向鍵移動 · 滑鼠瞄準 · 左鍵或空白鍵開火 · Shift 或右鍵閃避 · Q 技能 · R 裝彈 · 滾輪縮放 · P／Esc 暫停</p>
@@ -255,6 +267,15 @@ body.touch #expandBtn small{display:none}
     <h2>選擇關卡</h2>
     <div class="level-grid" id="levelGrid"></div>
     <button id="levelOk" class="btn primary" type="button">確定</button>
+  </div>
+</div>
+
+<div id="ecodex" class="overlay sub" hidden>
+  <div class="sheet codex">
+    <h2>敵人圖鑑</h2>
+    <div id="ecodexTabs"></div>
+    <div id="ecodexDetail"></div>
+    <div class="row" style="margin-top:18px"><button id="ecodexClose" class="btn primary" type="button">關閉</button></div>
   </div>
 </div>
 
@@ -593,7 +614,7 @@ const CLASS_NAMES = { AR: '突擊步槍', SMG: '衝鋒槍', HG: '手槍', RF: '�
 // 關卡：之後新增關卡就在這裡加
 const LEVELS = [
   { id: 'training', name: '訓練場', open: true, desc: '無限延伸的戰場，與跟你相同角色的影子敵人持續對戰，看能撐多久。' },
-  { id: 'war', name: '戰事', open: true, desc: '更強的敵人分階段進攻。第一階段：獨眼巨人來襲，撐過 3 分鐘後擊敗 Boss 銜尾蛇；第二階段：獨眼巨人與多眼巨人 2：1 混合進攻，撐過 3 分鐘即可過關。' },
+  { id: 'war', name: '戰事', open: true, desc: '更強的敵人分階段進攻。第一階段：獨眼巨人來襲，撐過 3 分鐘後，從精英敵人中隨機出現一名 Boss，擊敗它；第二階段：獨眼巨人與多眼巨人 2：1 混合進攻，撐過 3 分鐘即可過關。' },
   { id: 'locked1', name: '尚未解鎖', open: false, desc: '敬請期待' },
 ];
 let selectedLevel = 'training';
@@ -633,7 +654,7 @@ const WAR_PHASES = [
     name: '第一階段', end: 180,
     pattern: [CYCLOPS], initial: 4,
     spawn: { every: 3.2, min: 2.2, max: 10 },   // 每 3.2 秒生成一隻，逐漸加快到 2.2 秒；同時最多 10 隻
-    boss: 'ouroboros',           // 時間到 → 召喚 Boss，擊敗後進入第二階段
+    bossPool: 'elite',           // 時間到 → 從精英敵人中隨機抽一名當 Boss，擊敗後進入第二階段
   },
   {
     name: '第二階段', end: 180,  // 暫定 3 分鐘，撐過即過關
@@ -660,9 +681,15 @@ const CLONE_SLOTS = [[Math.PI * 0.85, 45], [Math.PI * 0.15, 45], [Math.PI * 1.2,
 let parts = [], partCount = 0, partClock = 0, clones = [], missiles = [];
 
 /* ───────── Boss ───────── */
+/* 精英敵人：可能被抽中成為階段 Boss
+   rank 'elite'＝精英敵人（之後新增的精英也放在這裡，就會自動加入 Boss 抽選池） */
 const BOSSES = {
   ouroboros: {
     name: '銜尾蛇',
+    rank: 'elite',
+    weapon: '雙聯裝砲塔 ×2',
+    desc: '駕駛著左右各一座雙聯裝砲塔的機體，與目標保持距離，開火時會停下腳步。每打完 2 個彈匣，會鎖定目標發射兩輪導彈。',
+    specialDesc: '導彈齊射：花 2.5 秒瞄準目標，最後半秒鎖定落點，接著發射 2 輪各 3 發導彈，每發在半徑 25 內造成 30 點爆炸傷害（不可迴避）。',
     hp: 750,
     bulletDmg: 10,
     fireRate: 4,                 // 每秒 4 發：4 根槍管輪流，每根每秒 1 發
@@ -689,6 +716,9 @@ const BOSSES = {
     assets: ASSETS.ouro,
   },
 };
+const ELITE_POOL = Object.keys(BOSSES).filter((id) => BOSSES[id].rank === 'elite');
+// 從抽選池隨機抽一名當 Boss（'elite'＝全部精英敵人）
+const pickBoss = (pool) => { const L = pool === 'elite' ? ELITE_POOL : pool; return L[Math.floor(Math.random() * L.length)]; };
 let boss = null, bossSpawned = false;
 const CHUNK = 420;
 // 偽 3D：地面向後傾斜。squash＝地面壓扁程度，depth＝透視強度（越小越強），anchor＝玩家在畫面的高度比例
@@ -958,6 +988,72 @@ $('levelBtn').addEventListener('click', () => { buildLevels(); $('levels').hidde
 $('levelOk').addEventListener('click', () => { $('levels').hidden = true; $('levelName').textContent = LEVELS.find((l) => l.id === selectedLevel).name; });
 $('codexBtn').addEventListener('click', () => { buildCodex(selectedId); $('codex').hidden = false; });
 $('codexClose').addEventListener('click', () => { $('codex').hidden = true; });
+
+/* ───────── 敵人圖鑑 ───────── */
+const ENEMY_CODEX = () => [
+  { id: 'shadow', rank: 'normal', T: ENEMY, name: '影子敵人', weapon: '與出擊人形相同外型的影子',
+    img: ASSETS.ui[CHARACTERS[selectedId].portrait], shadow: true,
+    desc: '模仿出擊人形外型的黑色影子，數量多但很脆弱，會邊靠近邊開火。',
+    where: '出現：訓練場' },
+  { id: 'cyclops', rank: 'normal', T: CYCLOPS, name: '獨眼巨人', weapon: '單發射擊', img: ASSETS.cyc.imgs.w01,
+    desc: '戰事的主力敵人，在稍遠的距離停下來連續射擊，打完一個彈匣才換彈。',
+    where: '出現：戰事第一階段、第二階段（第二階段生命 ×1.2、傷害 ×1.2）' },
+  { id: 'meye', rank: 'normal', T: MULTI_EYE, name: '多眼巨人', weapon: '霰彈槍', img: ASSETS.meye.imgs.w01,
+    desc: '半肉盾半輸出的敵人，有 5 點護甲，會貼近到 200 的距離再用霰彈槍轟擊；兩發打完要換彈 6 秒，是反擊的好時機。',
+    where: '出現：戰事第二階段（與獨眼巨人 1：2 混合出現）' },
+  ...ELITE_POOL.map((id) => ({ id, rank: 'elite', B: BOSSES[id], name: BOSSES[id].name, weapon: BOSSES[id].weapon,
+    img: BOSSES[id].assets.imgs.mv01 || BOSSES[id].assets.imgs.body_aim, desc: BOSSES[id].desc, special: BOSSES[id].specialDesc,
+    where: '出現：戰事第一階段 Boss（從精英敵人中隨機抽出）' })),
+];
+function enemyRows(it) {
+  const pct = (v) => fmt(+(v * 100).toFixed(1)) + '%';
+  if (it.B) {
+    const B = it.B;
+    return [['生命', B.hp], ['護甲', B.armor || '無'], ['迴避率', pct(B.evade || 0)], ['移動速度', B.speed], ['鎖敵距離', B.lockRange], ['保持距離', B.keepDist],
+      ['每發傷害', B.bulletDmg], ['射速', fmt(B.fireRate) + ' 發／秒'], ['彈匣', B.magazine + ' 發'], ['換彈', fmt(B.reload) + ' 秒']];
+  }
+  const T = it.T;
+  return [['生命', T.hp], ['護甲', T.armor || '無'], ['迴避率', pct(T.evade || 0)], ['移動速度', T.speed], ['鎖敵距離', T.lockRange], ['停下距離', T.stopRange],
+    [T.pellets > 1 ? '每發彈丸' : '每發傷害', T.pellets > 1 ? T.pellets + ' 顆 × ' + T.bulletDmg : T.bulletDmg],
+    ['射速', fmt(+(1 / T.fireCooldown).toFixed(2), 2).replace(/\.?0+$/, '') + ' 發／秒'],
+    ['彈匣', T.magazine ? T.magazine + ' 發' : '無限'], ['換彈', T.magazine ? fmt(T.reload) + ' 秒' : '—'], ['碰撞傷害', T.contactDmg]];
+}
+function buildEnemyCodex(id) {
+  const list = ENEMY_CODEX(), wrap = $('ecodexTabs'); wrap.textContent = '';
+  for (const [rank, label] of [['normal', '一般敵人'], ['elite', '精英敵人']]) {
+    const g = document.createElement('p'); g.className = 'ecodex-group ' + rank; g.textContent = label;
+    const tabs = document.createElement('div'); tabs.className = 'codex-tabs';
+    for (const it of list.filter((x) => x.rank === rank)) {
+      const t = document.createElement('button'); t.type = 'button'; t.className = 'codex-tab ' + rank + (it.id === id ? ' is-on' : '');
+      const im = new Image(); im.src = it.img; im.alt = ''; if (it.shadow) im.className = 'shadow';
+      const sp = document.createElement('span'); sp.textContent = it.name;
+      t.append(im, sp); t.addEventListener('click', () => buildEnemyCodex(it.id)); tabs.appendChild(t);
+    }
+    wrap.append(g, tabs);
+  }
+  const it = list.find((x) => x.id === id) || list[0], box = $('ecodexDetail'); box.textContent = '';
+  const body = document.createElement('div'); body.className = 'codex-body';
+  const pt = document.createElement('div'); pt.className = 'codex-portrait';
+  const pim = new Image(); pim.src = it.img; pim.alt = it.name; if (it.shadow) pim.className = 'shadow'; pt.appendChild(pim);
+  const info = document.createElement('div'); info.style.minWidth = '0';
+  const h = document.createElement('p'); h.className = 'codex-name'; h.textContent = it.name;
+  const rk = document.createElement('span'); rk.className = 'rank ' + it.rank; rk.textContent = it.rank === 'elite' ? '精英' : '一般'; h.appendChild(rk);
+  const sub = document.createElement('p'); sub.className = 'codex-sub'; sub.textContent = it.weapon;
+  const ds = document.createElement('p'); ds.className = 'codex-text'; ds.textContent = it.desc;
+  const dl = document.createElement('dl'); dl.className = 'stat-grid';
+  for (const [k, v] of enemyRows(it)) { const d = document.createElement('div'); const dt = document.createElement('dt'); dt.textContent = k; const dd = document.createElement('dd'); dd.textContent = v; d.append(dt, dd); dl.appendChild(d); }
+  const wh = document.createElement('p'); wh.className = 'codex-where'; wh.textContent = it.where;
+  info.append(h, sub, ds, dl, wh);
+  if (it.special) {
+    const sh = document.createElement('p'); sh.className = 'codex-h'; sh.textContent = '特殊攻擊';
+    const c = document.createElement('div'); c.className = 'skill-card';
+    const tx = document.createElement('div'); const p2 = document.createElement('p'); p2.style.margin = '0'; p2.textContent = it.special; tx.appendChild(p2); c.appendChild(tx);
+    info.append(sh, c);
+  }
+  body.append(pt, info); box.appendChild(body);
+}
+$('ecodexBtn').addEventListener('click', () => { buildEnemyCodex('shadow'); $('ecodex').hidden = false; });
+$('ecodexClose').addEventListener('click', () => { $('ecodex').hidden = true; });
 function showBest() { $('bestLine').textContent = best ? '最高分 ' + best.toLocaleString('zh-TW') : ''; }
 
 function setState(s) {
@@ -1011,7 +1107,7 @@ function startGame() {
   enemies = []; bullets = []; particles = []; floaters = []; grenades = []; blasts = []; runFx = []; rings = [];
   // 依關卡決定敵人數值
   phase = selectedLevel === 'war' ? WAR_PHASES[0] : null; phaseIdx = 0; phaseStart = 0; spawnIdx = 0;
-  $('phaseBlock').hidden = !phase; $('bossSkip').hidden = !(phase && phase.boss); $('phaseSkip').hidden = !phase;
+  $('phaseBlock').hidden = !phase; $('bossSkip').hidden = !(phase && phase.bossPool); $('phaseSkip').hidden = !phase;
   boss = null; bossSpawned = false;
   parts = []; partCount = 0; partClock = 0; clones = []; missiles = [];
   $('partsBlock').hidden = !phase; updateParts();
@@ -1039,7 +1135,7 @@ function nextPhase() {
   phaseIdx++; phase = nx; phaseStart = gameTime; spawnIdx = 0; spawnClock = 0; boss = null; bossSpawned = false;
   for (const e of enemies.slice()) if (!e.boss) burst(e.x, e.y, '#ff8f83', 8);
   enemies = enemies.filter((e) => e.boss);
-  $('phaseName').textContent = phase.name; $('bossSkip').hidden = !phase.boss; $('phaseSkip').hidden = phaseIdx >= WAR_PHASES.length - 1;
+  $('phaseName').textContent = phase.name; $('bossSkip').hidden = !phase.bossPool; $('phaseSkip').hidden = phaseIdx >= WAR_PHASES.length - 1;
   floatText(player.x, player.y - 64, phase.name + ' 開始！', '#f9cf70'); shake = Math.max(shake, 5);
   for (let i = 0; i < phase.initial; i++) addEnemy();
 }
@@ -1112,7 +1208,7 @@ $('skillBtn').addEventListener('click', () => useSkill());
 
 $('startBtn').addEventListener('click', startGame);
 $('expandBtn').addEventListener('click', expandEchelon);
-$('bossSkip').addEventListener('click', () => { if (state === 'play' && phase && phase.boss && !bossSpawned) { phaseStart = gameTime - phase.end; } });
+$('bossSkip').addEventListener('click', () => { if (state === 'play' && phase && phase.bossPool && !bossSpawned) { phaseStart = gameTime - phase.end; } });
 $('phaseSkip').addEventListener('click', () => { if (state === 'play' && phase) { const b = enemies.find((e) => e.boss); if (b) { enemies.splice(enemies.indexOf(b), 1); $('bossBar').hidden = true; } nextPhase(); } });
 $('retryBtn').addEventListener('click', startGame);
 $('menuBtn').addEventListener('click', () => { showBest(); setState('menu'); });
@@ -1818,7 +1914,7 @@ function update(dt) {
     const left = Math.max(0, phase.end - phaseClock()), m = Math.floor(left / 60), sec = Math.floor(left % 60);
     $('phaseTime').textContent = m + ':' + String(sec).padStart(2, '0');
     if (left <= 0 && !bossSpawned) {
-      if (phase.boss) spawnBoss(phase.boss); else { endGame(true); return; }
+      if (phase.bossPool) spawnBoss(pickBoss(phase.bossPool)); else { endGame(true); return; }
     }
     if (boss) { $('phaseTime').textContent = 'BOSS'; }
   }
