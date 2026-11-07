@@ -848,7 +848,7 @@ const CENTAUR = { ...ENEMY,
   bulletDmg: 15,             // 箭矢落地的範圍傷害
   arrowRadius: 30,           // 傷害半徑
   arrowFlight: 0.8,          // 射出後 0.8 秒落地
-  burn: { time: 3, pct: 0.01 },   // 燃燒：3 秒，每秒扣當下生命 1%
+  burn: { time: 3, pct: 0.03 },   // 燃燒：3 秒，每秒扣最大生命 3%
   magazine: 1, reload: 5,    // 射一箭填裝一箭，填裝 5 秒
   fireCooldown: 5 };
 
@@ -1458,7 +1458,7 @@ function enemyRows(it) {
   const T = it.T;
   if (T.ai === 'archer') {
     return [['生命', T.hp], ['護甲', T.armor || '無'], ['迴避率', pct(T.evade || 0)], ['移動速度', T.speed], ['鎖敵距離', T.lockRange],
-      ['箭矢傷害', T.bulletDmg + '（半徑 ' + T.arrowRadius + '）'], ['燃燒', T.burn.time + ' 秒，每秒 −' + pct(T.burn.pct) + ' 當下生命'], ['箭矢落地', fmt(T.arrowFlight) + ' 秒'],
+      ['箭矢傷害', T.bulletDmg + '（半徑 ' + T.arrowRadius + '）'], ['燃燒', T.burn.time + ' 秒，每秒 −' + pct(T.burn.pct) + ' 最大生命'], ['箭矢落地', fmt(T.arrowFlight) + ' 秒'],
       ['彈匣', T.magazine + ' 發'], ['填裝', fmt(T.reload) + ' 秒'], ['後撤距離', T.fleeRange], ['碰撞傷害', T.contactDmg]];
   }
   if (T.ai === 'melee') {
@@ -1891,7 +1891,7 @@ function addLockStack() {
   ex.mark = '傷' + ex.stacks;
   renderEffects(true);
 }
-// 燃燒（肯陶羅斯的箭）：持續 3 秒，每秒扣「當下生命」的 1%（最少 1）；無視護甲與護盾；再次命中只重設時間
+// 燃燒（肯陶羅斯的箭）：持續 3 秒，每秒扣「最大生命」的 3%（最少 1）；無視護甲與護盾；再次命中只重設時間
 function addBurn(u, b) {
   u.effects = u.effects || [];
   let ex = u.effects.find((x) => x.id === 'burn');
@@ -1900,7 +1900,7 @@ function addBurn(u, b) {
   if (u === player) renderEffects(true);
 }
 function burnTick(u, x) {
-  const loss = Math.max(1, Math.round(u.hp * x.burnPct));
+  const loss = Math.max(1, Math.round(u.maxHp * x.burnPct));
   floatText(u.x, u.y - 40, '-' + loss, '#ff9a4a'); burst(u.x, u.y - 10, '#ff7a2e', 3);
   if (u === player) { player.hp = Math.max(0, player.hp - loss); updateHp(); return; }
   u.hp -= loss;
