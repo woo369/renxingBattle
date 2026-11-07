@@ -165,9 +165,9 @@ body:not(.touch) #touchui{display:none}
 .codex-tab span{font-size:12px;font-weight:700}
 .codex-tab.is-on{border-color:var(--aqua);box-shadow:0 0 0 2px #53dfcb55}
 .codex-body{display:grid;grid-template-columns:150px 1fr;gap:18px;align-items:start}
-@media (max-width:560px){.codex-body{grid-template-columns:1fr}.codex-portrait{max-width:160px;margin:auto}}
-.codex-portrait{background:radial-gradient(circle at 50% 60%,#1f4652,#0f2731);border:1px solid var(--line);border-radius:16px;padding:12px;display:grid;place-items:center}
-.codex-portrait img{width:100%;height:auto;image-rendering:auto}
+@media (max-width:560px){.codex-body{grid-template-columns:1fr}.codex-portrait{max-width:160px;width:100%;margin:auto}}
+.codex-portrait{background:radial-gradient(circle at 50% 60%,#1f4652,#0f2731);border:1px solid var(--line);border-radius:16px;padding:12px;display:grid;place-items:center;aspect-ratio:11/12;overflow:hidden;position:relative}
+.codex-portrait img{position:absolute;inset:12px;width:calc(100% - 24px);height:calc(100% - 24px);object-fit:contain;image-rendering:auto}   /* 圖框固定比例：細長的圖（干擾者）也不會把框撐長 */
 .codex-name{margin:0 0 2px;font-size:22px;font-weight:800}
 .codex-sub{margin:0 0 12px;color:var(--gold);font-size:13px;font-weight:700}
 .stat-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:6px 14px;margin:0 0 14px}
@@ -1608,19 +1608,6 @@ function enemyRows(it) {
     ['彈匣', T.magazine ? T.magazine + ' 發' : '無限'], ['換彈', T.magazine ? fmt(T.reload) + ' 秒' : '—'], ['碰撞傷害', T.contactDmg],
     ...(T.dropParts ? [['擊殺掉落', '零件 ×' + T.dropParts]] : [])];
 }
-// 圖鑑圖片統一比例：依「圖片原始高度 × 遊戲中的縮放」換算，讓每隻敵人在格子裡的大小跟遊戲裡一致
-// （素材裁切範圍不同，例如干擾者的圖只有角色本身、比較窄，直接塞滿格子會顯得特別大）
-const CODEX_REF = 80;   // 遊戲中最高的精英（約 80）剛好塞滿
-function codexFit(im, it, maxH) {
-  const sc = it.B ? it.B.assets.meta.scale : it.T && it.T.sprite ? ASSETS[it.T.sprite].meta.scale : null;
-  if (!sc) return;
-  const apply = () => {
-    const k = clamp(im.naturalHeight * sc / CODEX_REF, 0.45, 1);
-    if (maxH) im.style.height = Math.round(maxH * k) + 'px';
-    else im.style.transform = 'scale(' + k.toFixed(3) + ')', im.style.transformOrigin = '50% 100%';
-  };
-  if (im.complete && im.naturalHeight) apply(); else im.addEventListener('load', apply, { once: true });
-}
 // 敵人圖鑑第一層：選擇「一般敵人」或「精英敵人」
 const ECODEX_RANKS = [['normal', '一般敵人'], ['elite', '精英敵人']];
 function buildEnemyMenu() {
@@ -1649,7 +1636,7 @@ function buildEnemyCodex(id) {
     const tabs = document.createElement('div'); tabs.className = 'codex-tabs';
     for (const it of list.filter((x) => x.rank === rank)) {
       const t = document.createElement('button'); t.type = 'button'; t.className = 'codex-tab ' + rank + (it.id === id ? ' is-on' : '');
-      const im = new Image(); im.src = it.img; im.alt = ''; if (it.shadow) im.className = 'shadow'; codexFit(im, it, 58);
+      const im = new Image(); im.src = it.img; im.alt = ''; if (it.shadow) im.className = 'shadow';
       const sp = document.createElement('span'); sp.textContent = it.name;
       t.append(im, sp); t.addEventListener('click', () => buildEnemyCodex(it.id)); tabs.appendChild(t);
     }
@@ -1658,7 +1645,7 @@ function buildEnemyCodex(id) {
   const it = list.find((x) => x.id === id) || list[0], box = $('ecodexDetail'); box.textContent = '';
   const body = document.createElement('div'); body.className = 'codex-body';
   const pt = document.createElement('div'); pt.className = 'codex-portrait';
-  const pim = new Image(); pim.src = it.img; pim.alt = it.name; if (it.shadow) pim.className = 'shadow'; pt.appendChild(pim); codexFit(pim, it, null);
+  const pim = new Image(); pim.src = it.img; pim.alt = it.name; if (it.shadow) pim.className = 'shadow'; pt.appendChild(pim);
   const info = document.createElement('div'); info.style.minWidth = '0';
   const h = document.createElement('p'); h.className = 'codex-name'; h.textContent = it.name;
   const rk = document.createElement('span'); rk.className = 'rank ' + it.rank; const tr = (it.B || it.T).tier, TIER = ['', '一階', '二階', '三階'];
