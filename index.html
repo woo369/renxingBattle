@@ -710,6 +710,7 @@ const CLASS_NAMES = { AR: '突擊步槍', SMG: '衝鋒槍', HG: '手槍', RF: '�
 const LEVELS = [
   { id: 'training', name: '訓練場', open: true, desc: '無限延伸的戰場，與跟你相同角色的影子敵人持續對戰，看能撐多久。' },
   { id: 'war', name: '戰事', open: true, desc: '更強的敵人分階段進攻。第一階段：獨眼巨人來襲，撐過 3 分鐘後，從精英敵人中隨機出現一名 Boss，擊敗它；第二階段：獨眼巨人與多眼巨人 2：1 混合進攻，撐過 3 分鐘即可過關。' },
+  { id: 'duel', name: '菁英對決', open: true, desc: '直接挑戰精英敵人：入場 5 秒後出現一名隨機精英。開場持有 5 個零件，場上每 5 秒出現零件、每 15 秒出現醫療箱（恢復 10 生命）。以第二階段強度為基準，第一階段的精英會強化（生命 ×1.5、攻擊 ×1.2）。' },
   { id: 'locked1', name: '尚未解鎖', open: false, desc: '敬請期待' },
 ];
 let selectedLevel = 'training';
@@ -757,6 +758,23 @@ const DRONE = { ...ENEMY,
   magazine: 0,               // 不用換彈
   contactDmg: 0 };
 
+/* ───────── 倍率機制 ─────────
+   敵人只定一份基本數值，在不同關卡／階段用倍率決定實際強度。
+   乘法：hp 生命、dmg 攻擊（子彈、特殊攻擊、召喚物都會吃到）
+   （之後需要再加：射速、換彈、護甲加值、迴避加值……） */
+function scaleStats(T, sc) {
+  if (!sc) return T;
+  const o = { ...T };
+  if (sc.hp) o.hp = Math.round(T.hp * sc.hp);
+  if (sc.dmg) {
+    o.bulletDmg = T.bulletDmg * sc.dmg;
+    if (T.special && T.special.damage) o.special = { ...T.special, damage: T.special.damage * sc.dmg };
+  }
+  o.scale = sc;
+  return o;
+}
+const scaleText = (sc) => !sc ? '' : [sc.hp && sc.hp !== 1 ? '生命 ×' + sc.hp : '', sc.dmg && sc.dmg !== 1 ? '攻擊 ×' + sc.dmg : ''].filter(Boolean).join('、');
+
 /* 戰事：分階段進攻
    end 階段長度（秒）｜pattern 敵人依序輪流出現｜initial 開場數量｜spawn 生成節奏｜boss 時間到召喚的 Boss（沒有就直接過關） */
 const WAR_PHASES = [
@@ -772,8 +790,8 @@ const WAR_PHASES = [
     name: '第二階段', end: 180,  // 暫定 3 分鐘，撐過即過關
     // 獨眼巨人：多眼巨人＝2：1；第二階段的獨眼巨人 傷害×1.2、生命×1.2
     pattern: [
-      { ...CYCLOPS, hp: CYCLOPS.hp * 1.2, bulletDmg: CYCLOPS.bulletDmg * 1.2 },
-      { ...CYCLOPS, hp: CYCLOPS.hp * 1.2, bulletDmg: CYCLOPS.bulletDmg * 1.2 },
+      scaleStats(CYCLOPS, { hp: 1.2, dmg: 1.2 }),
+      scaleStats(CYCLOPS, { hp: 1.2, dmg: 1.2 }),
       MULTI_EYE,
     ],
     packs: ['cyc', 'meye'],
@@ -782,6 +800,22 @@ const WAR_PHASES = [
     partsEvery: 7,               // 零件改成每 7 秒出現一個
   },
 ];
+/* 菁英對決：直接打精英 Boss
+   精英分成三個等級（tier：對應戰事第 1／2／3 階段的 Boss）；這個模式以第 2 階段為基準，
+   第 1 階段的精英會強化，第 3 階段的精英暫不調整。 */
+const DUEL_TIER_SCALE = { 1: { hp: 1.5, dmg: 1.2 }, 2: null, 3: null };
+const DUEL_PHASES = [
+  {
+    name: '菁英對決', end: 5,      // 入場 5 秒後精英出現
+    pattern: [], initial: 0, packs: [],
+    bossPool: 'elite', bossScale: 'tier',   // Boss 依等級套用 DUEL_TIER_SCALE
+    startParts: 5,               // 開場持有 5 個零件
+    partsEvery: 5,               // 每 5 秒場上出現一個零件
+    medkitEvery: 15, medkitHeal: 10,   // 每 15 秒出現醫療箱，恢復 10 生命
+  },
+];
+const LEVEL_PHASES = { war: WAR_PHASES, duel: DUEL_PHASES };   // 有分階段的關卡
+const levelPhases = () => LEVEL_PHASES[selectedLevel] || null;
 let phase = null, phaseIdx = 0, phaseStart = 0, spawnIdx = 0;   // 目前階段、階段開始時間、輪到第幾種敵人
 const phaseClock = () => gameTime - phaseStart;
 
@@ -791,7 +825,7 @@ const PARTS = { initial: 3, every: 10, maxOnField: 5, minDist: 180, maxDist: 480
 const CLONE = { maxCount: 4, hpRatio: 0.5, minGap: 20, maxGap: 100 };
 // 分身站位：以玩家為中心的方向與距離（距離＝玩家碰撞半徑＋20～100）
 const CLONE_SLOTS = [[Math.PI * 0.85, 45], [Math.PI * 0.15, 45], [Math.PI * 1.2, 80], [Math.PI * 1.8, 80]];
-let parts = [], partCount = 0, partClock = 0, clones = [], missiles = [];
+let parts = [], partCount = 0, partClock = 0, clones = [], missiles = [], medkits = [], medClock = 0;
 
 /* ───────── Boss ───────── */
 /* 精英敵人：可能被抽中成為階段 Boss
@@ -800,6 +834,7 @@ const BOSSES = {
   ouroboros: {
     name: '銜尾蛇',
     rank: 'elite',
+    tier: 1,                     // 精英等級：對應戰事第 1 階段的 Boss
     weapon: '雙聯裝砲塔 ×2',
     desc: '駕駛著左右各一座雙聯裝砲塔的機體，與目標保持距離，開火時會停下腳步。每打完 2 個彈匣，會鎖定目標發射兩輪導彈。',
     specialDesc: '導彈齊射：花 2.5 秒瞄準目標，最後半秒鎖定落點，接著發射 2 輪各 3 發導彈，每發在半徑 25 內造成 30 點爆炸傷害（不可迴避）。',
@@ -831,6 +866,7 @@ const BOSSES = {
   dreamer: {
     name: '夢想家',
     rank: 'elite',
+    tier: 1,                     // 精英等級：對應戰事第 1 階段的 Boss
     ai: 'dreamer',               // 使用夢想家專用的行為
     weapon: '大型狙擊槍',
     desc: '扛著大型狙擊槍的浮空人形，在遠距離穩定狙擊。目標一旦靠近到 200 以內，就會用閃避向後拉開距離。',
@@ -861,6 +897,7 @@ const BOSSES = {
   scarecrow: {
     name: '稻草人',
     rank: 'elite',
+    tier: 1,                     // 精英等級：對應戰事第 1 階段的 Boss
     ai: 'scarecrow',             // 使用稻草人專用的行為
     weapon: '浮游砲 ×3',
     desc: '重裝型人形，身邊漂浮著三座浮游砲。動作緩慢但非常耐打，目標進入射程後會一邊開火一邊慢慢逼近。',
@@ -952,7 +989,7 @@ function ensurePack(pid) {
 let phaseBoss = [];
 // 某個階段要用的素材包：該階段的敵人＋該階段的 Boss
 function phasePacks(i) {
-  const ph = WAR_PHASES[i]; if (!ph) return [];
+  const ph = (levelPhases() || [])[i]; if (!ph) return [];
   const list = [...ph.packs];
   if (phaseBoss[i]) list.push(packOf(BOSSES[phaseBoss[i]].assets));
   return list;
@@ -960,13 +997,13 @@ function phasePacks(i) {
 // 開局一定要先載好的素材包：出擊人形；戰事再加上第一階段的敵人與第一階段的 Boss
 function packsFor(charId, level) {
   const list = [packOf(CHARACTERS[charId].assets)];
-  if (level === 'war') list.push(...phasePacks(0));
+  if (LEVEL_PHASES[level]) list.push(...phasePacks(0));
   return list;
 }
 // 在選單停留時先在背景下載：目前的人形；選了戰事再加第一階段的敵人（Boss 要等開局抽了才知道）
 function prefetch() {
   const list = [packOf(CHARACTERS[selectedId].assets)];
-  if (selectedLevel === 'war') list.push(...WAR_PHASES[0].packs);
+  if (levelPhases()) list.push(...levelPhases()[0].packs);
   for (const pid of list) ensurePack(pid).catch(() => {});
 }
 function silhouette(im) {
@@ -1253,7 +1290,7 @@ const ENEMY_CODEX = () => [
     where: '出現：戰事' },
   ...ELITE_POOL.map((id) => ({ id, rank: 'elite', B: BOSSES[id], name: BOSSES[id].name, weapon: BOSSES[id].weapon,
     img: ASSETS.ui['codex_' + id], desc: BOSSES[id].desc, special: BOSSES[id].specialDesc,
-    where: '出現：戰事' })),
+    where: '出現：戰事、菁英對決' })),
 ];
 function enemyRows(it) {
   const pct = (v) => fmt(+(v * 100).toFixed(1)) + '%';
@@ -1396,7 +1433,7 @@ let gameLoading = false;
 function startGame() {
   if (gameLoading) return;
   audio();
-  phaseBoss = selectedLevel === 'war' ? WAR_PHASES.map((ph) => ph.bossPool ? pickBoss(ph.bossPool) : null) : [];   // 開局就抽好各階段的 Boss
+  phaseBoss = levelPhases() ? levelPhases().map((ph) => ph.bossPool ? pickBoss(ph.bossPool) : null) : [];   // 開局就抽好各階段的 Boss
   const need = packsFor(selectedId, selectedLevel);
   const btns = [$('startBtn'), $('retryBtn')], labels = btns.map((b) => b.textContent);
   gameLoading = true; btns.forEach((b) => { b.disabled = true; b.textContent = '載入素材中…'; });
@@ -1404,9 +1441,9 @@ function startGame() {
   Promise.all(need.map(ensurePack)).then(() => {
     gameLoading = false; btns.forEach((b, i) => { b.disabled = false; b.textContent = labels[i]; });
     setLoadingTips(false);
-    releaseUnused([...need, ...WAR_PHASES.flatMap((ph, i) => selectedLevel === 'war' ? phasePacks(i) : [])]);
+    releaseUnused([...need, ...(levelPhases() || []).flatMap((ph, i) => phasePacks(i))]);
     beginGame();
-    if (selectedLevel === 'war') for (const pid of phasePacks(1)) ensurePack(pid).catch(() => {});   // 進場後開始下載下一階段
+    if (levelPhases()) for (const pid of phasePacks(1)) ensurePack(pid).catch(() => {});   // 進場後開始下載下一階段
   }).catch(() => {
     gameLoading = false; btns.forEach((b) => { b.disabled = false; b.textContent = '載入失敗，點此重試'; });
     setLoadingTips(false);
@@ -1429,12 +1466,12 @@ function beginGame() {
   cam = { x: 0, y: 0 }; chunks.clear(); coverCache = null; computeZoom(); stream();
   enemies = []; bullets = []; particles = []; floaters = []; grenades = []; blasts = []; runFx = []; rings = [];
   // 依關卡決定敵人數值
-  phase = selectedLevel === 'war' ? WAR_PHASES[0] : null; phaseIdx = 0; phaseStart = 0; spawnIdx = 0;
-  $('phaseBlock').hidden = !phase; $('bossSkip').hidden = !(phase && phase.bossPool); $('phaseSkip').hidden = !phase;
+  phase = levelPhases() ? levelPhases()[0] : null; phaseIdx = 0; phaseStart = 0; spawnIdx = 0;
+  $('phaseBlock').hidden = !phase; $('bossSkip').hidden = !(phase && phase.bossPool); $('phaseSkip').hidden = !phase || levelPhases().length < 2;
   boss = null; bossSpawned = false;
-  parts = []; partCount = 0; partClock = 0; clones = []; missiles = [];
+  parts = []; partCount = (phase && phase.startParts) || 0; partClock = 0; clones = []; missiles = []; medkits = []; medClock = 0;
   $('partsBlock').hidden = !phase; updateParts();
-  if (phase) for (let i = 0; i < PARTS.initial; i++) spawnPart(); $('bossBar').hidden = true; $('phaseName').textContent = phase ? phase.name : '';
+  if (phase && !phase.startParts) for (let i = 0; i < PARTS.initial; i++) spawnPart(); $('bossBar').hidden = true; $('phaseName').textContent = phase ? phase.name : '';
   for (let i = 0; i < (phase ? phase.initial : ENEMY.initial); i++) addEnemy();
   if (cfg.skill) { $('skillImg').src = ASSETS.ui[cfg.skill.icon]; $('tSkillImg').src = ASSETS.ui[cfg.skill.icon]; }
   updateSkill(); updateDodge(); $('score').textContent = '0'; $('kills').textContent = '0'; $('ammoLabel').textContent = cfg.weapon.name + '彈藥'; updateAmmo(); updateHp();
@@ -1456,13 +1493,13 @@ function nextPhase() {
   if (state !== 'play' || !phase) return;
   const waitFor = phasePacks(phaseIdx + 1).filter((pid) => !packReady[pid]);   // 下一階段的素材還沒下載完就稍等
   if (waitFor.length) { Promise.all(waitFor.map(ensurePack)).then(nextPhase, () => setTimeout(nextPhase, 1000)); return; }
-  const nx = WAR_PHASES[phaseIdx + 1];
+  const nx = levelPhases()[phaseIdx + 1];
   if (!nx) { endGame(true); return; }
   phaseIdx++; phase = nx; phaseStart = gameTime;
   for (const pid of phasePacks(phaseIdx + 1)) ensurePack(pid).catch(() => {});   // 再下一階段的素材先開始下載 spawnIdx = 0; spawnClock = 0; boss = null; bossSpawned = false;
   for (const e of enemies.slice()) if (!e.boss) burst(e.x, e.y, '#ff8f83', 8);
   enemies = enemies.filter((e) => e.boss);
-  $('phaseName').textContent = phase.name; $('bossSkip').hidden = !phase.bossPool; $('phaseSkip').hidden = phaseIdx >= WAR_PHASES.length - 1;
+  $('phaseName').textContent = phase.name; $('bossSkip').hidden = !phase.bossPool; $('phaseSkip').hidden = phaseIdx >= levelPhases().length - 1;
   floatText(player.x, player.y - 64, phase.name + ' 開始！', '#f9cf70'); shake = Math.max(shake, 5);
   for (let i = 0; i < phase.initial; i++) addEnemy();
 }
@@ -1931,13 +1968,15 @@ function damageClone(c, amount) {
   }
 }
 function spawnBoss(id) {
-  const B = BOSSES[id]; bossSpawned = true;
+  // 菁英對決：依精英等級套用倍率
+  const sc = phase && phase.bossScale === 'tier' ? DUEL_TIER_SCALE[BOSSES[id].tier] : null;
+  const B = scaleStats(BOSSES[id], sc); bossSpawned = true;
   const a = rand(0, Math.PI * 2), d = 420;
   boss = { boss: true, B, id, x: player.x + Math.cos(a) * d, y: player.y + Math.sin(a) * d, r: B.radius, hp: B.hp, maxHp: B.hp,
     ammo: B.magazine, reloadT: 0, magsDone: 0, special: null, cool: 0.8, barrel: 0, angle: 0, strafe: 1, strafeT: 0, jinkT: 0, jx: 0, jy: 0, vx: 0, vy: 0,
     touchCd: 0, debuffT: 0, faceLeft: true, aiming: false, shot: 0, phase: 0 };
   enemies.push(boss);
-  $('bossName').textContent = B.name; $('bossBar').hidden = false; updateBossBar();
+  $('bossName').textContent = B.name + (sc ? '（強化：' + scaleText(sc) + '）' : ''); $('bossBar').hidden = false; updateBossBar();
   floatText(player.x, player.y - 60, B.name + ' 出現！', '#ff6b6b'); shake = Math.max(shake, 6);
 }
 function updateBossBar() {
@@ -2012,11 +2051,12 @@ function updateBoss(e, dt, toward, dist) {
 /* ───────── 稻草人：重裝型，三座浮游砲輪流射擊，慢慢貼近 ───────── */
 const scarecrowMuzzle = (e, n) => spritePoint(e, e.B.assets.meta, e.B.assets.meta.muzzles[n]);
 function summonDrones(e) {
-  const sp = e.B.special, have = enemies.filter((x) => x.T === DRONE).length;
+  const sp = e.B.special, have = enemies.filter((x) => x.T?.ai === 'drone').length;
+  const DT = e.B.scale ? scaleStats(DRONE, e.B.scale) : DRONE;   // 召喚物跟著稻草人的倍率
   const n = Math.min(sp.summon, sp.maxDrones - have);
   for (let k = 0; k < n; k++) {
     const a = k / sp.summon * Math.PI * 2 + rand(-0.3, 0.3);
-    enemies.push({ T: DRONE, owner: e, x: e.x + Math.cos(a) * DRONE.orbit, y: e.y + Math.sin(a) * DRONE.orbit, r: DRONE.radius, hp: DRONE.hp,
+    enemies.push({ T: DT, owner: e, x: e.x + Math.cos(a) * DRONE.orbit, y: e.y + Math.sin(a) * DRONE.orbit, r: DRONE.radius, hp: DT.hp,
       ammo: 0, cool: rand(0.3, 1), phase: rand(0, 6), orbitA: a, off: (k - 1) * 0.75 + rand(-0.15, 0.15), kvx: 0, kvy: 0, touchCd: 0, angle: 0, faceLeft: true });
     burst(e.x + Math.cos(a) * DRONE.orbit, e.y + Math.sin(a) * DRONE.orbit, '#ffd2a0', 10);
   }
@@ -2357,6 +2397,20 @@ function drawSpriteEnemy(e) {
   if (im) ctx.drawImage(im, (b[0] - m.cx) * sc, (b[1] - m.cy) * sc, b[2] * sc, b[3] * sc);
   ctx.restore();
 }
+function drawMedkit(m) {
+  const q = proj(m.x, m.y); if (!onScreen(q, 40)) return;
+  ground(q, m.x, m.y);
+  ctx.fillStyle = 'rgba(4,18,26,0.4)'; ctx.beginPath(); ctx.ellipse(m.x, m.y + 2, 10, 4, 0, 0, Math.PI * 2); ctx.fill();
+  ctx.strokeStyle = 'rgba(125,255,154,' + (0.25 + 0.2 * Math.sin(gameTime * 4 + m.ph)) + ')'; ctx.lineWidth = 1.5;
+  ctx.beginPath(); ctx.arc(m.x, m.y, 15, 0, Math.PI * 2); ctx.stroke();
+  upright(q, m.x, m.y);
+  // 白色醫療箱＋紅十字，上下浮動
+  const cx = m.x, cy = m.y - 13 - Math.sin(gameTime * 3 + m.ph) * 2.5;
+  ctx.fillStyle = '#f4f7f8'; ctx.strokeStyle = '#7d8c92'; ctx.lineWidth = 1;
+  ctx.beginPath(); ctx.roundRect(cx - 10, cy - 8, 20, 16, 3); ctx.fill(); ctx.stroke();
+  ctx.fillStyle = '#e04545'; ctx.fillRect(cx - 2.2, cy - 5.5, 4.4, 11); ctx.fillRect(cx - 5.5, cy - 2.2, 11, 4.4);
+  ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+}
 function drawPart(pt) {
   const q = proj(pt.x, pt.y); if (!onScreen(q, 40)) return;
   ground(q, pt.x, pt.y);
@@ -2432,7 +2486,7 @@ function killEnemy(e) {
     setTimeout(nextPhase, 1500);
     return;
   }
-  const pts = e.T === DRONE ? 50 : 100;
+  const pts = e.T?.ai === 'drone' ? 50 : 100;
   enemies.splice(i, 1); kills++; score += pts;
   $('kills').textContent = kills; $('score').textContent = score;
   burst(e.x, e.y, '#ff8f83', 15); floatText(e.x, e.y - 30, '+' + pts, '#f9cf70'); sfx.kill();
@@ -2582,9 +2636,9 @@ function update(dt) {
 
   // 敵人生成（隨時間變快）
   spawnClock += dt;
-  const every = phase ? Math.max(phase.spawn.min, phase.spawn.every - phaseClock() / phase.end * (phase.spawn.every - phase.spawn.min))
+  const every = phase && !phase.spawn ? Infinity : phase ? Math.max(phase.spawn.min, phase.spawn.every - phaseClock() / phase.end * (phase.spawn.every - phase.spawn.min))
                       : Math.max(1.6, 4.2 - gameTime / 40);
-  if (spawnClock > every && !boss) { spawnClock = 0; addEnemy(); }   // Boss 戰期間不再生成小兵
+  if (spawnClock > every && !boss && (!phase || phase.pattern.length)) { spawnClock = 0; addEnemy(); }   // Boss 戰期間不再生成小兵
   if (phase) {
     const left = Math.max(0, phase.end - phaseClock()), m = Math.floor(left / 60), sec = Math.floor(left % 60);
     $('phaseTime').textContent = m + ':' + String(sec).padStart(2, '0');
@@ -2602,7 +2656,7 @@ function update(dt) {
   for (let i = enemies.length - 1; i >= 0; i--) {
     const e = enemies[i], toward = Math.atan2(player.y - e.y, player.x - e.x), dist = Math.hypot(player.x - e.x, player.y - e.y);
     if (e.boss) { ({ dreamer: updateDreamer, scarecrow: updateScarecrow }[e.B.ai] || updateBoss)(e, dt, toward, dist); continue; }
-    if (e.T.ai === 'drone') { updateDrone(e, dt, toward, dist); continue; }
+    if (e.T?.ai === 'drone') { updateDrone(e, dt, toward, dist); continue; }
     if (dist > far) { enemies.splice(i, 1); continue; }
     const T = e.T; e.angle = toward; e.phase += dt; e.moving = dist > T.stopRange;
     e.aiming = !e.moving || e.shot > 0; e.faceLeft = Math.cos(toward) < 0;
@@ -2702,6 +2756,23 @@ function update(dt) {
         parts.splice(i, 1); partCount++; updateParts();
         floatText(pt.x, pt.y - 20, '零件 +1', '#f9cf70'); burst(pt.x, pt.y, '#f9cf70', 8); sfx.reload();
       } else if (d > 1600) parts.splice(i, 1);
+    }
+  }
+  // 醫療箱：定時出現；靠近就撿起回血
+  if (phase && phase.medkitEvery) {
+    medClock += dt;
+    if (medClock > phase.medkitEvery && medkits.length < 3) {
+      medClock = 0;
+      const a = rand(0, Math.PI * 2), d = rand(PARTS.minDist, PARTS.maxDist);
+      medkits.push({ x: player.x + Math.cos(a) * d, y: player.y + Math.sin(a) * d, ph: rand(0, 6) });
+    }
+    for (let i = medkits.length - 1; i >= 0; i--) {
+      const m = medkits[i], d = Math.hypot(m.x - player.x, m.y - player.y);
+      if (d < player.r + PARTS.pickR) {
+        medkits.splice(i, 1);
+        const heal = Math.min(phase.medkitHeal, player.maxHp - player.hp); player.hp += heal; updateHp();
+        floatText(m.x, m.y - 20, '生命 +' + Math.round(heal), '#7dff9a'); burst(m.x, m.y, '#7dff9a', 10); sfx.reload();
+      } else if (d > 1600) medkits.splice(i, 1);
     }
   }
   updateClones(dt);
@@ -2907,6 +2978,7 @@ function draw(t) {
   }
   ctx.lineCap = 'butt';
   for (const pt of parts) drawPart(pt);
+  for (const m of medkits) drawMedkit(m);
   if (boss && !boss.B.ai) drawBossTargets(boss);
   const actors = [...covers().map((it) => ({ it, k: 'c' })), ...enemies.map((it) => ({ it, k: 'e' })), ...(player && state !== 'menu' ? [{ it: player, k: 'p' }, ...clones.map((it) => ({ it, k: 'm' }))] : [])].sort((a, b) => a.it.y - b.it.y);
   for (const { it, k } of actors) {
@@ -2931,13 +3003,13 @@ function draw(t) {
         ctx.beginPath(); ctx.arc(it.x, it.y, it.r + 6, 0, Math.PI * 2); ctx.stroke(); ctx.setLineDash([]);
         ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
       }
-      if (it.T.ai === 'drone') drawDrone(it); else if (it.T.sprite) drawSpriteEnemy(it); else drawCharacter(it, true);
+      if (it.T?.ai === 'drone') drawDrone(it); else if (it.T.sprite) drawSpriteEnemy(it); else drawCharacter(it, true);
       upright(q, it.x, it.y);
       if (it.debuffT > 0) {
         ctx.fillStyle = '#ff5d8f'; ctx.font = '800 10px sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
         ctx.fillText('易傷', it.x, it.y - 50);
       }
-      const hy = it.T.ai === 'drone' ? it.y - 54 : it.y - 42, hw = it.T.ai === 'drone' ? 24 : 36;   // 浮游砲飛得比較高、血條較短
+      const hy = it.T?.ai === 'drone' ? it.y - 54 : it.y - 42, hw = it.T?.ai === 'drone' ? 24 : 36;   // 浮游砲飛得比較高、血條較短
       ctx.fillStyle = '#26343b'; ctx.fillRect(it.x - hw / 2, hy, hw, 4);
       ctx.fillStyle = '#ff988c'; ctx.fillRect(it.x - hw / 2, hy, hw * Math.max(0, it.hp) / it.T.hp, 4);
     } else {
