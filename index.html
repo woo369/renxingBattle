@@ -1300,7 +1300,7 @@ function buildRoster(cls) {
   }
 }
 $('charBtn').addEventListener('click', () => { $('charsel').hidden = false; openCharsel(CHARACTERS[selectedId].weapon.class); });
-$('charselClose').addEventListener('click', () => { $('charsel').hidden = true; setLoadingTips(false, ['selTip']); });
+$('charselClose').addEventListener('click', () => { $('charsel').hidden = true; setLoadingTips(false, ['selTip']); $('roster').textContent = ''; releaseMenuCache(); });
 function buildLevels() {
   const g = $('levelGrid'); g.textContent = '';
   for (const lv of LEVELS) {
@@ -1369,7 +1369,7 @@ function buildCodex(id) {
 $('levelBtn').addEventListener('click', () => { buildLevels(); $('levels').hidden = false; });
 $('levelOk').addEventListener('click', () => { $('levels').hidden = true; $('levelName').textContent = LEVELS.find((l) => l.id === selectedLevel).name; });
 $('codexBtn').addEventListener('click', () => { $('codex').hidden = false; openCodexClass(CHARACTERS[selectedId].weapon.class); });
-$('codexClose').addEventListener('click', () => { $('codex').hidden = true; });
+$('codexClose').addEventListener('click', () => { $('codex').hidden = true; $('codexTabs').textContent = ''; $('codexDetail').textContent = ''; releaseMenuCache(); });
 
 /* ───────── 敵人圖鑑 ───────── */
 const ENEMY_CODEX = () => [
@@ -1460,7 +1460,7 @@ $('ecodexBtn').addEventListener('click', () => {
   $('ecodex').hidden = false; $('ecodexTabs').textContent = ''; $('ecodexDetail').innerHTML = '<div class="load-tip" id="ecodexTip"></div>'; setLoadingTips(true, ['ecodexTip']);
   ensureEnemyCodex().then(() => { setLoadingTips(false, ['ecodexTip']); buildEnemyCodex('shadow'); }).catch(() => { setLoadingTips(false, ['ecodexTip']); $('ecodexDetail').innerHTML = '<p class="roster-empty">載入失敗，請關閉後再試一次。</p>'; });
 });
-$('ecodexClose').addEventListener('click', () => { $('ecodex').hidden = true; });
+$('ecodexClose').addEventListener('click', () => { $('ecodex').hidden = true; $('ecodexTabs').textContent = ''; $('ecodexDetail').textContent = ''; releaseMenuCache(); });
 function showBest() { $('bestLine').textContent = best ? '最高分 ' + best.toLocaleString('zh-TW') : ''; }
 
 function setState(s) {
@@ -1561,7 +1561,7 @@ function startGame() {
   Promise.all(need.map(ensurePack)).then(() => {
     gameLoading = false; btns.forEach((b, i) => { b.disabled = false; b.textContent = labels[i]; });
     setLoadingTips(false);
-    releaseUnused([...need, ...(levelPhases() || []).flatMap((ph, i) => phasePacks(i))]);
+    releaseUnused([...need, ...phasePacks(1)]); releaseMenuCache();
     beginGame();
     if (levelPhases()) for (const pid of phasePacks(1)) ensurePack(pid).catch(() => {});   // 進場後開始下載下一階段
   }).catch(() => {
@@ -1569,13 +1569,37 @@ function startGame() {
     setLoadingTips(false);
   });
 }
-// 開局時釋放這一局用不到的素材包（換過很多人形也不會一直佔記憶體）；選角預覽圖保留
+/* ───────── 釋放快取：用過的素材不一直留在記憶體 ─────────
+   ・開局：只留出擊人形＋第一、第二階段
+   ・換階段：只留出擊人形＋這一階段＋下一階段（兩個階段都有的敵人會保留，不會被刪）
+   ・結算／回首頁：上一局的素材全部清掉，只留下一局開場要用的
+   ・關閉選角、人形圖鑑、敵人圖鑑：清掉圖鑑立繪與其他槍種的預覽圖（只留目前人形的槍種）
+   代價是之後再用到時要重新下載。離線單檔版的圖片都在網頁裡，不做釋放。 */
+const SPLIT_BUILD = !!ASSETS.triple_crown.split;
 function releaseUnused(keep) {
+  let freed = false;
   for (const pid of Object.keys(ASSETS)) {
     const A = ASSETS[pid];
     if (pid === 'ui' || !A.split || keep.includes(pid) || !packLoading[pid]) continue;
-    A.imgs = A.imgs.idle ? { idle: A.imgs.idle } : {};
-    delete imgs[packBox[pid]]; delete packLoading[pid]; delete packReady[pid];
+    const cls = Object.values(CHARACTERS).find((d) => d.assets === A)?.weapon.class;
+    A.imgs = A.imgs.idle && classLoading[cls] ? { idle: A.imgs.idle } : {};   // 選角預覽圖：該槍種的選角資料還在才保留
+    delete imgs[packBox[pid]]; delete packLoading[pid]; delete packReady[pid]; freed = true;
+  }
+  if (freed) sil.clear();   // 影子敵人的剪影快取一起清掉（用到時再重畫）
+}
+const myPack = () => packOf(CHARACTERS[selectedId].assets);
+// 下一局開場要用的：出擊人形＋第一階段的敵人（Boss 開局才抽）
+const openingPacks = () => [myPack(), ...(levelPhases() ? levelPhases()[0].packs : [])];
+// 選單類快取：敵人圖鑑立繪、其他槍種的選角預覽圖與立繪
+function releaseMenuCache() {
+  if (!SPLIT_BUILD) return;
+  for (const k of Object.keys(ASSETS.ui)) if (k.startsWith('codex_')) delete ASSETS.ui[k];
+  ecodexLoading = null;
+  const keepCls = CHARACTERS[selectedId].weapon.class;
+  for (const cls of CLASS_ORDER) {
+    if (cls === keepCls || !classLoading[cls]) continue;
+    for (const d of charsOf(cls)) { if (!packLoading[packOf(d.assets)]) delete d.assets.imgs.idle; delete ASSETS.ui[d.portrait]; }
+    delete classLoading[cls];
   }
 }
 /* ───────── 測試模式：召喚面板 ───────── */
@@ -1621,7 +1645,7 @@ function beginGame() {
   setState('play'); last = performance.now();
 }
 function endGame(cleared) {
-  setTimeout(prefetch, 300);   // 結算時先在背景準備下一場
+  setTimeout(() => { if (state === 'play' || gameLoading) return; releaseUnused(openingPacks()); prefetch(); }, 300);   // 清掉上一局的素材，先在背景準備下一場
   $('overTitle').textContent = cleared ? (phase ? phase.name : '') + '完成！' : '本回合結束';
   $('bossBar').hidden = true;
   const isBest = score > best;
@@ -1640,6 +1664,7 @@ function nextPhase() {
   if (!nx) { endGame(true); return; }
   phaseIdx++; phase = nx; phaseStart = gameTime;
   spawnIdx = 0; spawnClock = 0; boss = null; bossSpawned = false;
+  releaseUnused([myPack(), ...phasePacks(phaseIdx), ...phasePacks(phaseIdx + 1)]);   // 上一階段用完的敵人、Boss 釋放；下一階段還會用到的保留
   for (const pid of phasePacks(phaseIdx + 1)) ensurePack(pid).catch(() => {});   // 再下一階段的素材先開始下載
   for (const e of enemies.slice()) if (!e.boss) burst(e.x, e.y, '#ff8f83', 8);
   enemies = enemies.filter((e) => e.boss);
@@ -1717,9 +1742,10 @@ $('skillBtn').addEventListener('click', () => useSkill());
 $('startBtn').addEventListener('click', startGame);
 $('expandBtn').addEventListener('click', expandEchelon);
 $('retryBtn').addEventListener('click', startGame);
-$('menuBtn').addEventListener('click', () => { showBest(); setState('menu'); });
+function backToMenu() { showBest(); setState('menu'); releaseUnused(openingPacks()); prefetch(); }
+$('menuBtn').addEventListener('click', backToMenu);
 $('resumeBtn').addEventListener('click', resumeGame);
-$('quitBtn').addEventListener('click', () => { setState('menu'); });
+$('quitBtn').addEventListener('click', backToMenu);
 $('pauseBtn').addEventListener('click', pauseGame);
 $('zoomRange').addEventListener('input', (e) => setZoom(Number(e.target.value)));
 $('muteBtn').addEventListener('click', () => { muted = !muted; store.set('rxxlc-muted', muted ? '1' : '0'); syncMute(); audio(); });
