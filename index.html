@@ -886,7 +886,7 @@ function scaleStats(T, sc) {
 const scaleText = (sc) => !sc ? '' : [sc.hp && sc.hp !== 1 ? '生命 ×' + sc.hp : '', sc.dmg && sc.dmg !== 1 ? '攻擊 ×' + sc.dmg : ''].filter(Boolean).join('、');
 
 /* 戰事：分階段進攻
-   end 階段長度（秒）｜spawnTable 每次生成時各種敵人的機率（%，T: null＝這次不出怪；加總不到 100 的部分也算不出怪）｜initial 開場數量｜spawn 生成節奏｜boss 時間到召喚的 Boss（沒有就直接過關） */
+   end 階段長度（秒）｜spawnTable 每次生成時各種敵人的機率（%，T: null＝這次不出怪；加總不到 100 的部分也算不出怪；sc＝這個階段的強化倍率，例如 { hp: 1.25 }）｜initial 開場數量｜spawn 生成節奏｜boss 時間到召喚的 Boss（沒有就直接過關） */
 const WAR_PHASES = [
   {
     name: '第一階段', end: 180,
@@ -898,7 +898,8 @@ const WAR_PHASES = [
   },
   {
     name: '第二階段', end: 180,  // 暫定 3 分鐘，撐過即過關
-    spawnTable: [{ T: CYCLOPS, w: 30 }, { T: MULTI_EYE, w: 20 }, { T: COMPOUND_EYE, w: 20 }, { T: LION, w: 20 }, { T: CENTAUR, w: 10 }],   // 獨眼 30%、多眼 20%、複眼 20%、鋼獅 20%、肯陶羅斯 10%
+    spawnTable: [{ T: CYCLOPS, w: 30 }, { T: MULTI_EYE, w: 20 }, { T: COMPOUND_EYE, w: 15 }, { T: LION, w: 15, sc: { hp: 1.25 } }, { T: CENTAUR, w: 10 }, { T: null, w: 10 }],
+    // 獨眼 30%、多眼 20%、複眼 15%、鋼獅 15%（強化：生命 ×1.25）、肯陶羅斯 10%、劍盾士 10%（素材還沒到，先當成不出怪）
     packs: ['cyc', 'meye', 'ceye', 'lion', 'cent'],
     initial: 4,
     spawn: { every: 3.2, min: 2.2, max: 12 },   // 同時最多 12 隻
@@ -1432,7 +1433,7 @@ const ENEMY_CODEX = () => [
     where: '出現：戰事' },
   { id: 'lion', rank: 'normal', T: LION, name: '鋼獅', weapon: '機甲砲', img: ASSETS.ui.codex_lion,
     desc: '笨重的機甲，有 10 點護甲，非常耐打。射擊時會停在原地，停下與重新起步都要花上一點時間。擊敗後可以獲得 1 個零件。',
-    where: '出現：戰事' },
+    where: '出現：戰事（第二階段強化：生命 ×1.25）' },
   { id: 'cyclops', rank: 'normal', T: CYCLOPS, name: '獨眼巨人', weapon: '步槍', img: ASSETS.ui.codex_cyc,
     desc: '戰事的主力敵人，在稍遠的距離停下來連續射擊，打完一個彈匣才換彈。',
     where: '出現：戰事' },
@@ -1576,7 +1577,7 @@ function addShield(v) {
 // 依機率表抽一種敵人：w 是百分比；抽到 T: null 或落在加總不到 100 的部分 → 這次不出怪
 function pickSpawn(table) {
   let r = Math.random() * 100;
-  for (const it of table) { if (r < it.w) return it.T; r -= it.w; }
+  for (const it of table) { if (r < it.w) return it.T && it.sc ? (it.scaled ||= scaleStats(it.T, it.sc)) : it.T; r -= it.w; }   // 有強化倍率就用強化後的數值
   return null;
 }
 function addEnemy() {
