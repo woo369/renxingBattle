@@ -259,7 +259,6 @@ body.touch #testPanel{max-height:38vh}   /* 手機：不要擋到左下的移動
   <div id="testPanel" hidden><b>測試工具</b><div id="testBtns"></div></div>
   <div class="hud-block" id="hudScore">
     <div><span class="hud-label">分數</span><span class="hud-num" id="score">0</span></div>
-    <div id="killsBox"><span class="hud-label">擊敗</span><span class="hud-num" id="kills">0</span></div>
   </div>
   <div class="hud-block" id="phaseBlock" hidden><span class="hud-label" id="phaseName">第一階段</span><span class="hud-num" id="phaseTime">3:00</span>
 </div>
@@ -1167,7 +1166,7 @@ let state = 'menu';                       // menu | play | pause | over
 let cfg = CHARACTERS.triple_crown, selectedId = cfg.id;
 let player = null, enemies = [], bullets = [], particles = [], floaters = [], grenades = [], blasts = [], runFx = [], rings = [];
 let cam = { x: 0, y: 0 }, shake = 0, hurtT = 0;
-let score = 0, kills = 0, gameTime = 0, spawnClock = 0, last = 0, lockedTarget = null;
+let score = 0, gameTime = 0, spawnClock = 0, last = 0, lockedTarget = null;
 let fireHeld = false, mouseDown = false;
 const keys = new Set();
 const mouse = { x: 0, y: 0, seen: false };
@@ -1816,7 +1815,7 @@ function buildTestPanel() {
 }
 function beginGame() {
   cfg = CHARACTERS[selectedId];
-  score = 0; kills = 0; gameTime = 0; spawnClock = 0; shake = 0; hurtT = 0;
+  score = 0; gameTime = 0; spawnClock = 0; shake = 0; hurtT = 0;
   player = { x: 0, y: 0, r: cfg.radius, hp: cfg.maxHp, maxHp: cfg.maxHp, ammo: cfg.weapon.magazine, angle: 0, moveAngle: 0, cool: 0, reload: 0, shot: 0, def: cfg, moving: false, skillCd: 0, skillArmed: false, buffT: 0, shield: 0, stacks: 0, effects: [], birds: 0, birdT: cfg.skill && cfg.skill.birdEvery || 0, birdPos: [],
     charges: dodgeCharges(cfg.dodge), chargeT: 0, dodgeT: 0, invT: 0, dodgeDir: 0, trail: [] };
   cam = { x: 0, y: 0 }; chunks.clear(); coverCache = null; computeZoom(); stream();
@@ -1826,14 +1825,15 @@ function beginGame() {
   $('phaseBlock').hidden = !phase;
   const testing = !!(phase && phase.test);
   $('testPanel').hidden = !testing; if (testing) buildTestPanel();
-  $('hudScore').hidden = testing; $('killsBox').hidden = selectedLevel === 'duel';   // 菁英對決不顯示擊殺數 if (testing) $('phaseBlock').hidden = true;   // 測試模式不顯示分數、擊殺與模式
+  $('hudScore').hidden = testing;
+  if (testing) $('phaseBlock').hidden = true;   // 測試模式不顯示分數與模式
   boss = null; bossSpawned = false;
   parts = []; partCount = (phase && phase.startParts) || 0; partClock = 0; clones = []; missiles = []; medkits = []; medClock = 0;
   $('partsBlock').hidden = !phase; updateParts();
   if (phase && !phase.startParts) for (let i = 0; i < PARTS.initial; i++) spawnPart(); $('bossBar').hidden = true; $('phaseName').textContent = phase ? phase.name : '';
   for (let i = 0; i < (phase ? phase.initial : ENEMY.initial); i++) addEnemy();
   if (cfg.skill) { $('skillImg').src = ASSETS.ui[cfg.skill.icon]; $('tSkillImg').src = ASSETS.ui[cfg.skill.icon]; }
-  updateSkill(); updateDodge(); $('score').textContent = '0'; $('kills').textContent = '0'; $('ammoLabel').textContent = cfg.weapon.name + '彈藥'; updateAmmo(); updateHp();
+  updateSkill(); updateDodge(); $('score').textContent = '0'; $('ammoLabel').textContent = cfg.weapon.name + '彈藥'; updateAmmo(); updateHp();
   setState('play'); last = performance.now();
 }
 function endGame(cleared) {
@@ -1844,7 +1844,7 @@ function endGame(cleared) {
   if (isBest) { best = score; store.set('rxxlc-best', String(best)); }
   $('finalScore').textContent = score.toLocaleString('zh-TW');
   const m = Math.floor(gameTime / 60), s = Math.floor(gameTime % 60);
-  $('finalStats').textContent = '擊敗 ' + kills + ' · 存活 ' + m + ':' + String(s).padStart(2, '0') + (isBest ? ' · 新紀錄' : (best ? ' · 最高分 ' + best.toLocaleString('zh-TW') : ''));
+  $('finalStats').textContent = '存活 ' + m + ':' + String(s).padStart(2, '0') + (isBest ? ' · 新紀錄' : (best ? ' · 最高分 ' + best.toLocaleString('zh-TW') : ''));
   showBest(); setState('over');
 }
 // 進入下一個階段（擊敗 Boss 後）；沒有下一階段就過關
@@ -3316,8 +3316,8 @@ function drawBoss(e) {
 function killEnemy(e) {
   const i = enemies.indexOf(e); if (i < 0) return;
   if (e.boss) {
-    enemies.splice(i, 1); kills++; score += 2000; boss = null; $('bossBar').hidden = true;
-    $('kills').textContent = kills; $('score').textContent = score;
+    enemies.splice(i, 1); score += 2000; boss = null; $('bossBar').hidden = true;
+    $('score').textContent = score;
     burst(e.x, e.y, '#ff6b6b', 40); burst(e.x, e.y, '#f9cf70', 30); floatText(e.x, e.y - 60, '擊敗 ' + e.B.name + '！ +2000', '#f9cf70'); sfx.boom(); shake = 10;
     for (const d of enemies.filter((x) => x.owner === e)) { burst(d.x, d.y, '#ffb36b', 10); enemies.splice(enemies.indexOf(d), 1); }
     const rw = phase && phase.bossReward;
@@ -3327,8 +3327,8 @@ function killEnemy(e) {
   }
   const pts = e.T?.ai === 'drone' ? 50 : 100;
   if (e.T?.dropParts && phase && !phase.infiniteParts) { partCount += e.T.dropParts; updateParts(); floatText(e.x, e.y - 48, '零件 +' + e.T.dropParts, '#f9cf70'); }
-  enemies.splice(i, 1); kills++; score += pts;
-  $('kills').textContent = kills; $('score').textContent = score;
+  enemies.splice(i, 1); score += pts;
+  $('score').textContent = score;
   burst(e.x, e.y, '#ff8f83', 15); floatText(e.x, e.y - 30, '+' + pts, '#f9cf70'); sfx.kill();
 }
 function breakCrate(blk) {
