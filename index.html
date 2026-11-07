@@ -846,7 +846,7 @@ const WAR_PHASES = [
     packs: ['wasp', 'beast', 'lion'],              // 這個階段要用的敵人素材包
     spawn: { every: 3.2, min: 2.2, max: 10 },   // 每 3.2 秒生成一隻，逐漸加快到 2.2 秒；同時最多 10 隻
     bossReward: { parts: 15 },   // 擊敗 Boss 獲得 15 個零件
-    bossPool: 'elite',           // 時間到 → 從精英敵人中隨機抽一名當 Boss，擊敗後進入第二階段
+    bossPool: { tier: 1 },       // 時間到 → 從一階精英中隨機抽一名當 Boss，擊敗後進入第二階段
   },
   {
     name: '第二階段', end: 180,  // 暫定 3 分鐘，撐過即過關
@@ -856,6 +856,7 @@ const WAR_PHASES = [
     initial: 4,
     spawn: { every: 3.2, min: 2.2, max: 12 },   // 同時最多 12 隻
     partsEvery: 7,               // 零件改成每 7 秒出現一個
+    bossPool: { tier: 2 },       // 時間到 → 從二階精英中隨機抽一名當 Boss，擊敗後過關
   },
 ];
 /* 菁英對決：直接打精英 Boss
@@ -928,20 +929,20 @@ const BOSSES = {
   dreamer: {
     name: '夢想家',
     rank: 'elite',
-    tier: 1,                     // 精英等級：對應戰事第 1 階段的 Boss
+    tier: 2,                     // 精英等級：二階（對應戰事第 2 階段的 Boss）
     ai: 'dreamer',               // 使用夢想家專用的行為
     weapon: '大型狙擊槍',
-    desc: '扛著大型狙擊槍的浮空人形，在遠距離穩定狙擊。目標一旦靠近到 200 以內，就會用閃避向後拉開距離。',
-    specialDesc: '雷電狙擊：每打完 2 個彈匣，架好槍蓄力 1 秒，接著每 0.5 秒發射一顆極快的雷電球，共 3 顆。每顆造成 10 點電磁傷害（無視護甲、不可迴避），並讓目標減速 30%，持續 5 秒；連續命中時減速會疊加，持續時間只會重設。',
-    hp: 600,
+    desc: '扛著大型狙擊槍的浮空人形，在遠距離穩定狙擊。目標一旦靠近到 210 以內，就會用閃避向後拉開距離。',
+    specialDesc: '雷電狙擊：每打完 2 個彈匣，架好槍蓄力 1 秒，接著每 0.5 秒發射一顆極快的雷電球，共 3 顆。每顆造成 10 點電磁傷害（無視護甲、不可迴避），並讓目標減速 35%，持續 5 秒；連續命中時減速會疊加，持續時間只會重設。',
+    hp: 1000,
     speed: 180,
-    evade: 0.1,                  // 迴避率 10%（不會主動躲子彈）
-    lockRange: 450,              // 鎖敵距離：進入範圍就停下來狙擊
-    bulletDmg: 30,
+    evade: 0.15,                 // 迴避率 15%（不會主動躲子彈）
+    lockRange: 480,              // 鎖敵距離：進入範圍就停下來狙擊
+    bulletDmg: 35,
     fireCooldown: 1.5,           // 每 1.5 秒開火一次
     magazine: 3, reload: 3,      // 彈匣 3 發，換彈 3 秒
     bulletSpeed: 560, bulletLife: 1.25,
-    retreat: 200,                // 玩家靠近到 200 以內 → 閃避後撤
+    retreat: 210,                // 玩家靠近到 210 以內 → 閃避後撤
     dodge: { cooldown: 1, speed: 620, time: 0.24 },  // 閃避冷卻 1 秒（只用來後撤）；一次約退 149
     // 特殊攻擊：每打完 2 個彈匣使用一次 —— 架槍 → 蓄力 1 秒 → 每 0.5 秒發射一顆雷電球，共 3 顆
     special: {
@@ -951,7 +952,7 @@ const BOSSES = {
       hold: 0.35,                // 最後一顆射出後停留一下再恢復
       damage: 10,                // 電磁傷害：無視護甲、不可迴避
       speed: 950, life: 0.9, radius: 7,
-      slow: 0.3, slowTime: 5,    // 命中：減速 30%，持續 5 秒；連續命中減速疊加，時間只重設
+      slow: 0.35, slowTime: 5,   // 命中：減速 35%，持續 5 秒；連續命中減速疊加，時間只重設
     },
     radius: 22,
     assets: ASSETS.dreamer,
@@ -984,7 +985,11 @@ const BOSSES = {
 };
 const ELITE_POOL = Object.keys(BOSSES).filter((id) => BOSSES[id].rank === 'elite');
 // 從抽選池隨機抽一名當 Boss（'elite'＝全部精英敵人）
-const pickBoss = (pool) => { const L = pool === 'elite' ? ELITE_POOL : pool; return L[Math.floor(Math.random() * L.length)]; };
+// pool：'elite' 全部精英｜{ tier: n } 該等級的精英｜['id', …] 指定名單
+const pickBoss = (pool) => {
+  const L = pool === 'elite' ? ELITE_POOL : Array.isArray(pool) ? pool : ELITE_POOL.filter((id) => BOSSES[id].tier === pool.tier);
+  return L[Math.floor(Math.random() * L.length)];
+};
 let boss = null, bossSpawned = false;
 const CHUNK = 420;
 // 偽 3D：地面向後傾斜。squash＝地面壓扁程度，depth＝透視強度（越小越強），anchor＝玩家在畫面的高度比例
@@ -1607,7 +1612,8 @@ function nextPhase() {
   const nx = levelPhases()[phaseIdx + 1];
   if (!nx) { endGame(true); return; }
   phaseIdx++; phase = nx; phaseStart = gameTime;
-  for (const pid of phasePacks(phaseIdx + 1)) ensurePack(pid).catch(() => {});   // 再下一階段的素材先開始下載 spawnIdx = 0; spawnClock = 0; boss = null; bossSpawned = false;
+  spawnIdx = 0; spawnClock = 0; boss = null; bossSpawned = false;
+  for (const pid of phasePacks(phaseIdx + 1)) ensurePack(pid).catch(() => {});   // 再下一階段的素材先開始下載
   for (const e of enemies.slice()) if (!e.boss) burst(e.x, e.y, '#ff8f83', 8);
   enemies = enemies.filter((e) => e.boss);
   $('phaseName').textContent = phase.name;
