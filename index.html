@@ -217,13 +217,15 @@ body.touch #expandBtn small{display:none}
 @media (max-height:430px){body.touch #expandBtn{width:50px;height:50px;right:calc(max(20px,env(safe-area-inset-right,0px)) + 164px)}}
 @media (prefers-reduced-motion:reduce){#expandBtn{animation:none}}
 /* 測試模式的召喚面板 */
-#testPanel{pointer-events:auto;position:fixed;left:calc(max(12px,env(safe-area-inset-left,0px)));top:calc(118px + env(safe-area-inset-top,0px));z-index:6;display:flex;flex-direction:column;gap:4px;max-height:calc(100vh - 140px);overflow:auto;padding:8px;border-radius:12px;background:#071a26d9;border:1px solid #1f4250}
+#testPanel{pointer-events:auto;flex:none;display:flex;flex-direction:column;gap:4px;max-height:min(52vh,420px);overflow:auto;padding:8px;border-radius:12px;background:#071a26d9;border:1px solid #1f4250}
+#testPanel[hidden]{display:none}
 #testPanel b{font-size:11px;letter-spacing:.12em;color:var(--muted)}
 #testBtns{display:flex;flex-direction:column;gap:4px}
 #testBtns button{font:inherit;font-size:12px;padding:4px 9px;border-radius:7px;border:1px solid #2a5463;background:#102a35;color:var(--ink);cursor:pointer;text-align:left}
 #testBtns button.elite{border-color:#8a6a2e;color:var(--gold)}
 #testBtns button.clear{border-style:dashed;color:#ffd0d0;border-color:#ff8f83}
-body.touch #testPanel{top:calc(70px + env(safe-area-inset-top,0px))}
+body.touch #testPanel{max-height:38vh}   /* 手機：不要擋到左下的移動搖桿 */
+#testBtns button.heal{border-color:#3f8f5a;color:#9dffb6}
 #bossSkip,#phaseSkip{display:block;margin-top:4px;font-size:11px;padding:3px 7px;border-radius:7px;border:1px dashed #ff8f83;background:#3a1f25;color:#ffd0d0;cursor:pointer}
 #bossBar{position:fixed;left:50%;transform:translateX(-50%);top:calc(68px + env(safe-area-inset-top,0px));z-index:5;width:min(460px,70vw);pointer-events:none}
 #bossHead{display:flex;justify-content:space-between;font-size:13px;color:#ffd0d0;text-shadow:0 1px 3px #000;margin-bottom:3px}
@@ -240,8 +242,8 @@ body.touch #testPanel{top:calc(70px + env(safe-area-inset-top,0px))}
 <div id="stage"><canvas id="game" aria-label="人形訓練場遊戲畫面"></canvas></div>
 
 <div id="hud" hidden>
-  <div id="testPanel" hidden><b>召喚敵人</b><div id="testBtns"></div></div>
   <div id="effects" aria-label="身上的效果"></div>
+  <div id="testPanel" hidden><b>測試工具</b><div id="testBtns"></div></div>
   <div class="hud-block" id="hudScore">
     <div><span class="hud-label">分數</span><span class="hud-num" id="score">0</span></div>
     <div><span class="hud-label">擊敗</span><span class="hud-num" id="kills">0</span></div>
@@ -1536,6 +1538,7 @@ function buildTestPanel() {
       if (boss) { floatText(player.x, player.y - 50, '一次只能有一隻精英', '#ffd0d0'); return; }
       ensurePack(packOf(BOSSES[id].assets)).then(() => { if (state === 'play' && !boss) spawnBoss(id); }).catch(() => floatText(player.x, player.y - 50, '載入失敗', '#ff8f83'));
     });
+  add('回滿生命', 'heal', () => { if (state !== 'play') return; player.hp = player.maxHp; updateHp(); burst(player.x, player.y, '#7dff9a', 14); floatText(player.x, player.y - 50, '生命回滿', '#7dff9a'); });
   add('清除所有敵人', 'clear', () => { enemies = []; boss = null; $('bossBar').hidden = true; bullets = bullets.filter((b) => b.team === 'p'); missiles = []; });
 }
 function beginGame() {
@@ -1548,7 +1551,9 @@ function beginGame() {
   // 依關卡決定敵人數值
   phase = levelPhases() ? levelPhases()[0] : null; phaseIdx = 0; phaseStart = 0; spawnIdx = 0;
   $('phaseBlock').hidden = !phase;
-  $('testPanel').hidden = !(phase && phase.test); if (phase && phase.test) buildTestPanel(); $('bossSkip').hidden = !(phase && phase.bossPool); $('phaseSkip').hidden = !phase || levelPhases().length < 2;
+  const testing = !!(phase && phase.test);
+  $('testPanel').hidden = !testing; if (testing) buildTestPanel();
+  $('hudScore').hidden = testing; if (testing) $('phaseBlock').hidden = true;   // 測試模式不顯示分數、擊殺與模式 $('bossSkip').hidden = !(phase && phase.bossPool); $('phaseSkip').hidden = !phase || levelPhases().length < 2;
   boss = null; bossSpawned = false;
   parts = []; partCount = (phase && phase.startParts) || 0; partClock = 0; clones = []; missiles = []; medkits = []; medClock = 0;
   $('partsBlock').hidden = !phase; updateParts();
