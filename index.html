@@ -709,8 +709,8 @@ const CLASS_NAMES = { AR: '突擊步槍', SMG: '衝鋒槍', HG: '手槍', RF: '�
 // 關卡：之後新增關卡就在這裡加
 const LEVELS = [
   { id: 'training', name: '訓練場', open: true, desc: '無限延伸的戰場，與跟你相同角色的影子敵人持續對戰，看能撐多久。' },
-  { id: 'war', name: '戰事', open: true, desc: '更強的敵人分階段進攻。第一階段：獨眼巨人來襲，撐過 3 分鐘後，從精英敵人中隨機出現一名 Boss，擊敗它；第二階段：獨眼巨人與多眼巨人 2：1 混合進攻，撐過 3 分鐘即可過關。' },
-  { id: 'duel', name: '菁英對決', open: true, desc: '直接挑戰精英敵人：入場 5 秒後出現一名隨機精英。開場持有 5 個零件，場上每 5 秒出現零件、每 15 秒出現醫療箱（恢復 10 生命）。以第二階段強度為基準，第一階段的精英會強化（生命 ×1.5、攻擊 ×1.2）。' },
+  { id: 'war', name: '戰事', open: true, desc: '三階段的戰事，敵人會階段性地變強。' },
+  { id: 'duel', name: '菁英對決', open: true, desc: '入場 5 秒後出現一名隨機精英敵人，擊敗它即可過關。場上會定時出現零件與醫療箱。' },
   { id: 'locked1', name: '尚未解鎖', open: false, desc: '敬請期待' },
 ];
 let selectedLevel = 'training';
