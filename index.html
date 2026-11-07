@@ -626,10 +626,10 @@ const CHARACTERS = {
 
   xm556: defineCharacter({
     id: 'xm556',
-    crit: 0.08,                  // 暴擊率 8%
+    crit: 0.05,                  // 自身暴擊率 5%（口徑小）＋機槍保底 5% ＝ 10%
     name: 'XM556',
     maxHp: 90,
-    speed: 200,
+    speed: 210,
     lockRange: 310,
     dodge: 24,                   // 閃避值 → 迴避率 2.4%；機槍閃避冷卻 +10 秒
     armor: { value: 0, blockLow: 0, blockHigh: 0 },
@@ -1116,7 +1116,7 @@ function buildCodex(id) {
     ['護甲', D.armor.value || '無'], ['閃避值', D.dodge],
     ['閃避冷卻', fmt(dodgeCooldown(D)) + ' 秒'], ['閃避次數', dodgeCharges(D.dodge) + ' 次'],
     ['迴避率', fmt(+(evadeRate(D) * 100).toFixed(1)) + '%'],
-    ['暴擊率', fmt(+((D.crit || 0) * 100).toFixed(1)) + '%'],
+    ['暴擊率', fmt(+(critRate(D) * 100).toFixed(1)) + '%'],
     ['彈匣', w.magazine + ' 發'], [w.pellets > 1 ? '每發彈丸' : '每發傷害', w.pellets > 1 ? w.pellets + ' 顆 × ' + w.damage : w.damage],
     ['射速', fmt(+(1 / w.cooldown).toFixed(2), 2).replace(/\.?0+$/, '') + ' 發／秒'], ['換彈', (w.reloadMode === 'magazine' ? '整匣 ' : '逐發 ') + fmt(w.reload, 2) + ' 秒'],
   ];
@@ -1449,6 +1449,9 @@ const dodgeCharges = (v) => Math.min(3, 1 + Math.floor(v / 40));
    迴避率（%）＝ 閃避值 × 0.1，衝鋒槍（SMG）另外 +10%，手槍（HG）另外 +25%（手槍血量最少）
      三重冕 14 → 1.4%｜HK433 45 → 4.5%｜82式 84 → 8.4% + 10% ＝ 18.4% */
 const EVADE_BONUS = { SMG: 10, HG: 25 };
+// 槍種保底暴擊率：機槍沒有護甲、閃避又差，給 5% 保底（之後有新的槍種保底就加在這裡）
+const CLASS_CRIT_BONUS = { MG: 0.05 };
+const critRate = (D) => (D.crit || 0) + (CLASS_CRIT_BONUS[D.weapon.class] || 0);   // 人形的暴擊率＝自身＋槍種保底
 const evadeRate = (D) => (D.dodge * 0.1 + (EVADE_BONUS[D.weapon.class] || 0)) / 100;
 /* 角色身上的效果（增益）：{ id, name, mark, color, dmg/rate/crit, t, max }
    同一種效果再次獲得時只重設時間；效果列顯示在畫面下方 */
@@ -1473,7 +1476,7 @@ const speedMul = (u) => { let m = 1; for (const x of (u && u.effects) || []) if 
 const effSumFrom = (u, key, from) => { let v = 0; for (const x of (u && u.effects) || []) if (x.from === from) v += x[key] || 0; return v; };
 /* 攻擊者這一方的暴擊率＝自身暴擊率 ± 自身給予的暴擊增益 ± 他人給予的暴擊增益
    （目標的易傷在命中時才加上，見 hitEnemy） */
-const unitCrit = (u) => (cfg.crit || 0) + effSumFrom(u, 'crit', 'self') + effSumFrom(u, 'crit', 'other');
+const unitCrit = (u) => critRate(cfg) + effSumFrom(u, 'crit', 'self') + effSumFrom(u, 'crit', 'other');
 const effSum = (u, key) => { let v = 0; for (const x of (u && u.effects) || []) v += x[key] || 0; return v; };
 function tickEffects(u, dt) {
   if (!u.effects || !u.effects.length) return;
