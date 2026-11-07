@@ -731,7 +731,7 @@ const ENEMY = { hp: 30, radius: 19, speed: 150, wobble: 17, lockRange: 225, stop
   magazine: 0, reload: 0 };   // magazine 0＝沒有彈匣限制
 
 /* 戰事的敵人種類
-   armor 護甲：傷害 ≤ 護甲時 70% 機率格擋、> 護甲時 50% 機率格擋；格擋後傷害 − 護甲值，最低剩 1（與人形護甲相同規則）
+   armor 護甲：傷害 ≤ 護甲時 60% 機率格擋（人形是 70%）、> 護甲時 50% 機率格擋；格擋後傷害 − 護甲值，最低剩 1
    pellets/spread：霰彈槍一次射出的彈丸數與散布角度 */
 // 胡蜂：一階普通敵人（戰事第一階段）
 const WASP = { ...ENEMY,
@@ -763,6 +763,8 @@ const BEAST = { ...ENEMY,
   retreat: 190,              // 冷卻中退到這個距離
   magazine: 0, reload: 0,
   contactDmg: 0 };           // 不做碰撞傷害，只靠刀
+// 敵人護甲的格擋機率：傷害 ≤ 護甲時 60%（人形是 70%）；傷害 > 護甲時 50%
+const ENEMY_BLOCK = { low: 0.6, high: 0.5 };
 const CYCLOPS = { ...ENEMY,
   name: '獨眼巨人',
   sprite: 'cyc',             // 使用獨眼巨人的動畫
@@ -780,7 +782,7 @@ const MULTI_EYE = { ...ENEMY,
   tier: 2,                   // 二階敵人
   hp: 130, armor: 5, evade: 0,
   contactDmg: 20,            // 碰撞傷害
-  speed: 150, radius: 21,
+  speed: 140, radius: 21,
   lockRange: 200, stopRange: 200,   // 靠近到距離 200 才開火
   pellets: 3, spread: 0.13,  // 霰彈槍：一發 3 顆彈丸
   bulletDmg: 5,              // 每顆彈丸 5 傷害
@@ -1334,7 +1336,7 @@ const ENEMY_CODEX = () => [
   { id: 'beast', rank: 'normal', T: BEAST, name: '殘獸', weapon: '近戰刀刃', img: ASSETS.ui.codex_beast,
     desc: '高速衝鋒的近戰敵人，貼近後原地蓄力 0.5 秒，朝前方扇形範圍砍一刀，刀刃會穿透 10 點護甲；出刀後會退開等待下一次機會，不會閃躲子彈。',
     where: '出現：戰事' },
-  { id: 'cyclops', rank: 'normal', T: CYCLOPS, name: '獨眼巨人', weapon: '單發射擊', img: ASSETS.ui.codex_cyc,
+  { id: 'cyclops', rank: 'normal', T: CYCLOPS, name: '獨眼巨人', weapon: '步槍', img: ASSETS.ui.codex_cyc,
     desc: '戰事的主力敵人，在稍遠的距離停下來連續射擊，打完一個彈匣才換彈。',
     where: '出現：戰事' },
   { id: 'meye', rank: 'normal', T: MULTI_EYE, name: '多眼巨人', weapon: '霰彈槍', img: ASSETS.ui.codex_meye,
@@ -1952,9 +1954,9 @@ function hitEnemy(e, dmg, color, small, atkCrit) {
   const crit = Math.random() < clamp((atkCrit ?? unitCrit(player)) + vuln, 0, 1);
   hitEnemy.lastCrit = crit;
   if (crit) dmg *= 2;
-  // 敵人護甲（多眼巨人）：規則與人形護甲相同
+  // 敵人護甲：格擋機率見 ENEMY_BLOCK
   const ar = e.boss ? e.B.armor : e.T.armor;
-  if (ar && (dmg <= ar ? Math.random() < 0.7 : Math.random() < 0.5)) {
+  if (ar && (dmg <= ar ? Math.random() < ENEMY_BLOCK.low : Math.random() < ENEMY_BLOCK.high)) {
     dmg = Math.max(1, dmg - ar);       // 格擋：傷害 − 護甲值，最低剩 1
     if (!small) floatText(e.x + rand(-10, 10), e.y - 34, '格擋', '#cfd8dc');
   }
