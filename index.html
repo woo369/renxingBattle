@@ -345,6 +345,7 @@ const ASSETS = {"triple_crown":{"meta":{"cx":720,"cy":720,"body":[307,192,1137,9
    ═══════════════════════════════════════════════════════════════ */
 const CHARACTER_BASE = {
   radius: 20,                    // 碰撞半徑
+  crit: 0,                       // 基礎暴擊率（暴擊傷害 ×2）
   // 子彈射程＝鎖敵距離 × 倍率 ＋ rangeAdd
   // 手機版（有自動瞄準）用 rangeScale；電腦版（滑鼠手動瞄準）用 rangeScaleDesktop
   rangeScale: 1.2,
@@ -394,6 +395,7 @@ function defineCharacter(def) {
 const CHARACTERS = {
   triple_crown: defineCharacter({
     id: 'triple_crown',
+    crit: 0.05,                  // 暴擊率 5%
     name: '齊亞帕三重冕',
     maxHp: 150,
     speed: 150,                  // 每秒移動距離
@@ -430,6 +432,7 @@ const CHARACTERS = {
 
   hk433: defineCharacter({
     id: 'hk433',
+    crit: 0.07,                  // 暴擊率 7%
     name: 'HK433',
     maxHp: 100,
     speed: 210,                  // 速度、鎖敵、武器其餘數值為突擊步槍暫定值
@@ -474,6 +477,7 @@ const CHARACTERS = {
 
   type82: defineCharacter({
     id: 'type82',
+    crit: 0.05,                  // 暴擊率 5%
     name: '82式',
     maxHp: 130,
     speed: 275,
@@ -524,6 +528,7 @@ const CHARACTERS = {
 
   martini: defineCharacter({
     id: 'martini',
+    crit: 0.1,                  // 暴擊率 10%
     name: '馬提尼亨利',
     maxHp: 70,
     speed: 220,
@@ -570,6 +575,7 @@ const CHARACTERS = {
 
   hummingbird: defineCharacter({
     id: 'hummingbird',
+    crit: 0.03,                  // 暴擊率 3%
     name: '蜂鳥',
     maxHp: 35,
     speed: 285,
@@ -1074,6 +1080,7 @@ function buildCodex(id) {
     ['護甲', D.armor.value || '無'], ['閃避值', D.dodge],
     ['閃避冷卻', fmt(dodgeCooldown(D)) + ' 秒'], ['閃避次數', dodgeCharges(D.dodge) + ' 次'],
     ['迴避率', fmt(+(evadeRate(D) * 100).toFixed(1)) + '%'],
+    ['暴擊率', fmt(+((D.crit || 0) * 100).toFixed(1)) + '%'],
     ['彈匣', w.magazine + ' 發'], [w.pellets > 1 ? '每發彈丸' : '每發傷害', w.pellets > 1 ? w.pellets + ' 顆 × ' + w.damage : w.damage],
     ['射速', fmt(+(1 / w.cooldown).toFixed(2), 2).replace(/\.?0+$/, '') + ' 發／秒'], ['換彈', (w.reloadMode === 'magazine' ? '整匣 ' : '逐發 ') + fmt(w.reload, 2) + ' 秒'],
   ];
@@ -1607,7 +1614,7 @@ function moveWithCover(en, dx, dy) {
 }
 // 影子敵人的實際迴避率：受「迴避率降低」影響，最低 0%
 const enemyEvade = (e) => Math.max(0, (e.boss ? e.B.evade : e.T.evade) - (e.debuffT > 0 ? e.evadeDown || 0 : 0));
-/* 暴擊：暴擊率＝攻擊者暴擊率（目前人形皆為 0%）＋目標易傷，暴擊時傷害 ×2
+/* 暴擊：暴擊率＝人形自身暴擊率＋目標易傷＋增益效果，暴擊時傷害 ×2
    例：易傷 20% 的敵人被 10 傷害的子彈打中 → 20% 機率受到 20 */
 /* 傷害類型（備忘）
    一般（子彈）：可被迴避，吃護甲
@@ -1615,10 +1622,9 @@ const enemyEvade = (e) => Math.max(0, (e.boss ? e.B.evade : e.T.evade) - (e.debu
    ── 尚未實裝，等有配套角色再做 ──
    火焰：無視護甲，可被迴避
    電磁：無視護甲，也不可迴避；通常傷害很低 */
-const PLAYER_CRIT = 0;
 function hitEnemy(e, dmg, color, small, critAdd) {
   // 暴擊率＝基礎暴擊＋目標易傷＋增益效果（蜂鳥共鳴等）
-  const crit = Math.random() < PLAYER_CRIT + (e.debuffT > 0 ? e.vuln || 0 : 0) + (e.selfVuln || 0) + (critAdd || 0);
+  const crit = Math.random() < (cfg.crit || 0) + (e.debuffT > 0 ? e.vuln || 0 : 0) + (e.selfVuln || 0) + (critAdd || 0);
   if (crit) dmg *= 2;
   // 敵人護甲（多眼巨人）：規則與人形護甲相同
   const ar = e.boss ? e.B.armor : e.T.armor;
