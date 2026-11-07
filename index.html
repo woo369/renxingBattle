@@ -1314,10 +1314,26 @@ function viewBounds() {
 function upright(q, ox, oy) { ctx.setTransform(DPR * q.k, 0, 0, DPR * q.k, DPR * (q.x - ox * q.k), DPR * (q.y - oy * q.k)); }
 function ground(q, ox, oy) { const ky = q.k * VIEW3D.squash; ctx.setTransform(DPR * q.k, 0, 0, DPR * ky, DPR * (q.x - ox * q.k), DPR * (q.y - oy * ky)); }
 const onScreen = (q, m) => q.x > -m && q.x < W + m && q.y > -m && q.y < H + m;
+/* 自動畫質：畫面解析度（DPR）最高 2 倍；遊戲中如果連續一段時間平均每幀超過 21ms（不到約 48fps），
+   就把解析度往下調一級（每級 −0.25，最低 1 倍）。調整結果記在這台裝置上，下次開啟直接沿用 */
+const QUALITY_KEY = 'gfl-render-cap';
+let renderCap = 2, perfMs = 0, perfN = 0;
+try { const v = parseFloat(localStorage.getItem(QUALITY_KEY)); if (v >= 1 && v <= 2) renderCap = v; } catch (err) { /* 無法讀取就用預設 */ }
+function watchPerf(ms) {
+  if (state !== 'play' || gameLoading || ms > 100) return;   // 載入、切換分頁造成的長停頓不算
+  perfMs += ms; perfN++;
+  if (perfN < 90) return;
+  const avg = perfMs / perfN; perfMs = perfN = 0;
+  if (avg > 21 && DPR > 1) {
+    renderCap = Math.max(1, Math.round((DPR - 0.25) * 4) / 4);
+    try { localStorage.setItem(QUALITY_KEY, String(renderCap)); } catch (err) { /* 存不了就只在這次生效 */ }
+    resize();
+  }
+}
 function resize() {
   const r = canvas.getBoundingClientRect();
   W = Math.max(200, Math.round(r.width)); H = Math.max(200, Math.round(r.height));
-  DPR = clamp(window.devicePixelRatio || 1, 1, 2.5);
+  DPR = clamp(window.devicePixelRatio || 1, 1, renderCap);
   canvas.width = Math.round(W * DPR); canvas.height = Math.round(H * DPR);
   computeZoom(); stream();
 }
@@ -3013,7 +3029,7 @@ const BULLET_SPR = (() => {
   return S;
 })();
 // 子彈外觀：素材、長度、寬度（以子彈半徑 r 為單位）、彈頭位置（0～1，從尾端算起）
-const BULLET_SHAPE = { beam: [7, 1.8, 0.96], tracer: [3.2, 1.9, 0.92], pellet: [2.6, 2.2, 0.82], energy: [5, 2.2, 0.94], comet: [4.2, 2.6, 0.82], shell: [3.4, 2.2, 0.95], rocket: [6.4, 2.6, 0.97] };
+const BULLET_SHAPE = { beam: [7, 1.8, 0.96], tracer: [3.2, 1.9, 0.92], pellet: [2.6, 2.2, 0.82], energy: [5, 2.2, 0.94], comet: [4.2, 2.6, 0.82], shell: [3.4, 1.35, 0.95], rocket: [6.4, 2.6, 0.97] };
 function bulletSprite(b) {
   const kind = b.style || (b.pellet ? 'pellet' : 'tracer');
   if (kind === 'pellet') return ['pellet', BULLET_SPR[b.team === 'p' ? 'pellet_p' : 'pellet_e']];
@@ -3883,6 +3899,7 @@ function draw(t) {
 
 function frame(t) {
   // rAF 的時間戳可能早於按下開始時記錄的 last，所以 dt 要夾在 0 以上
+  watchPerf(t - last);
   const dt = clamp((t - last) / 1000, 0, 0.05); last = t;
   try {
     if (state === 'play') update(dt);
