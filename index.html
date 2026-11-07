@@ -216,6 +216,14 @@ body.touch #expandBtn{top:auto;transform:none;width:54px;height:54px;padding:0;b
 body.touch #expandBtn small{display:none}
 @media (max-height:430px){body.touch #expandBtn{width:50px;height:50px;right:calc(max(20px,env(safe-area-inset-right,0px)) + 164px)}}
 @media (prefers-reduced-motion:reduce){#expandBtn{animation:none}}
+/* 測試模式的召喚面板 */
+#testPanel{pointer-events:auto;position:fixed;left:calc(max(12px,env(safe-area-inset-left,0px)));top:calc(118px + env(safe-area-inset-top,0px));z-index:6;display:flex;flex-direction:column;gap:4px;max-height:calc(100vh - 140px);overflow:auto;padding:8px;border-radius:12px;background:#071a26d9;border:1px solid #1f4250}
+#testPanel b{font-size:11px;letter-spacing:.12em;color:var(--muted)}
+#testBtns{display:flex;flex-direction:column;gap:4px}
+#testBtns button{font:inherit;font-size:12px;padding:4px 9px;border-radius:7px;border:1px solid #2a5463;background:#102a35;color:var(--ink);cursor:pointer;text-align:left}
+#testBtns button.elite{border-color:#8a6a2e;color:var(--gold)}
+#testBtns button.clear{border-style:dashed;color:#ffd0d0;border-color:#ff8f83}
+body.touch #testPanel{top:calc(70px + env(safe-area-inset-top,0px))}
 #bossSkip,#phaseSkip{display:block;margin-top:4px;font-size:11px;padding:3px 7px;border-radius:7px;border:1px dashed #ff8f83;background:#3a1f25;color:#ffd0d0;cursor:pointer}
 #bossBar{position:fixed;left:50%;transform:translateX(-50%);top:calc(68px + env(safe-area-inset-top,0px));z-index:5;width:min(460px,70vw);pointer-events:none}
 #bossHead{display:flex;justify-content:space-between;font-size:13px;color:#ffd0d0;text-shadow:0 1px 3px #000;margin-bottom:3px}
@@ -232,6 +240,7 @@ body.touch #expandBtn small{display:none}
 <div id="stage"><canvas id="game" aria-label="人形訓練場遊戲畫面"></canvas></div>
 
 <div id="hud" hidden>
+  <div id="testPanel" hidden><b>召喚敵人</b><div id="testBtns"></div></div>
   <div id="effects" aria-label="身上的效果"></div>
   <div class="hud-block" id="hudScore">
     <div><span class="hud-label">分數</span><span class="hud-num" id="score">0</span></div>
@@ -711,6 +720,7 @@ const LEVELS = [
   { id: 'training', name: '訓練場', open: true, desc: '無限延伸的戰場，與跟你相同角色的影子敵人持續對戰，看能撐多久。' },
   { id: 'war', name: '戰事', open: true, desc: '三階段的戰事，敵人會階段性地變強，階段末尾會出現 Boss。' },
   { id: 'duel', name: '菁英對決', open: true, desc: '入場 5 秒後出現一名隨機精英敵人，擊敗它即可過關。場上會定時出現零件與醫療箱。' },
+  { id: 'test', name: '測試模式', open: true, desc: '不會自動出怪，可以自選召喚任何敵人或精英，零件無限。' },
   { id: 'locked1', name: '尚未解鎖', open: false, desc: '敬請期待' },
 ];
 let selectedLevel = 'training';
@@ -825,7 +835,7 @@ const WAR_PHASES = [
     spawnTable: [{ T: CYCLOPS, w: 67 }, { T: MULTI_EYE, w: 33 }],   // 獨眼 67%、多眼 33%（2：1）
     packs: ['cyc', 'meye'],
     initial: 4,
-    spawn: { every: 3.2, min: 2.2, max: 10 },
+    spawn: { every: 3.2, min: 2.2, max: 12 },   // 同時最多 12 隻
     partsEvery: 7,               // 零件改成每 7 秒出現一個
   },
 ];
@@ -843,7 +853,9 @@ const DUEL_PHASES = [
     medkitEvery: 15, medkitHeal: 10,   // 每 15 秒出現醫療箱，恢復 10 生命
   },
 ];
-const LEVEL_PHASES = { war: WAR_PHASES, duel: DUEL_PHASES };   // 有分階段的關卡
+// 測試模式：不自動出怪、不會結束；零件無限，畫面左側有召喚面板
+const TEST_PHASES = [{ name: '測試模式', end: Infinity, spawnTable: [], initial: 0, packs: [], test: true, infiniteParts: true }];
+const LEVEL_PHASES = { war: WAR_PHASES, duel: DUEL_PHASES, test: TEST_PHASES };   // 有分階段的關卡
 const levelPhases = () => LEVEL_PHASES[selectedLevel] || null;
 let phase = null, phaseIdx = 0, phaseStart = 0, spawnIdx = 0;   // 目前階段、階段開始時間、輪到第幾種敵人
 const phaseClock = () => gameTime - phaseStart;
@@ -853,7 +865,9 @@ const phaseClock = () => gameTime - phaseStart;
 const PARTS = { initial: 3, every: 10, maxOnField: 5, minDist: 180, maxDist: 480, pickR: 16, cost: 10 };
 const CLONE = { maxCount: 4, hpRatio: 0.5, minGap: 20, maxGap: 100 };
 // 分身站位：以玩家為中心的方向與距離（距離＝玩家碰撞半徑＋20～100）
-const CLONE_SLOTS = [[Math.PI * 0.85, 45], [Math.PI * 0.15, 45], [Math.PI * 1.2, 80], [Math.PI * 1.8, 80]];
+// 擴編隊形：方陣——四個分身站在玩家周圍的四個角（[角度, 距離]）；1、2 號在下方，3、4 號在上方
+const CLONE_SLOTS = [[Math.PI * 0.75, 52], [Math.PI * 0.25, 52], [Math.PI * 1.25, 52], [Math.PI * 1.75, 52]];
+const CLONE_CONVERGE = 2 * Math.PI / 180;   // 分身的槍線往主軸（玩家瞄準線）偏 2 度，子彈在遠處交會
 let parts = [], partCount = 0, partClock = 0, clones = [], missiles = [], medkits = [], medClock = 0;
 
 /* ───────── Boss ───────── */
@@ -1505,6 +1519,25 @@ function releaseUnused(keep) {
     delete imgs[packBox[pid]]; delete packLoading[pid]; delete packReady[pid];
   }
 }
+/* ───────── 測試模式：召喚面板 ───────── */
+const TEST_ENEMIES = [['影子敵人', () => ENEMY, null], ['胡蜂', () => WASP, 'wasp'], ['殘獸', () => BEAST, 'beast'], ['獨眼巨人', () => CYCLOPS, 'cyc'], ['多眼巨人', () => MULTI_EYE, 'meye'], ['浮游砲', () => DRONE, 'scarecrow']];
+function testSpawn(T) {
+  const a = player.angle + rand(-0.6, 0.6), d = rand(260, 340);
+  enemies.push({ T, x: player.x + Math.cos(a) * d, y: player.y + Math.sin(a) * d, r: T.radius, hp: T.hp, ammo: T.magazine, angle: 0, cool: rand(1, 1.6), touchCd: 0, def: cfg, shot: 0, moving: true, phase: rand(0, 6),
+    orbitA: 0, off: rand(-0.8, 0.8), kvx: 0, kvy: 0, faceLeft: true });
+}
+function buildTestPanel() {
+  const box = $('testBtns'); box.textContent = '';
+  const add = (label, cls, fn) => { const b = document.createElement('button'); b.type = 'button'; b.textContent = label; if (cls) b.className = cls; b.addEventListener('click', fn); box.appendChild(b); };
+  for (const [name, getT, pid] of TEST_ENEMIES)
+    add(name, '', () => (pid ? ensurePack(pid) : Promise.resolve()).then(() => { if (state === 'play') testSpawn(getT()); }).catch(() => floatText(player.x, player.y - 50, '載入失敗', '#ff8f83')));
+  for (const id of ELITE_POOL)
+    add(BOSSES[id].name + '（精英）', 'elite', () => {
+      if (boss) { floatText(player.x, player.y - 50, '一次只能有一隻精英', '#ffd0d0'); return; }
+      ensurePack(packOf(BOSSES[id].assets)).then(() => { if (state === 'play' && !boss) spawnBoss(id); }).catch(() => floatText(player.x, player.y - 50, '載入失敗', '#ff8f83'));
+    });
+  add('清除所有敵人', 'clear', () => { enemies = []; boss = null; $('bossBar').hidden = true; bullets = bullets.filter((b) => b.team === 'p'); missiles = []; });
+}
 function beginGame() {
   cfg = CHARACTERS[selectedId];
   score = 0; kills = 0; gameTime = 0; spawnClock = 0; shake = 0; hurtT = 0;
@@ -1514,7 +1547,8 @@ function beginGame() {
   enemies = []; bullets = []; particles = []; floaters = []; grenades = []; blasts = []; runFx = []; rings = [];
   // 依關卡決定敵人數值
   phase = levelPhases() ? levelPhases()[0] : null; phaseIdx = 0; phaseStart = 0; spawnIdx = 0;
-  $('phaseBlock').hidden = !phase; $('bossSkip').hidden = !(phase && phase.bossPool); $('phaseSkip').hidden = !phase || levelPhases().length < 2;
+  $('phaseBlock').hidden = !phase;
+  $('testPanel').hidden = !(phase && phase.test); if (phase && phase.test) buildTestPanel(); $('bossSkip').hidden = !(phase && phase.bossPool); $('phaseSkip').hidden = !phase || levelPhases().length < 2;
   boss = null; bossSpawned = false;
   parts = []; partCount = (phase && phase.startParts) || 0; partClock = 0; clones = []; missiles = []; medkits = []; medClock = 0;
   $('partsBlock').hidden = !phase; updateParts();
@@ -1928,7 +1962,8 @@ function spawnPart() {
   parts.push({ x: player.x + Math.cos(a) * d, y: player.y + Math.sin(a) * d, ph: rand(0, 6) });
 }
 function updateParts() {
-  $('partsNum').textContent = partCount;
+  if (phase && phase.infiniteParts) partCount = 99;   // 測試模式：零件無限
+  $('partsNum').textContent = phase && phase.infiniteParts ? '∞' : partCount;
   const can = state === 'play' && phase && partCount >= PARTS.cost && clones.length < CLONE.maxCount;
   $('expandBtn').hidden = !can;
 }
@@ -1984,13 +2019,16 @@ function updateClones(dt) {
     c.invT = Math.max(c.invT - dt, player.dodgeT > 0 ? player.invT : 0);
   }
 }
-// 分身跟著玩家一起開火：同樣的傷害、射程，方向與玩家的瞄準方向平行
+// 分身跟著玩家一起開火：同樣的傷害、射程；方向往玩家的瞄準線偏 2 度，在遠處交會
 function clonesShoot(flags) {
   const wp = cfg.weapon, mid = (wp.pellets - 1) / 2;
   for (const c of clones) {
     const mz = muzzleWorld(c);
+    // 分身在瞄準線的哪一側：往另一側（主軸方向）轉 2 度
+    const cross = Math.cos(player.angle) * (c.y - player.y) - Math.sin(player.angle) * (c.x - player.x);
+    const base = player.angle - Math.sign(cross) * CLONE_CONVERGE;
     for (let i = 0; i < wp.pellets; i++) {
-      const a = player.angle + (i - mid) * wp.spread + rand(-wp.jitter, wp.jitter), sp = rand(wp.speed[0], wp.speed[1]);
+      const a = base + (i - mid) * wp.spread + rand(-wp.jitter, wp.jitter), sp = rand(wp.speed[0], wp.speed[1]);
       const life = bulletRange(cfg) / sp;
       bullets.push({ x: mz.x, y: mz.y, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp, age: 0, life, maxLife: life, r: wp.radius, team: 'p', dist: 0, ...flags, fromClone: true, buff: (flags.buff || 1) * (1 + effSum(c, 'dmg')), res: 1 + effSum(c, 'dmg'), crit: unitCrit(c), purple: false });
     }
@@ -2566,7 +2604,7 @@ function killEnemy(e) {
     for (const d of enemies.filter((x) => x.owner === e)) { burst(d.x, d.y, '#ffb36b', 10); enemies.splice(enemies.indexOf(d), 1); }
     const rw = phase && phase.bossReward;
     if (rw && rw.parts) { partCount += rw.parts; updateParts(); floatText(player.x, player.y - 78, '零件 +' + rw.parts, '#f9cf70'); }
-    setTimeout(nextPhase, 1500);
+    if (!(phase && phase.test)) setTimeout(nextPhase, 1500);
     return;
   }
   const pts = e.T?.ai === 'drone' ? 50 : 100;
@@ -2724,7 +2762,7 @@ function update(dt) {
   if (spawnClock > every && !boss && (!phase || phase.spawnTable.length)) { spawnClock = 0; addEnemy(); }   // Boss 戰期間不再生成小兵
   if (phase) {
     const left = Math.max(0, phase.end - phaseClock()), m = Math.floor(left / 60), sec = Math.floor(left % 60);
-    $('phaseTime').textContent = m + ':' + String(sec).padStart(2, '0');
+    $('phaseTime').textContent = phase.test ? '測試中' : m + ':' + String(sec).padStart(2, '0');
     if (left <= 0 && !bossSpawned) {
       if (phase.bossPool) {
         const bid = phaseBoss[phaseIdx] || pickBoss(phase.bossPool), pid = packOf(BOSSES[bid].assets);
