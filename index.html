@@ -757,7 +757,7 @@ const BEAST = { ...ENEMY,
   meleeDmg: 15,              // 砍一刀 15 傷害
   armorPen: 10,              // 穿透 10 點護甲
   fireCooldown: 3,           // 攻擊冷卻 3 秒
-  windup: 0.12,              // 出刀到命中的時間（配合動畫）
+  windup: 0.5,               // 蓄力時間：站在原地蓄力 0.5 秒才砍下去
   retreat: 190,              // 冷卻中退到這個距離
   magazine: 0, reload: 0,
   contactDmg: 0 };           // 不做碰撞傷害，只靠刀
@@ -2205,15 +2205,15 @@ function updateMelee(e, dt, toward, dist) {
   }
   if (e.swingT != null) {
     // 出刀中：站定，到命中時間才判定
-    e.swingT += dt; e.moving = false;
+    e.swingT += dt; e.moving = false;   // 蓄力與出刀期間待在原地
     if (!e.swung && e.swingT >= T.windup) {
-      e.swung = true;
+      e.swung = true; e.atkT = 0;       // 蓄力完成 → 播放揮刀動畫並判定
       if (dist <= T.lockRange + player.r && player.invT <= 0) {
         if (Math.random() < evadeRate(cfg)) { floatText(player.x, player.y - 40, 'MISS', '#bfefff'); sfx.evade(); }
         else { damage(T.meleeDmg, false, T.armorPen); burst(player.x, player.y, '#ff5b6b', 8); }
       }
     }
-    if (e.swingT >= 0.35) { e.swingT = null; e.cool = T.fireCooldown; }
+    if (e.swingT >= T.windup + 0.25) { e.swingT = null; e.cool = T.fireCooldown; }
   } else if (e.cool > 0) {
     // 冷卻中：退到一定距離外，太遠就停住
     const away = dist < T.retreat ? -1 : dist > T.retreat + 60 ? 1 : 0;
@@ -2224,7 +2224,7 @@ function updateMelee(e, dt, toward, dist) {
     e.moving = true;
     moveWithCover(e, Math.cos(toward) * T.speed * dt, Math.sin(toward) * T.speed * dt);
   } else {
-    e.swingT = 0; e.swung = false; e.atkT = 0; e.moving = false;   // 出刀（播放攻擊動畫）
+    e.swingT = 0; e.swung = false; e.moving = false;   // 開始蓄力
   }
   if (e.debuffT > 0) e.debuffT = Math.max(0, e.debuffT - dt);
 }
@@ -2502,7 +2502,9 @@ function drawSpriteEnemy(e) {
   const m = ASSETS[e.T.sprite].meta, box = imgs['enemy_' + e.T.sprite] || {}, sc = m.scale, q = proj(e.x, e.y);
   e.atkT = (e.atkT ?? 9) + (gameTime - (e.lastT ?? gameTime)); e.lastT = gameTime;
   let key;
-  if (e.atkT < m.attack.dur) key = pickFrame(m.attack, e.atkT, 'a');
+  const charging = e.swingT != null && !e.swung;   // 殘獸蓄力中
+  if (charging) key = 'a01';
+  else if (e.atkT < m.attack.dur) key = pickFrame(m.attack, e.atkT, 'a');
   else if (e.moving) {
     // 跑步：有時間軸就照影片節奏播放（胡蜂），沒有就用固定 0.34 秒一輪（獨眼巨人的補幀圖片）
     key = m.run.t ? pickFrame(m.run, (gameTime + e.phase) % m.run.dur, 'r')
@@ -2510,6 +2512,12 @@ function drawSpriteEnemy(e) {
   } else key = pickFrame(m.wait, (gameTime + e.phase) % m.wait.dur, 'w');
   ground(q, e.x, e.y);
   ctx.strokeStyle = 'rgba(255,120,110,0.45)'; ctx.lineWidth = 1.5; ctx.beginPath(); ctx.arc(e.x, e.y, e.r, 0, Math.PI * 2); ctx.stroke();
+  if (charging) {
+    // 蓄力預警：攻擊範圍的紅圈，隨蓄力進度填滿
+    const k = Math.min(1, e.swingT / e.T.windup), R0 = e.T.lockRange + player.r;
+    ctx.fillStyle = 'rgba(255,60,70,' + (0.08 + 0.17 * k) + ')'; ctx.beginPath(); ctx.arc(e.x, e.y, R0 * k, 0, Math.PI * 2); ctx.fill();
+    ctx.strokeStyle = 'rgba(255,80,90,0.75)'; ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(e.x, e.y, R0, 0, Math.PI * 2); ctx.stroke();
+  }
   upright(q, e.x, e.y);
   ctx.save(); ctx.translate(e.x, e.y);
   if (!e.faceLeft) ctx.scale(-1, 1);
