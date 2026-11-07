@@ -788,7 +788,6 @@ const LION = { ...ENEMY,
   lockRange: 200,            // 進入 200 以內停下射擊
   shift: 0.5,                // 停下、重新起步的切換時間
   bulletDmg: 5,
-  bulletStyle: 'shell',      // 機甲砲：大口徑砲彈的外觀
   fireCooldown: 0.5,         // 每秒 2 發
   magazine: 3, reload: 5,    // 彈匣 3 發，換彈 5 秒
   dropParts: 1,              // 擊殺獲得 1 個零件
@@ -1314,21 +1313,37 @@ function viewBounds() {
 function upright(q, ox, oy) { ctx.setTransform(DPR * q.k, 0, 0, DPR * q.k, DPR * (q.x - ox * q.k), DPR * (q.y - oy * q.k)); }
 function ground(q, ox, oy) { const ky = q.k * VIEW3D.squash; ctx.setTransform(DPR * q.k, 0, 0, DPR * ky, DPR * (q.x - ox * q.k), DPR * (q.y - oy * ky)); }
 const onScreen = (q, m) => q.x > -m && q.x < W + m && q.y > -m && q.y < H + m;
-/* 自動畫質：畫面解析度（DPR）最高 2 倍；遊戲中如果連續一段時間平均每幀超過 21ms（不到約 48fps），
-   就把解析度往下調一級（每級 −0.25，最低 1 倍）。調整結果記在這台裝置上，下次開啟直接沿用 */
+/* 全自動畫質：畫面解析度（DPR）在 1～2 倍之間自動調整，玩家不用設定
+   ・遊戲中每約 1.5 秒看一次平均幀時間：超過 21ms（不到約 48fps）→ 降一級（−0.25）
+   ・連續 8 秒都很順（每幀 18ms 以內）→ 試著升一級；升上去又卡的話，這一級先封鎖 30 秒（再失敗就 60、120…秒）
+   ・目前的等級記在這台裝置上，下次開啟從這裡開始 */
 const QUALITY_KEY = 'gfl-render-cap';
-let renderCap = 2, perfMs = 0, perfN = 0;
+const maxCap = () => clamp(window.devicePixelRatio || 1, 1, 2);
+let renderCap = 2, perfMs = 0, perfN = 0, smoothT = 0;
+const capBlock = {};   // 等級 → { until：封鎖到何時, wait：下次封鎖多久 }
 try { const v = parseFloat(localStorage.getItem(QUALITY_KEY)); if (v >= 1 && v <= 2) renderCap = v; } catch (err) { /* 無法讀取就用預設 */ }
+function setRenderCap(v) {
+  renderCap = v;
+  try { localStorage.setItem(QUALITY_KEY, String(v)); } catch (err) { /* 存不了就只在這次生效 */ }
+  resize();
+}
 function watchPerf(ms) {
   if (state !== 'play' || gameLoading || ms > 100) return;   // 載入、切換分頁造成的長停頓不算
   perfMs += ms; perfN++;
   if (perfN < 90) return;
-  const avg = perfMs / perfN; perfMs = perfN = 0;
-  if (avg > 21 && DPR > 1) {
-    renderCap = Math.max(1, Math.round((DPR - 0.25) * 4) / 4);
-    try { localStorage.setItem(QUALITY_KEY, String(renderCap)); } catch (err) { /* 存不了就只在這次生效 */ }
-    resize();
-  }
+  const avg = perfMs / perfN, span = perfMs / 1000, now = performance.now(); perfMs = perfN = 0;
+  const cur = Math.min(renderCap, maxCap());
+  if (avg > 21 && cur > 1) {
+    // 太卡：降一級，並封鎖剛剛那一級一段時間
+    const b = capBlock[cur] || (capBlock[cur] = { wait: 30000 });
+    b.until = now + b.wait; b.wait = Math.min(b.wait * 2, 480000);
+    smoothT = 0; setRenderCap(Math.max(1, Math.round((cur - 0.25) * 4) / 4));
+  } else if (avg <= 18 && cur < maxCap()) {
+    // 很順：累積 8 秒後試著升一級（被封鎖的等級先不升）
+    smoothT += span;
+    const up = Math.min(maxCap(), cur + 0.25);
+    if (smoothT >= 8 && !(capBlock[up] && now < capBlock[up].until)) { smoothT = 0; setRenderCap(up); }
+  } else smoothT = 0;
 }
 function resize() {
   const r = canvas.getBoundingClientRect();
