@@ -760,6 +760,7 @@ const BEAST = { ...ENEMY,
   armorPen: 10,              // 穿透 10 點護甲
   fireCooldown: 3,           // 攻擊冷卻 3 秒
   windup: 0.5,               // 蓄力時間：站在原地蓄力 0.5 秒才砍下去
+  arc: 120,                  // 扇形攻擊：以蓄力開始時的朝向為中心，左右各 60 度
   retreat: 190,              // 冷卻中退到這個距離
   magazine: 0, reload: 0,
   contactDmg: 0 };           // 不做碰撞傷害，只靠刀
@@ -869,7 +870,7 @@ const CLONE = { maxCount: 4, hpRatio: 0.5, minGap: 20, maxGap: 100 };
 // 分身站位：以玩家為中心的方向與距離（距離＝玩家碰撞半徑＋20～100）
 // 擴編隊形：方陣——四個分身站在玩家周圍的四個角（[角度, 距離]）；1、2 號在下方，3、4 號在上方
 const CLONE_SLOTS = [[Math.PI * 0.75, 52], [Math.PI * 0.25, 52], [Math.PI * 1.25, 52], [Math.PI * 1.75, 52]];
-const CLONE_CONVERGE = 2 * Math.PI / 180;   // 分身的槍線往主軸（玩家瞄準線）偏 2 度，子彈在遠處交會
+const CLONE_CONVERGE = 4 * Math.PI / 180;   // 分身的槍線往主軸（玩家瞄準線）偏 4 度，子彈在遠處交會
 let parts = [], partCount = 0, partClock = 0, clones = [], missiles = [], medkits = [], medClock = 0;
 
 /* ───────── Boss ───────── */
@@ -1331,7 +1332,7 @@ const ENEMY_CODEX = () => [
     desc: '戰事第一階段的主力敵人，動作緩慢，在中距離停下來兩發一輪地射擊，換彈時是反擊的好時機。',
     where: '出現：戰事' },
   { id: 'beast', rank: 'normal', T: BEAST, name: '殘獸', weapon: '近戰刀刃', img: ASSETS.ui.codex_beast,
-    desc: '高速衝鋒的近戰敵人，貼近後砍一刀，刀刃會穿透 10 點護甲；出刀後會退開等待下一次機會，不會閃躲子彈。',
+    desc: '高速衝鋒的近戰敵人，貼近後原地蓄力 0.5 秒，朝前方扇形範圍砍一刀，刀刃會穿透 10 點護甲；出刀後會退開等待下一次機會，不會閃躲子彈。',
     where: '出現：戰事' },
   { id: 'cyclops', rank: 'normal', T: CYCLOPS, name: '獨眼巨人', weapon: '單發射擊', img: ASSETS.ui.codex_cyc,
     desc: '戰事的主力敵人，在稍遠的距離停下來連續射擊，打完一個彈匣才換彈。',
@@ -2213,10 +2214,20 @@ function updateMelee(e, dt, toward, dist) {
     e.swingT += dt; e.moving = false;   // 蓄力與出刀期間待在原地
     if (!e.swung && e.swingT >= T.windup) {
       e.swung = true; e.atkT = 0;       // 蓄力完成 → 播放揮刀動畫並判定
-      if (dist <= T.lockRange + player.r && player.invT <= 0) {
+      // 扇形範圍傷害：範圍內的玩家與擴編分身都會被砍到
+      const inFan = (u) => {
+        const d = Math.hypot(u.x - e.x, u.y - e.y); if (d > T.lockRange + u.r) return false;
+        let da = Math.atan2(u.y - e.y, u.x - e.x) - e.swingDir; da = Math.atan2(Math.sin(da), Math.cos(da));
+        return d < u.r || Math.abs(da) <= T.arc / 2 * Math.PI / 180;
+      };
+      if (inFan(player) && player.invT <= 0) {
         if (Math.random() < evadeRate(cfg)) { floatText(player.x, player.y - 40, 'MISS', '#bfefff'); sfx.evade(); }
         else { damage(T.meleeDmg, false, T.armorPen); burst(player.x, player.y, '#ff5b6b', 8); }
       }
+      for (const c of clones.slice()) if (inFan(c)) { damageClone(c, T.meleeDmg); burst(c.x, c.y, '#ff5b6b', 6); }
+      // 揮刀軌跡
+      for (let k = 0; k < 10; k++) { const a = e.swingDir + (k / 9 - 0.5) * T.arc * Math.PI / 180, r = T.lockRange + 14;
+        particles.push({ x: e.x + Math.cos(a) * r, y: e.y + Math.sin(a) * r, vx: Math.cos(a) * 60, vy: Math.sin(a) * 60, life: 0.22, max: 0.22, color: '#ff4a5a' }); }
     }
     if (e.swingT >= T.windup + 0.25) { e.swingT = null; e.cool = T.fireCooldown; }
   } else if (e.cool > 0) {
@@ -2229,7 +2240,7 @@ function updateMelee(e, dt, toward, dist) {
     e.moving = true;
     moveWithCover(e, Math.cos(toward) * T.speed * dt, Math.sin(toward) * T.speed * dt);
   } else {
-    e.swingT = 0; e.swung = false; e.moving = false;   // 開始蓄力
+    e.swingT = 0; e.swung = false; e.moving = false; e.swingDir = toward;   // 開始蓄力：鎖定揮刀方向
   }
   if (e.debuffT > 0) e.debuffT = Math.max(0, e.debuffT - dt);
 }
@@ -2519,9 +2530,10 @@ function drawSpriteEnemy(e) {
   ctx.strokeStyle = 'rgba(255,120,110,0.45)'; ctx.lineWidth = 1.5; ctx.beginPath(); ctx.arc(e.x, e.y, e.r, 0, Math.PI * 2); ctx.stroke();
   if (charging) {
     // 蓄力預警：攻擊範圍的紅圈，隨蓄力進度填滿
-    const k = Math.min(1, e.swingT / e.T.windup), R0 = e.T.lockRange + player.r;
-    ctx.fillStyle = 'rgba(255,60,70,' + (0.08 + 0.17 * k) + ')'; ctx.beginPath(); ctx.arc(e.x, e.y, R0 * k, 0, Math.PI * 2); ctx.fill();
-    ctx.strokeStyle = 'rgba(255,80,90,0.75)'; ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(e.x, e.y, R0, 0, Math.PI * 2); ctx.stroke();
+    // 扇形預警：以揮刀方向為中心，隨蓄力進度往外填滿
+    const k = Math.min(1, e.swingT / e.T.windup), R0 = e.T.lockRange + player.r, h = e.T.arc / 2 * Math.PI / 180, a0 = e.swingDir - h, a1 = e.swingDir + h;
+    ctx.fillStyle = 'rgba(255,60,70,' + (0.1 + 0.2 * k) + ')'; ctx.beginPath(); ctx.moveTo(e.x, e.y); ctx.arc(e.x, e.y, R0 * k, a0, a1); ctx.closePath(); ctx.fill();
+    ctx.strokeStyle = 'rgba(255,80,90,0.8)'; ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(e.x, e.y); ctx.arc(e.x, e.y, R0, a0, a1); ctx.closePath(); ctx.stroke();
   }
   upright(q, e.x, e.y);
   ctx.save(); ctx.translate(e.x, e.y);
