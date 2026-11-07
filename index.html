@@ -1416,10 +1416,12 @@ const EVADE_BONUS = { SMG: 10, HG: 25 };
 const evadeRate = (D) => (D.dodge * 0.1 + (EVADE_BONUS[D.weapon.class] || 0)) / 100;
 /* 角色身上的效果（增益）：{ id, name, mark, color, dmg/rate/crit, t, max }
    同一種效果再次獲得時只重設時間；效果列顯示在畫面下方 */
-function addEffect(u, eff) {
+// src：給予效果的人。給自己的算「自身給予」，別人給的算「他人給予」（暴擊率等計算會分開加總）
+function addEffect(u, eff, src) {
   u.effects = u.effects || [];
+  const from = src === u ? 'self' : 'other';
   const ex = u.effects.find((x) => x.id === eff.id);
-  if (ex) { ex.t = ex.max = eff.time; } else u.effects.push({ ...eff, t: eff.time, max: eff.time });
+  if (ex) { ex.t = ex.max = eff.time; ex.from = from; } else u.effects.push({ ...eff, t: eff.time, max: eff.time, from });
   if (u === player) renderEffects(true);
 }
 // 減速（夢想家的雷電球）：每層讓移動速度 ×0.7；再次命中疊一層並把時間重設為 5 秒
@@ -1431,6 +1433,11 @@ function addSlow(u, pct, time) {
   if (u === player) renderEffects(true);
 }
 const speedMul = (u) => { let m = 1; for (const x of (u && u.effects) || []) if (x.id === 'slow') m *= Math.pow(1 - x.pct, x.stacks); return m; };
+// 只加總某個來源（'self' 自身給予／'other' 他人給予）的效果；數值可以是負的（減益）
+const effSumFrom = (u, key, from) => { let v = 0; for (const x of (u && u.effects) || []) if (x.from === from) v += x[key] || 0; return v; };
+/* 攻擊者這一方的暴擊率＝自身暴擊率 ± 自身給予的暴擊增益 ± 他人給予的暴擊增益
+   （目標的易傷在命中時才加上，見 hitEnemy） */
+const unitCrit = (u) => (cfg.crit || 0) + effSumFrom(u, 'crit', 'self') + effSumFrom(u, 'crit', 'other');
 const effSum = (u, key) => { let v = 0; for (const x of (u && u.effects) || []) v += x[key] || 0; return v; };
 function tickEffects(u, dt) {
   if (!u.effects || !u.effects.length) return;
@@ -1459,7 +1466,7 @@ function castResonance(sk) {
   const n = player.birds;
   if (n <= 0) { floatText(player.x, player.y - 46, '沒有蜂鳥', '#bfefff'); return false; }
   const eff = sk.effects[n];
-  for (const u of [player, ...clones]) if (Math.hypot(u.x - player.x, u.y - player.y) <= sk.radius) addEffect(u, eff);
+  for (const u of [player, ...clones]) if (Math.hypot(u.x - player.x, u.y - player.y) <= sk.radius) addEffect(u, eff, player);
   for (const b of player.birdPos) burst(b.x, b.y, '#ffe36b', 6);
   player.birds = 0; player.birdPos = []; player.birdT = sk.birdEvery;
   rings.push({ x: player.x, y: player.y, r: sk.radius, life: 0.7, max: 0.7, color: eff.color });
@@ -1546,7 +1553,7 @@ function shootPlayer() {
   for (let i = 0; i < wp.pellets; i++) {
     const a = player.angle + (i - mid) * wp.spread + rand(-wp.jitter, wp.jitter), sp = rand(wp.speed[0], wp.speed[1]);
     const life = bulletRange(cfg) / sp;   // 不論子彈速度，飛到射程就消失
-    bullets.push({ x: mx, y: my, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp, age: 0, life, maxLife: life, r: wp.radius, team: 'p', dist: 0, lacer, purple: false, buff: ((player.buffT > 0 && cfg.skill.dmgMult) || 1) * (1 + effSum(player, 'dmg')), res: 1 + effSum(player, 'dmg'), crit: effSum(player, 'crit'), six: player.buffT > 0 && cfg.skill.id === 'sixkill' });
+    bullets.push({ x: mx, y: my, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp, age: 0, life, maxLife: life, r: wp.radius, team: 'p', dist: 0, lacer, purple: false, buff: ((player.buffT > 0 && cfg.skill.dmgMult) || 1) * (1 + effSum(player, 'dmg')), res: 1 + effSum(player, 'dmg'), crit: unitCrit(player), six: player.buffT > 0 && cfg.skill.id === 'sixkill' });
   }
   if (clones.length) clonesShoot({ lacer, buff: (player.buffT > 0 && cfg.skill.dmgMult) || 1, six: player.buffT > 0 && cfg.skill.id === 'sixkill' });
   burst(mx, my, lacer ? '#c48bff' : '#f6cb76', lacer ? 10 : 6);
@@ -1614,17 +1621,19 @@ function moveWithCover(en, dx, dy) {
 }
 // 影子敵人的實際迴避率：受「迴避率降低」影響，最低 0%
 const enemyEvade = (e) => Math.max(0, (e.boss ? e.B.evade : e.T.evade) - (e.debuffT > 0 ? e.evadeDown || 0 : 0));
-/* 暴擊：暴擊率＝人形自身暴擊率＋目標易傷＋增益效果，暴擊時傷害 ×2
-   例：易傷 20% 的敵人被 10 傷害的子彈打中 → 20% 機率受到 20 */
+/* 暴擊：暴擊率＝自身暴擊率 ± 自身給予的暴擊增益 ± 他人給予的暴擊增益 ＋ 易傷，暴擊時傷害 ×2
+   例：亨利（10%）打易傷 20% 的敵人，身上有蜂鳥給的暴擊 +25% → 10 + 25 + 20 = 55% */
 /* 傷害類型（備忘）
    一般（子彈）：可被迴避，吃護甲
    爆炸（82式手雷、銜尾蛇導彈）：不可迴避，吃護甲
    ── 尚未實裝，等有配套角色再做 ──
    火焰：無視護甲，可被迴避
    電磁：無視護甲，也不可迴避；通常傷害很低 */
-function hitEnemy(e, dmg, color, small, critAdd) {
-  // 暴擊率＝基礎暴擊＋目標易傷＋增益效果（蜂鳥共鳴等）
-  const crit = Math.random() < (cfg.crit || 0) + (e.debuffT > 0 ? e.vuln || 0 : 0) + (e.selfVuln || 0) + (critAdd || 0);
+// atkCrit：攻擊者這一方的暴擊率（unitCrit）；沒給就用出擊人形本人的
+function hitEnemy(e, dmg, color, small, atkCrit) {
+  // 暴擊率＝自身暴擊率 ± 自身給予的暴擊增益 ± 他人給予的暴擊增益 ＋ 目標易傷（亨利的易傷、稻草人蓄力時的易傷），限制在 0～100%
+  const vuln = (e.debuffT > 0 ? e.vuln || 0 : 0) + (e.selfVuln || 0);
+  const crit = Math.random() < clamp((atkCrit ?? unitCrit(player)) + vuln, 0, 1);
   if (crit) dmg *= 2;
   // 敵人護甲（多眼巨人）：規則與人形護甲相同
   const ar = e.boss ? e.B.armor : e.T.armor;
@@ -1707,7 +1716,7 @@ function clonesShoot(flags) {
     for (let i = 0; i < wp.pellets; i++) {
       const a = player.angle + (i - mid) * wp.spread + rand(-wp.jitter, wp.jitter), sp = rand(wp.speed[0], wp.speed[1]);
       const life = bulletRange(cfg) / sp;
-      bullets.push({ x: mz.x, y: mz.y, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp, age: 0, life, maxLife: life, r: wp.radius, team: 'p', dist: 0, ...flags, buff: (flags.buff || 1) * (1 + effSum(c, 'dmg')), res: 1 + effSum(c, 'dmg'), crit: effSum(c, 'crit'), purple: false });
+      bullets.push({ x: mz.x, y: mz.y, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp, age: 0, life, maxLife: life, r: wp.radius, team: 'p', dist: 0, ...flags, buff: (flags.buff || 1) * (1 + effSum(c, 'dmg')), res: 1 + effSum(c, 'dmg'), crit: unitCrit(c), purple: false });
     }
     burst(mz.x, mz.y, '#f6cb76', 4);
   }
@@ -2495,7 +2504,7 @@ function update(dt) {
       const e = enemies[j];
       if (Math.hypot(e.x - g.tx, e.y - g.ty) > radius + e.r) continue;
       // 爆炸傷害：不可被迴避（與銜尾蛇導彈相同），仍會計算易傷暴擊與護甲
-      hitN++; hitEnemy(e, gd * (1 + effSum(player, 'dmg')), '#ff9a5a', false, effSum(player, 'crit'));
+      hitN++; hitEnemy(e, gd * (1 + effSum(player, 'dmg')), '#ff9a5a', false, unitCrit(player));
       const a = Math.atan2(e.y - g.ty, e.x - g.tx); e.kvx = (e.kvx || 0) + Math.cos(a) * 160; e.kvy = (e.kvy || 0) + Math.sin(a) * 160;
       if (e.hp <= 0) killEnemy(e);
     }
