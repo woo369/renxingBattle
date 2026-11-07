@@ -809,11 +809,11 @@ function scaleStats(T, sc) {
 const scaleText = (sc) => !sc ? '' : [sc.hp && sc.hp !== 1 ? '生命 ×' + sc.hp : '', sc.dmg && sc.dmg !== 1 ? '攻擊 ×' + sc.dmg : ''].filter(Boolean).join('、');
 
 /* 戰事：分階段進攻
-   end 階段長度（秒）｜pattern 敵人依序輪流出現｜initial 開場數量｜spawn 生成節奏｜boss 時間到召喚的 Boss（沒有就直接過關） */
+   end 階段長度（秒）｜spawnTable 每次生成時各種敵人的機率（%，T: null＝這次不出怪；加總不到 100 的部分也算不出怪）｜initial 開場數量｜spawn 生成節奏｜boss 時間到召喚的 Boss（沒有就直接過關） */
 const WAR_PHASES = [
   {
     name: '第一階段', end: 180,
-    pattern: [WASP, WASP, BEAST], initial: 4,   // 胡蜂：殘獸＝2：1
+    spawnTable: [{ T: WASP, w: 40 }, { T: BEAST, w: 40 }, { T: null, w: 10 }], initial: 4,   // 胡蜂 40%、殘獸 40%、不出怪 10%
     packs: ['wasp', 'beast'],              // 這個階段要用的敵人素材包
     spawn: { every: 3.2, min: 2.2, max: 10 },   // 每 3.2 秒生成一隻，逐漸加快到 2.2 秒；同時最多 10 隻
     bossReward: { parts: 15 },   // 擊敗 Boss 獲得 15 個零件
@@ -822,7 +822,7 @@ const WAR_PHASES = [
   {
     name: '第二階段', end: 180,  // 暫定 3 分鐘，撐過即過關
     // 獨眼巨人：多眼巨人＝2：1
-    pattern: [CYCLOPS, CYCLOPS, MULTI_EYE],
+    spawnTable: [{ T: CYCLOPS, w: 67 }, { T: MULTI_EYE, w: 33 }],   // 獨眼 67%、多眼 33%（2：1）
     packs: ['cyc', 'meye'],
     initial: 4,
     spawn: { every: 3.2, min: 2.2, max: 10 },
@@ -836,7 +836,7 @@ const DUEL_TIER_SCALE = { 1: { hp: 1.5, dmg: 1.2 }, 2: null, 3: null };
 const DUEL_PHASES = [
   {
     name: '菁英對決', end: 5,      // 入場 5 秒後精英出現
-    pattern: [], initial: 0, packs: [],
+    spawnTable: [], initial: 0, packs: [],
     bossPool: 'elite', bossScale: 'tier',   // Boss 依等級套用 DUEL_TIER_SCALE
     startParts: 5,               // 開場持有 5 個零件
     partsEvery: 5,               // 每 5 秒場上出現一個零件
@@ -1424,6 +1424,12 @@ function addShield(v) {
   player.shield = Math.min(maxShield(), player.shield + v); updateHp();
   floatText(player.x, player.y - 46, '＋護盾 ' + Math.round(v), '#9cc6ff');
 }
+// 依機率表抽一種敵人：w 是百分比；抽到 T: null 或落在加總不到 100 的部分 → 這次不出怪
+function pickSpawn(table) {
+  let r = Math.random() * 100;
+  for (const it of table) { if (r < it.w) return it.T; r -= it.w; }
+  return null;
+}
 function addEnemy() {
   const maxN = phase ? phase.spawn.max : Math.min(14, 9 + Math.floor(gameTime / 60));
   if (enemies.length >= maxN) return;
@@ -1431,7 +1437,8 @@ function addEnemy() {
   let d = 150;
   while (d < 4000 && onScreen(proj(player.x + ca * d, player.y + sa * d), 90)) d += 40;
   d += rand(20, 90);
-  const T = phase ? phase.pattern[spawnIdx++ % phase.pattern.length] : ENEMY;
+  const T = phase ? pickSpawn(phase.spawnTable) : ENEMY;
+  if (!T) return;   // 這次抽到「不出怪」
   enemies.push({ T, x: player.x + ca * d, y: player.y + sa * d, r: T.radius, hp: T.hp, ammo: T.magazine, angle: 0, cool: rand(1.2, 2), touchCd: 0, def: cfg, shot: 0, moving: true, phase: rand(0, 6) });
 }
 /* ───────── 載入素材時輪播的人形小資訊 ───────── */
@@ -2714,7 +2721,7 @@ function update(dt) {
   spawnClock += dt;
   const every = phase && !phase.spawn ? Infinity : phase ? Math.max(phase.spawn.min, phase.spawn.every - phaseClock() / phase.end * (phase.spawn.every - phase.spawn.min))
                       : Math.max(1.6, 4.2 - gameTime / 40);
-  if (spawnClock > every && !boss && (!phase || phase.pattern.length)) { spawnClock = 0; addEnemy(); }   // Boss 戰期間不再生成小兵
+  if (spawnClock > every && !boss && (!phase || phase.spawnTable.length)) { spawnClock = 0; addEnemy(); }   // Boss 戰期間不再生成小兵
   if (phase) {
     const left = Math.max(0, phase.end - phaseClock()), m = Math.floor(left / 60), sec = Math.floor(left % 60);
     $('phaseTime').textContent = m + ':' + String(sec).padStart(2, '0');
