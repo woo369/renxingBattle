@@ -2221,6 +2221,25 @@ function damage(amount, pierce, armorPen = 0) {
   if (real > 0 && player.stacks > 0) { player.stacks = 0; updateSkill(); }
   burst(player.x, player.y, '#53dfcb');
 }
+/* 敵人碰撞箱：地面上的敵人（含精英）互相推開，不會疊在一起
+   ・重疊時沿兩者連線推開，體型大／精英比較推不動（重量＝半徑²，精英再 ×4）
+   ・浮游砲這種空中單位不參與，可以飛過其他敵人的頭頂 */
+const isFlying = (e) => e.T?.ai === 'drone';
+const SEP_K = 1.25;   // 兩隻敵人中心至少相距（半徑和 × 1.25）：碰撞圈比圖小，乘一點讓圖片不會疊在一起
+function separateEnemies() {
+  const list = enemies.filter((e) => !isFlying(e));
+  for (let i = 0; i < list.length; i++) {
+    const a = list[i];
+    for (let j = i + 1; j < list.length; j++) {
+      const b = list[j], dx = b.x - a.x, dy = b.y - a.y, min = (a.r + b.r) * SEP_K, d2 = dx * dx + dy * dy;
+      if (d2 >= min * min) continue;
+      const d = Math.sqrt(d2) || 0.01, ux = d2 ? dx / d : Math.cos(i + j), uy = d2 ? dy / d : Math.sin(i + j);
+      const wa = a.r * a.r * (a.boss ? 4 : 1), wb = b.r * b.r * (b.boss ? 4 : 1), push = (min - d) * 0.5;   // 每幀推開一半，看起來比較柔和
+      moveWithCover(a, -ux * push * wb / (wa + wb) * 2, -uy * push * wb / (wa + wb) * 2);
+      moveWithCover(b, ux * push * wa / (wa + wb) * 2, uy * push * wa / (wa + wb) * 2);
+    }
+  }
+}
 function moveWithCover(en, dx, dy) {
   const list = covers();
   for (const axis of ['x', 'y']) {
@@ -3524,6 +3543,7 @@ function update(dt) {
     if (e.debuffT > 0) e.debuffT = Math.max(0, e.debuffT - dt);
     if (dist < e.r + player.r && e.touchCd <= 0 && player.invT <= 0) { damage(T.contactDmg); e.touchCd = T.contactEvery; }
   }
+  separateEnemies();
 
   const blocks = covers();
   for (let i = bullets.length - 1; i >= 0; i--) {
