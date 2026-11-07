@@ -788,6 +788,7 @@ const LION = { ...ENEMY,
   lockRange: 200,            // 進入 200 以內停下射擊
   shift: 0.5,                // 停下、重新起步的切換時間
   bulletDmg: 5,
+  bulletStyle: 'shell',      // 機甲砲：大口徑砲彈的外觀
   fireCooldown: 0.5,         // 每秒 2 發
   magazine: 3, reload: 5,    // 彈匣 3 發，換彈 5 秒
   dropParts: 1,              // 擊殺獲得 1 個零件
@@ -2045,7 +2046,7 @@ function shootPlayer() {
   for (let i = 0; i < wp.pellets; i++) {
     const a = player.angle + (i - mid) * wp.spread + rand(-wp.jitter, wp.jitter), sp = rand(wp.speed[0], wp.speed[1]);
     const life = bulletRange(cfg) / sp;   // 不論子彈速度，飛到射程就消失
-    bullets.push({ x: mx, y: my, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp, age: 0, life, maxLife: life, r: wp.radius, team: 'p', dist: 0, lacer, purple: false, buff: ((player.buffT > 0 && cfg.skill.dmgMult) || 1) * (1 + effSum(player, 'dmg')), res: 1 + effSum(player, 'dmg'), crit: unitCrit(player), six: player.buffT > 0 && cfg.skill.id === 'sixkill' });
+    bullets.push({ x: mx, y: my, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp, age: 0, life, maxLife: life, r: wp.radius, team: 'p', pellet: wp.pellets > 1, dist: 0, lacer, purple: false, buff: ((player.buffT > 0 && cfg.skill.dmgMult) || 1) * (1 + effSum(player, 'dmg')), res: 1 + effSum(player, 'dmg'), crit: unitCrit(player), six: player.buffT > 0 && cfg.skill.id === 'sixkill' });
   }
   if (clones.length) clonesShoot({ lacer, buff: (player.buffT > 0 && cfg.skill.dmgMult) || 1, six: player.buffT > 0 && cfg.skill.id === 'sixkill' });
   burst(mx, my, lacer ? '#c48bff' : '#f6cb76', lacer ? 10 : 6);
@@ -2083,7 +2084,7 @@ function shootEnemy(e) {
   const n = T.pellets || 1;
   for (let k = 0; k < n; k++) {                                          // 霰彈槍：多顆彈丸扇形散開
     const a = a0 + (k - (n - 1) / 2) * (T.spread || 0) + (n > 1 ? rand(-0.03, 0.03) : 0);
-    bullets.push({ x: mz.x, y: mz.y, vx: Math.cos(a) * T.bulletSpeed, vy: Math.sin(a) * T.bulletSpeed, age: 0, life: T.bulletLife, r: T.bulletR, team: 'e', dmg: T.bulletDmg });
+    bullets.push({ x: mz.x, y: mz.y, vx: Math.cos(a) * T.bulletSpeed, vy: Math.sin(a) * T.bulletSpeed, age: 0, life: T.bulletLife, r: T.bulletR, team: 'e', dmg: T.bulletDmg, style: T.bulletStyle, pellet: n > 1 });
   }
   if (n > 1) burst(mz.x, mz.y, '#ffb36b', 6);
 }
@@ -2216,7 +2217,7 @@ function clonesShoot(flags) {
     for (let i = 0; i < wp.pellets; i++) {
       const a = base + (i - mid) * wp.spread + rand(-wp.jitter, wp.jitter), sp = rand(wp.speed[0], wp.speed[1]);
       const life = bulletRange(cfg) / sp;
-      bullets.push({ x: mz.x, y: mz.y, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp, age: 0, life, maxLife: life, r: wp.radius, team: 'p', dist: 0, ...flags, fromClone: true, buff: (flags.buff || 1) * (1 + effSum(c, 'dmg')), res: 1 + effSum(c, 'dmg'), crit: unitCrit(c), purple: false });
+      bullets.push({ x: mz.x, y: mz.y, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp, age: 0, life, maxLife: life, r: wp.radius, team: 'p', pellet: wp.pellets > 1, dist: 0, ...flags, fromClone: true, buff: (flags.buff || 1) * (1 + effSum(c, 'dmg')), res: 1 + effSum(c, 'dmg'), crit: unitCrit(c), purple: false });
     }
     burst(mz.x, mz.y, '#f6cb76', 4);
   }
@@ -2308,7 +2309,7 @@ function updateBoss(e, dt, toward, dist) {
   else if (e.reloadT > 0) { e.reloadT -= dt; if (e.reloadT <= 0) e.ammo = B.magazine; }
   else if (dist <= B.lockRange && e.cool <= 0) {
     const mz = bossMuzzle(e, e.barrel), ang = Math.atan2(player.y - mz.y, player.x - mz.x);
-    bullets.push({ x: mz.x, y: mz.y, vx: Math.cos(ang) * ENEMY.bulletSpeed * 1.15, vy: Math.sin(ang) * ENEMY.bulletSpeed * 1.15, age: 0, life: 2, r: 5, team: 'e', dmg: B.bulletDmg, boss: true });
+    bullets.push({ x: mz.x, y: mz.y, vx: Math.cos(ang) * ENEMY.bulletSpeed * 1.15, vy: Math.sin(ang) * ENEMY.bulletSpeed * 1.15, age: 0, life: 2, r: 5, team: 'e', dmg: B.bulletDmg, boss: true, style: 'shell' });
     burst(mz.x, mz.y, '#ff6b6b', 3);
     e.barrel = (e.barrel + 1) % 4; e.cool = 1 / B.fireRate; e.shot = 0.3;
     if (--e.ammo <= 0) {
@@ -2332,7 +2333,7 @@ function updateInterferer(e, dt, toward, dist) {
       S.clock = (S.clock || 0) - dt;
       while (S.clock <= 0 && S.t < sp.charge + sp.duration) {
         const mz = interMuzzle(e), a = Math.atan2(player.y - mz.y, player.x - mz.x) + rand(-0.05, 0.05);
-        bullets.push({ x: mz.x, y: mz.y, vx: Math.cos(a) * sp.speed, vy: Math.sin(a) * sp.speed, age: 0, life: sp.life, r: sp.radius, team: 'e', dmg: sp.damage, boss: true });
+        bullets.push({ x: mz.x, y: mz.y, vx: Math.cos(a) * sp.speed, vy: Math.sin(a) * sp.speed, age: 0, life: sp.life, r: sp.radius, team: 'e', dmg: sp.damage, boss: true, style: 'comet' });
         burst(mz.x, mz.y, '#ffd27a', 3); shake = Math.max(shake, 1.5);
         S.clock += 1 / sp.rate;
       }
@@ -2433,7 +2434,7 @@ function updateScarecrow(e, dt, toward, dist) {
       e.gunT[k] -= dt;
       if (e.gunT[k] <= 0 && e.ammo > 0) {
         const mz = scarecrowMuzzle(e, k), ang = Math.atan2(player.y - mz.y, player.x - mz.x);
-        bullets.push({ x: mz.x, y: mz.y, vx: Math.cos(ang) * B.bulletSpeed, vy: Math.sin(ang) * B.bulletSpeed, age: 0, life: B.bulletLife, r: 5, team: 'e', dmg: B.bulletDmg, boss: true });
+        bullets.push({ x: mz.x, y: mz.y, vx: Math.cos(ang) * B.bulletSpeed, vy: Math.sin(ang) * B.bulletSpeed, age: 0, life: B.bulletLife, r: 5, team: 'e', dmg: B.bulletDmg, boss: true, style: 'energy' });
         burst(mz.x, mz.y, '#ff8f83', 4); e.flash[k] = 0.1; e.atkT = 0;
         e.gunT[k] += 1 / B.gunRate;
         if (--e.ammo <= 0) {
@@ -2575,7 +2576,7 @@ function updateDrone(e, dt, toward, dist) {
   e.cool -= dt; e.flashT = Math.max(0, (e.flashT || 0) - dt);
   if (e.cool <= 0 && dist <= T.lockRange) {
     const mz = droneMuzzle(e), a = Math.atan2(player.y - mz.y, player.x - mz.x);
-    bullets.push({ x: mz.x, y: mz.y, vx: Math.cos(a) * T.bulletSpeed, vy: Math.sin(a) * T.bulletSpeed, age: 0, life: T.bulletLife, r: 4.5, team: 'e', dmg: T.bulletDmg });
+    bullets.push({ x: mz.x, y: mz.y, vx: Math.cos(a) * T.bulletSpeed, vy: Math.sin(a) * T.bulletSpeed, age: 0, life: T.bulletLife, r: 4.5, team: 'e', dmg: T.bulletDmg, style: 'energy' });
     e.cool = T.fireCooldown; e.flashT = 0.1;
   }
   if (e.debuffT > 0) e.debuffT = Math.max(0, e.debuffT - dt);
@@ -2808,6 +2809,105 @@ function drawBossTargets(e) {
   }
   ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
 }
+/* ───────── 子彈素材：開場時用程式畫好（高解析度、朝右），飛行時依方向旋轉貼上 ─────────
+   rocket 火箭／導彈　shell 大口徑榴彈／砲彈　tracer 普通子彈（霰彈槍以外）
+   energy 子彈型能量彈／電磁子彈　comet 彗星形流彈　pellet 霰彈彈丸
+   普通子彈、霰彈分成我方（淡黃白）／敵方（紅）／精英（亮紅）／強化（橘）幾種顏色，方便分辨敵我 */
+const BULLET_SPR = (() => {
+  const mk = (w, h, draw) => { const c = document.createElement('canvas'); c.width = w; c.height = h; const g = c.getContext('2d'); draw(g, w, h); return c; };
+  const lin = (g, x0, y0, x1, y1, stops) => { const gr = g.createLinearGradient(x0, y0, x1, y1); for (const [o, c] of stops) gr.addColorStop(o, c); return gr; };
+  const glow = (g, col, blur, fn) => { g.save(); g.shadowColor = col; g.shadowBlur = blur; fn(); g.restore(); };
+  // 普通子彈：細長曳光，彈頭最亮，往後漸暗變淡
+  const tracer = (head, mid, tail, halo) => mk(128, 20, (g, w, h) => {
+    const cy = h / 2, r = 4;
+    glow(g, halo, 8, () => {
+      g.fillStyle = lin(g, 0, 0, w, 0, [[0, 'rgba(0,0,0,0)'], [0.35, tail], [0.72, mid], [0.9, head], [1, head]]);
+      g.beginPath(); g.moveTo(4, cy - 1.2); g.lineTo(w - 4 - r, cy - r); g.arc(w - 4 - r, cy, r, -Math.PI / 2, Math.PI / 2); g.lineTo(4, cy + 1.2); g.closePath(); g.fill();
+    });
+    g.fillStyle = lin(g, 0, 0, w, 0, [[0.55, 'rgba(255,255,255,0)'], [1, 'rgba(255,255,255,0.9)']]);
+    g.fillRect(w * 0.5, cy - 1, w * 0.5 - 6, 2);
+  });
+  // 霰彈彈丸：圓形彈頭＋短短的火花尾巴
+  const pellet = (head, mid, halo) => mk(48, 20, (g, w, h) => {
+    const cy = h / 2, hx = w - 10;
+    g.fillStyle = lin(g, 0, 0, hx, 0, [[0, 'rgba(0,0,0,0)'], [1, mid]]);
+    g.beginPath(); g.moveTo(2, cy); g.lineTo(hx, cy - 4.5); g.lineTo(hx, cy + 4.5); g.closePath(); g.fill();
+    glow(g, halo, 8, () => {
+      const gr = g.createRadialGradient(hx + 1, cy - 1, 0.5, hx, cy, 6); gr.addColorStop(0, '#ffffff'); gr.addColorStop(0.45, head); gr.addColorStop(1, mid);
+      g.fillStyle = gr; g.beginPath(); g.arc(hx, cy, 6, 0, Math.PI * 2); g.fill();
+    });
+  });
+  const S = {
+    tracer_p: tracer('#fffde8', '#f1ecc0', 'rgba(120,138,118,0.55)', 'rgba(255,248,200,0.8)'),
+    tracer_buff: tracer('#fff6e0', '#ffc062', 'rgba(170,96,40,0.55)', 'rgba(255,170,70,0.9)'),
+    tracer_e: tracer('#ffe6dc', '#ff8467', 'rgba(140,50,44,0.55)', 'rgba(255,110,90,0.8)'),
+    tracer_boss: tracer('#fff0ea', '#ff4f4f', 'rgba(150,30,40,0.6)', 'rgba(255,70,70,0.95)'),
+    pellet_p: pellet('#fff3b0', '#ffae3c', 'rgba(255,190,90,0.9)'),
+    pellet_e: pellet('#ffd6c8', '#ff5a44', 'rgba(255,90,70,0.9)'),
+    // 能量彈：青色水晶狀，尖頭、亮芯、尾端變暗
+    energy: mk(112, 28, (g, w, h) => {
+      const cy = h / 2;
+      glow(g, 'rgba(60,230,255,0.95)', 12, () => {
+        g.fillStyle = lin(g, 0, 0, w, 0, [[0, 'rgba(20,90,100,0)'], [0.25, '#1d7f8a'], [0.6, '#16c9d6'], [0.85, '#3ff3ff'], [1, '#bfffff']]);
+        g.beginPath(); g.moveTo(6, cy - 4); g.lineTo(w - 22, cy - 7); g.lineTo(w - 6, cy); g.lineTo(w - 22, cy + 7); g.lineTo(6, cy + 4); g.closePath(); g.fill();
+      });
+      g.fillStyle = lin(g, 0, 0, w, 0, [[0.35, 'rgba(255,255,255,0)'], [0.85, 'rgba(225,255,255,0.95)']]);
+      g.beginPath(); g.moveTo(w * 0.35, cy - 1.5); g.lineTo(w - 20, cy - 2.5); g.lineTo(w - 12, cy); g.lineTo(w - 20, cy + 2.5); g.lineTo(w * 0.35, cy + 1.5); g.closePath(); g.fill();
+    }),
+    // 彗星形流彈：圓形火球頭＋往後收細的紅色尾巴
+    comet: mk(96, 36, (g, w, h) => {
+      const cy = h / 2, hx = w - 17, R = 12;
+      g.fillStyle = lin(g, 0, 0, hx, 0, [[0, 'rgba(120,30,20,0)'], [0.45, 'rgba(190,52,24,0.75)'], [1, '#e2561c']]);
+      g.beginPath(); g.moveTo(4, cy); g.quadraticCurveTo(hx * 0.6, cy - R * 0.55, hx, cy - R); g.lineTo(hx, cy + R); g.quadraticCurveTo(hx * 0.6, cy + R * 0.55, 4, cy); g.fill();
+      glow(g, 'rgba(255,140,40,0.95)', 14, () => {
+        const gr = g.createRadialGradient(hx + 3, cy, 1, hx, cy, R); gr.addColorStop(0, '#fff6b0'); gr.addColorStop(0.35, '#ffd23c'); gr.addColorStop(0.7, '#ff8a1c'); gr.addColorStop(1, '#d8461a');
+        g.fillStyle = gr; g.beginPath(); g.arc(hx, cy, R, 0, Math.PI * 2); g.fill();
+      });
+    }),
+    // 大口徑榴彈／砲彈：黃銅色彈體、深色彈帶、灰色彈頭、尾端引信
+    shell: mk(80, 26, (g, w, h) => {
+      const cy = h / 2, R = 8;
+      g.fillStyle = lin(g, 0, 0, 0, h, [[0, '#4a4a46'], [0.5, '#2a2a28'], [1, '#191917']]); g.fillRect(6, cy - 5, 10, 10);   // 尾端
+      g.fillStyle = lin(g, 0, cy - R, 0, cy + R, [[0, '#c9ad72'], [0.35, '#a2844d'], [0.75, '#6b5530'], [1, '#43341c']]);
+      g.fillRect(14, cy - R, 46, R * 2);
+      g.fillStyle = '#231b10'; g.fillRect(22, cy - R, 4, R * 2); g.fillRect(50, cy - R, 4, R * 2);   // 彈帶
+      g.fillStyle = lin(g, 0, cy - R, 0, cy + R, [[0, '#b9bcbc'], [0.4, '#8b8f90'], [1, '#4b4f50']]);
+      g.beginPath(); g.moveTo(60, cy - R); g.quadraticCurveTo(w - 4, cy - R * 0.7, w - 3, cy); g.quadraticCurveTo(w - 4, cy + R * 0.7, 60, cy + R); g.closePath(); g.fill();
+      g.strokeStyle = 'rgba(0,0,0,0.45)'; g.lineWidth = 1.2; g.strokeRect(14, cy - R, 46, R * 2);
+    }),
+    // 火箭／導彈：灰色彈體、紅色彈頭、尾翼、尾焰
+    rocket: mk(128, 32, (g, w, h) => {
+      const cy = h / 2, R = 6;
+      glow(g, 'rgba(255,140,40,0.95)', 12, () => {
+        const gr = g.createRadialGradient(36, cy, 1, 30, cy, 30); gr.addColorStop(0, '#fffbe0'); gr.addColorStop(0.25, '#ffd23c'); gr.addColorStop(0.55, '#ff6a1c'); gr.addColorStop(1, 'rgba(200,40,20,0)');
+        g.fillStyle = gr; g.beginPath(); g.moveTo(40, cy - 7); g.quadraticCurveTo(14, cy - 6, 0, cy); g.quadraticCurveTo(14, cy + 6, 40, cy + 7); g.closePath(); g.fill();
+      });
+      g.fillStyle = '#3c4148'; g.beginPath(); g.moveTo(38, cy - R); g.lineTo(46, cy - 13); g.lineTo(56, cy - R); g.closePath(); g.fill();
+      g.beginPath(); g.moveTo(38, cy + R); g.lineTo(46, cy + 13); g.lineTo(56, cy + R); g.closePath(); g.fill();
+      g.fillStyle = lin(g, 0, cy - R, 0, cy + R, [[0, '#9aa1aa'], [0.4, '#6c737d'], [1, '#33373d']]); g.fillRect(36, cy - R, 72, R * 2);
+      g.fillStyle = '#2a2e33'; g.fillRect(58, cy - R, 3, R * 2);
+      g.fillStyle = lin(g, 0, cy - R, 0, cy + R, [[0, '#e0473d'], [0.5, '#a51d1d'], [1, '#5c0d0d']]);
+      g.beginPath(); g.moveTo(106, cy - R); g.quadraticCurveTo(w - 4, cy - R * 0.6, w - 2, cy); g.quadraticCurveTo(w - 4, cy + R * 0.6, 106, cy + R); g.closePath(); g.fill();
+    }),
+  };
+  return S;
+})();
+// 子彈外觀：素材、長度、寬度（以子彈半徑 r 為單位）、彈頭位置（0～1，從尾端算起）
+const BULLET_SHAPE = { tracer: [3.2, 1.9, 0.92], pellet: [2.6, 2.2, 0.82], energy: [5, 2.2, 0.94], comet: [4.2, 2.6, 0.82], shell: [3.4, 2.2, 0.95], rocket: [6.4, 2.6, 0.97] };
+function bulletSprite(b) {
+  const kind = b.style || (b.pellet ? 'pellet' : 'tracer');
+  if (kind === 'pellet') return ['pellet', BULLET_SPR[b.team === 'p' ? 'pellet_p' : 'pellet_e']];
+  if (kind === 'tracer') return ['tracer', BULLET_SPR[b.team === 'p' ? (b.buff > 1 ? 'tracer_buff' : 'tracer_p') : b.boss ? 'tracer_boss' : 'tracer_e']];
+  return [kind, BULLET_SPR[kind]];
+}
+function drawBulletSprite(b, q, y) {
+  const [kind, img] = bulletSprite(b), [lk, wk, head] = BULLET_SHAPE[kind];
+  const sp = Math.hypot(b.vx, b.vy) || 1, r = b.r * (b.buff > 1 ? 1.25 : 1);
+  // 普通子彈：越快拉得越長（曳光感）
+  const L = (kind === 'tracer' ? clamp(sp * 0.032, lk * r, lk * 2.6 * r) : lk * r) * q.k, Wd = wk * r * q.k;
+  ctx.save(); ctx.translate(q.x, y); ctx.rotate(Math.atan2(b.vy * VIEW3D.squash, b.vx));
+  ctx.drawImage(img, -L * head, -Wd / 2, L, Wd); ctx.restore();
+}
 function drawMissiles() {
   for (const ms of missiles) {
     // 落點：逐漸縮小的圈＋高拋物線導彈
@@ -2820,8 +2920,8 @@ function drawMissiles() {
     const p0 = pos(k), p1 = pos(Math.max(0, k - 0.06));
     ctx.strokeStyle = 'rgba(255,200,150,0.6)'; ctx.lineWidth = 2.5 * p0.k; ctx.lineCap = 'round';
     ctx.beginPath(); ctx.moveTo(p1.x, p1.y); ctx.lineTo(p0.x, p0.y); ctx.stroke(); ctx.lineCap = 'butt';
-    ctx.fillStyle = '#ff5a3d'; ctx.shadowColor = '#ff7a3d'; ctx.shadowBlur = 8;
-    ctx.beginPath(); ctx.arc(p0.x, p0.y, 4 * p0.k, 0, Math.PI * 2); ctx.fill(); ctx.shadowBlur = 0;
+    const L = 34 * p0.k, Wd = 13 * p0.k;   // 火箭素材，沿飛行方向旋轉
+    ctx.save(); ctx.translate(p0.x, p0.y); ctx.rotate(Math.atan2(p0.y - p1.y, p0.x - p1.x)); ctx.drawImage(BULLET_SPR.rocket, -L * 0.97, -Wd / 2, L, Wd); ctx.restore();
   }
 }
 // 肯陶羅斯的箭：從弓的位置往高處射出，拋物線落到目標點
@@ -3539,8 +3639,7 @@ function draw(t) {
       ctx.beginPath(); ctx.arc(q.x, q.y - lift * q.k, r, 0, Math.PI * 2); ctx.fill(); ctx.shadowBlur = 0;
       continue;
     }
-    ctx.fillStyle = b.team === 'p' ? (b.buff > 1 ? '#ffb347' : '#d5fff1') : (b.boss ? '#ff5d5d' : '#ffb2a6');
-    ctx.beginPath(); ctx.arc(q.x, q.y - lift * q.k, b.r * q.k * (b.buff > 1 ? 1.3 : 1), 0, Math.PI * 2); ctx.fill();
+    drawBulletSprite(b, q, q.y - lift * q.k);
   }
   for (const p of particles) {
     const q = proj(p.x, p.y), sz = 4 * q.k;
