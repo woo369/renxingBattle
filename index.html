@@ -853,7 +853,7 @@ const CENTAUR = { ...ENEMY,
   magazine: 1, reload: 5,    // 射一箭填裝一箭，填裝 5 秒
   fireCooldown: 5 };
 
-// 劍盾士：二階普通敵人，手持光束武器。有可再生的護盾，會用閃避拉近／拉開距離。擊殺掉 2 個零件
+// 劍盾士：二階普通敵人，手持光束武器。有可再生的護盾，會用閃避拉近／拉開距離。擊殺掉 1 個零件
 const SWORDSHIELD = { ...ENEMY,
   name: '劍盾士',
   sprite: 'sws',             // 劍盾士的動畫
@@ -868,10 +868,10 @@ const SWORDSHIELD = { ...ENEMY,
   bulletDmg: 15,
   beam: true,                // 光束子彈：速度、射程 ×1.5，可穿透擴編人形
   fireCooldown: 1,           // 一秒 1 發
-  magazine: 3, reload: 7,    // 彈匣 3 發，換彈 7 秒
+  magazine: 3, reload: 5,    // 彈匣 3 發，換彈 5 秒
   contactDmg: 20,
   dash: { far: 350, near: 100, cd: 5, dist: 170, time: 0.22 },   // 閃避：超過 350 往前衝、小於 100 往後退；冷卻 5 秒
-  dropParts: 2 };            // 擊殺獲得 2 個零件
+  dropParts: 1 };            // 擊殺獲得 1 個零件
 // 光束子彈：比普通子彈快 1.5 倍、射程遠 1.5 倍（飛行時間不變），不受重力影響，可以穿透擴編人形
 const BEAM = { speedMul: 1.5, rangeMul: 1.5 };
 
@@ -1460,7 +1460,7 @@ const ENEMY_CODEX = () => [
     desc: '戰事的主力敵人，在稍遠的距離停下來連續射擊，打完一個彈匣才換彈。',
     where: '出現：戰事' },
   { id: 'sws', rank: 'normal', T: SWORDSHIELD, name: '劍盾士', weapon: '光束武器', img: ASSETS.ui.codex_sws,
-    desc: '手持光束武器的敵人，身上有 40 點護盾，要先打破護盾才傷得到本體；護盾被打光 15 秒後會恢復。光束子彈飛得更快更遠，還會穿透擴編人形。距離太遠或太近時會用閃避調整位置（冷卻 5 秒）。擊敗後可以獲得 2 個零件。',
+    desc: '手持光束武器的敵人，身上有 40 點護盾，要先打破護盾才傷得到本體；護盾被打光 15 秒後會恢復。光束子彈飛得更快更遠，還會穿透擴編人形。距離太遠或太近時會用閃避調整位置（冷卻 5 秒）。擊敗後可以獲得 1 個零件。',
     where: '出現：戰事' },
   { id: 'cent', rank: 'normal', T: CENTAUR, name: '肯陶羅斯', weapon: '複合弓', img: ASSETS.ui.codex_cent,
     desc: '手持複合弓的弓箭手，會在 400 的距離停下，朝目標當下的位置往高處拋射箭矢；地上會先出現落點預警。被貼近到 100 以內就會轉身後撤，拉開距離再繼續攻擊。',
