@@ -226,7 +226,6 @@ body.touch #expandBtn small{display:none}
 #testBtns button.clear{border-style:dashed;color:#ffd0d0;border-color:#ff8f83}
 body.touch #testPanel{max-height:38vh}   /* 手機：不要擋到左下的移動搖桿 */
 #testBtns button.heal{border-color:#3f8f5a;color:#9dffb6}
-#bossSkip,#phaseSkip{display:block;margin-top:4px;font-size:11px;padding:3px 7px;border-radius:7px;border:1px dashed #ff8f83;background:#3a1f25;color:#ffd0d0;cursor:pointer}
 #bossBar{position:fixed;left:50%;transform:translateX(-50%);top:calc(68px + env(safe-area-inset-top,0px));z-index:5;width:min(460px,70vw);pointer-events:none}
 #bossHead{display:flex;justify-content:space-between;font-size:13px;color:#ffd0d0;text-shadow:0 1px 3px #000;margin-bottom:3px}
 #bossHead b{color:#ff8f83;letter-spacing:.1em}
@@ -249,7 +248,7 @@ body.touch #testPanel{max-height:38vh}   /* 手機：不要擋到左下的移動
     <div><span class="hud-label">擊敗</span><span class="hud-num" id="kills">0</span></div>
   </div>
   <div class="hud-block" id="phaseBlock" hidden><span class="hud-label" id="phaseName">第一階段</span><span class="hud-num" id="phaseTime">3:00</span>
-    <button id="bossSkip" type="button" hidden>召喚 Boss（測試）</button><button id="phaseSkip" type="button" hidden>跳到下一階段（測試）</button></div>
+</div>
   <div class="hud-block" id="partsBlock" hidden><span class="hud-label">零件</span><span class="hud-num" id="partsNum">0</span></div>
   <div class="hud-block" id="hudHp">
     <div id="hpText"><span>生命</span><span><span id="hpNum">150 / 150</span><span id="shieldNum"></span></span></div>
@@ -1273,8 +1272,9 @@ function fmt(n, d = 1) { return Number.isInteger(n) ? String(n) : n.toFixed(d); 
 function openCodexClass(cls) {
   const first = charsOf(cls)[0]; if (!first) return;
   buildClassTabs($('codexClassTabs'), cls, openCodexClass);
-  $('codexTabs').textContent = ''; $('codexDetail').innerHTML = '<p class="roster-empty">載入中…</p>';
-  ensureClass(cls).then(() => buildCodex(first.id)).catch(() => { $('codexDetail').innerHTML = '<p class="roster-empty">載入失敗，請再點一次槍種重試。</p>'; });
+  $('codexTabs').textContent = ''; $('codexDetail').innerHTML = '<div class="load-tip" id="codexTip"></div>';
+  if (!classLoading[cls] || !charsOf(cls).every((d) => previewOf(d))) setLoadingTips(true, ['codexTip']);
+  ensureClass(cls).then(() => { setLoadingTips(false, ['codexTip']); buildCodex(first.id); }).catch(() => { setLoadingTips(false, ['codexTip']); $('codexDetail').innerHTML = '<p class="roster-empty">載入失敗，請再點一次槍種重試。</p>'; });
 }
 function buildCodex(id) {
   const cls = CHARACTERS[id].weapon.class;
@@ -1404,8 +1404,8 @@ function ensureEnemyCodex() {
   return Promise.all([ecodexLoading, ensureClass(CHARACTERS[selectedId].weapon.class)]);
 }
 $('ecodexBtn').addEventListener('click', () => {
-  $('ecodex').hidden = false; $('ecodexTabs').textContent = ''; $('ecodexDetail').innerHTML = '<p class="roster-empty">載入中…</p>';
-  ensureEnemyCodex().then(() => buildEnemyCodex('shadow')).catch(() => { $('ecodexDetail').innerHTML = '<p class="roster-empty">載入失敗，請關閉後再試一次。</p>'; });
+  $('ecodex').hidden = false; $('ecodexTabs').textContent = ''; $('ecodexDetail').innerHTML = '<div class="load-tip" id="ecodexTip"></div>'; setLoadingTips(true, ['ecodexTip']);
+  ensureEnemyCodex().then(() => { setLoadingTips(false, ['ecodexTip']); buildEnemyCodex('shadow'); }).catch(() => { setLoadingTips(false, ['ecodexTip']); $('ecodexDetail').innerHTML = '<p class="roster-empty">載入失敗，請關閉後再試一次。</p>'; });
 });
 $('ecodexClose').addEventListener('click', () => { $('ecodex').hidden = true; });
 function showBest() { $('bestLine').textContent = best ? '最高分 ' + best.toLocaleString('zh-TW') : ''; }
@@ -1472,14 +1472,17 @@ const TIPS = [
   ['hk433', '可愛小貓會讓 HK433 臉紅心跳——她堅決否認這件事。'],
   ['type82', '82式是 Galgame 大師，小心被她攻略。'],
   ['type82', '82式隨身攜帶的蘋果，其實是手榴彈。'],
+  ['type82', '82式的輸出來源是她的蘋果手榴彈，請善用技能。'],
+  ['xm556', '請善待 XM556，她有很高的自尊心。'],
+  ['xm556', 'XM556 不會因為別人說自己是矮子就生氣。'],
 ];
 let tipTimer = null, tipLast = -1;
 function showTip() {
   let i; do { i = Math.floor(Math.random() * TIPS.length); } while (TIPS.length > 1 && i === tipLast);
   tipLast = i;
   const [cid, text] = TIPS[i], def = CHARACTERS[cid];
-  for (const id of ['startTip', 'retryTip', 'selTip']) {
-    const box = $(id); box.textContent = '';
+  for (const id of ['startTip', 'retryTip', 'selTip', 'codexTip', 'ecodexTip']) {
+    const box = $(id); if (!box) continue; box.textContent = '';
     const im = new Image(); im.alt = ''; if (def && previewOf(def)) im.src = previewOf(def); else im.hidden = true;
     const p = document.createElement('p'), sm = document.createElement('small'); sm.textContent = '人形小資訊';
     p.append(sm, text); box.append(im, p);
@@ -1489,7 +1492,7 @@ function showTip() {
 // 載入中：首頁下方的操作說明換成小資訊，每 4 秒換一則
 function setLoadingTips(on, ids = ['startTip', 'retryTip']) {
   if (ids.includes('startTip')) $('menu').classList.toggle('loading', on);
-  for (const id of ids) $(id).hidden = !on;
+  for (const id of ids) if ($(id)) $(id).hidden = !on;
   clearInterval(tipTimer);
   if (on) { showTip(); tipTimer = setInterval(showTip, 4000); }
 }
@@ -1554,7 +1557,7 @@ function beginGame() {
   $('phaseBlock').hidden = !phase;
   const testing = !!(phase && phase.test);
   $('testPanel').hidden = !testing; if (testing) buildTestPanel();
-  $('hudScore').hidden = testing; if (testing) $('phaseBlock').hidden = true;   // 測試模式不顯示分數、擊殺與模式 $('bossSkip').hidden = !(phase && phase.bossPool); $('phaseSkip').hidden = !phase || levelPhases().length < 2;
+  $('hudScore').hidden = testing; if (testing) $('phaseBlock').hidden = true;   // 測試模式不顯示分數、擊殺與模式
   boss = null; bossSpawned = false;
   parts = []; partCount = (phase && phase.startParts) || 0; partClock = 0; clones = []; missiles = []; medkits = []; medClock = 0;
   $('partsBlock').hidden = !phase; updateParts();
@@ -1586,7 +1589,7 @@ function nextPhase() {
   for (const pid of phasePacks(phaseIdx + 1)) ensurePack(pid).catch(() => {});   // 再下一階段的素材先開始下載 spawnIdx = 0; spawnClock = 0; boss = null; bossSpawned = false;
   for (const e of enemies.slice()) if (!e.boss) burst(e.x, e.y, '#ff8f83', 8);
   enemies = enemies.filter((e) => e.boss);
-  $('phaseName').textContent = phase.name; $('bossSkip').hidden = !phase.bossPool; $('phaseSkip').hidden = phaseIdx >= levelPhases().length - 1;
+  $('phaseName').textContent = phase.name;
   floatText(player.x, player.y - 64, phase.name + ' 開始！', '#f9cf70'); shake = Math.max(shake, 5);
   for (let i = 0; i < phase.initial; i++) addEnemy();
 }
@@ -1659,8 +1662,6 @@ $('skillBtn').addEventListener('click', () => useSkill());
 
 $('startBtn').addEventListener('click', startGame);
 $('expandBtn').addEventListener('click', expandEchelon);
-$('bossSkip').addEventListener('click', () => { if (state === 'play' && phase && phase.bossPool && !bossSpawned) { phaseStart = gameTime - phase.end; } });
-$('phaseSkip').addEventListener('click', () => { if (state === 'play' && phase) { const b = enemies.find((e) => e.boss); if (b) { enemies.splice(enemies.indexOf(b), 1); $('bossBar').hidden = true; } nextPhase(); } });
 $('retryBtn').addEventListener('click', startGame);
 $('menuBtn').addEventListener('click', () => { showBest(); setState('menu'); });
 $('resumeBtn').addEventListener('click', resumeGame);
