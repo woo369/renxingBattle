@@ -725,7 +725,9 @@ const ENEMY = { hp: 30, radius: 19, speed: 150, wobble: 17, lockRange: 225, stop
 const CYCLOPS = { ...ENEMY,
   name: '獨眼巨人',
   sprite: 'cyc',             // 使用獨眼巨人的動畫
-  hp: 80, bulletDmg: 10,
+  tier: 2,                   // 二階敵人
+  hp: 100, bulletDmg: 15,
+  contactDmg: 15,            // 碰撞傷害
   fireCooldown: 0.5,         // 半秒一發
   magazine: 3, reload: 3,    // 彈匣 3 發，換彈 3 秒
   lockRange: 270,            // 開火距離
@@ -734,7 +736,9 @@ const CYCLOPS = { ...ENEMY,
 const MULTI_EYE = { ...ENEMY,
   name: '多眼巨人',
   sprite: 'meye',            // 多眼巨人的動畫
-  hp: 120, armor: 5, evade: 0,
+  tier: 2,                   // 二階敵人
+  hp: 130, armor: 5, evade: 0,
+  contactDmg: 20,            // 碰撞傷害
   speed: 150, radius: 21,
   lockRange: 200, stopRange: 200,   // 靠近到距離 200 才開火
   pellets: 3, spread: 0.13,  // 霰彈槍：一發 3 顆彈丸
@@ -788,12 +792,8 @@ const WAR_PHASES = [
   },
   {
     name: '第二階段', end: 180,  // 暫定 3 分鐘，撐過即過關
-    // 獨眼巨人：多眼巨人＝2：1；第二階段的獨眼巨人 傷害×1.2、生命×1.2
-    pattern: [
-      scaleStats(CYCLOPS, { hp: 1.2, dmg: 1.2 }),
-      scaleStats(CYCLOPS, { hp: 1.2, dmg: 1.2 }),
-      MULTI_EYE,
-    ],
+    // 獨眼巨人：多眼巨人＝2：1
+    pattern: [CYCLOPS, CYCLOPS, MULTI_EYE],
     packs: ['cyc', 'meye'],
     initial: 4,
     spawn: { every: 3.2, min: 2.2, max: 10 },
@@ -1324,7 +1324,8 @@ function buildEnemyCodex(id) {
   const pim = new Image(); pim.src = it.img; pim.alt = it.name; if (it.shadow) pim.className = 'shadow'; pt.appendChild(pim);
   const info = document.createElement('div'); info.style.minWidth = '0';
   const h = document.createElement('p'); h.className = 'codex-name'; h.textContent = it.name;
-  const rk = document.createElement('span'); rk.className = 'rank ' + it.rank; rk.textContent = it.rank === 'elite' ? '精英' : '一般'; h.appendChild(rk);
+  const rk = document.createElement('span'); rk.className = 'rank ' + it.rank; const tr = (it.B || it.T).tier, TIER = ['', '一階', '二階', '三階'];
+  rk.textContent = (it.rank === 'elite' ? '精英' : '一般') + (tr ? '｜' + TIER[tr] : ''); h.appendChild(rk);
   const sub = document.createElement('p'); sub.className = 'codex-sub'; sub.textContent = it.weapon;
   const ds = document.createElement('p'); ds.className = 'codex-text'; ds.textContent = it.desc;
   const dl = document.createElement('dl'); dl.className = 'stat-grid';
