@@ -856,6 +856,7 @@ const WAR_PHASES = [
     initial: 4,
     spawn: { every: 3.2, min: 2.2, max: 12 },   // 同時最多 12 隻
     partsEvery: 7,               // 零件改成每 7 秒出現一個
+    medkitEvery: 8, medkitHeal: 10,   // 每 8 秒出現一個醫療箱，恢復 10 生命
     bossPool: { tier: 2 },       // 時間到 → 從二階精英中隨機抽一名當 Boss，擊敗後過關
   },
 ];
