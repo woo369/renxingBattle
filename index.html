@@ -662,11 +662,11 @@ const CHARACTERS = {
       icon: 'skill_lockon',
       resist: 0.2,               // 被動：換彈時自身抗性 20%（受到的傷害減少 20%，最後才計算）
       reloadShield: 15,          // 被動：換彈完成 → 其他友方（不含自己、包含擴編分身）獲得 15 護盾
-      duration: 8,               // 主動：鎖定 8 秒，移動速度 −70%（可以閃避）；攻擊不消耗彈藥
-      lockSlow: 0.7,
+      duration: 8,               // 主動：鎖定 8 秒，移動速度 −50%（可以閃避）；攻擊不消耗彈藥
+      lockSlow: 0.5,
       critStack: 0.1,            // 鎖定中每次暴擊：自身傷害 +10%（可疊加）
       cooldown: 8,               // 鎖定結束後冷卻 8 秒，並清除身上所有傷害提升（含他人給予）
-      desc: '被動：換彈時自身獲得 20% 抗性（受到的傷害減少 20%）；換彈完成後，給予其他友方（不含自己，包含擴編分身）15 點護盾。主動：進入 8 秒鎖定狀態，期間移動速度降低 70%（仍可閃避）、攻擊不消耗彈藥，每次打出暴擊自身傷害提升 10%（可疊加）。鎖定結束後進入 8 秒冷卻，並清除自身所有的傷害提升效果（包含他人給予的）。',
+      desc: '被動：換彈時自身獲得 20% 抗性（受到的傷害減少 20%）；換彈完成後，給予其他友方（不含自己，包含擴編分身）15 點護盾。主動：進入 8 秒鎖定狀態，期間移動速度降低 50%（仍可閃避）、攻擊不消耗彈藥，每次打出暴擊自身傷害提升 10%（可疊加）。鎖定結束後進入 8 秒冷卻，並清除自身所有的傷害提升效果（包含他人給予的）。',
     },
     portrait: 'portrait_xm',
     assets: ASSETS.xm,
@@ -1483,14 +1483,14 @@ function addSlow(u, pct, time) {
   ex.stacks++; ex.t = ex.max = time; ex.mark = ex.stacks > 1 ? '緩' + ex.stacks : '緩';
   if (u === player) renderEffects(true);
 }
-const speedMul = (u) => { let m = u === player && isLocked() ? 1 - cfg.skill.lockSlow : 1;   // 堅盾鎖敵：鎖定中移速 −70%
+const speedMul = (u) => { let m = u === player && isLocked() ? 1 - cfg.skill.lockSlow : 1;   // 堅盾鎖敵：鎖定中移速 −50%
   for (const x of (u && u.effects) || []) if (x.id === 'slow') m *= Math.pow(1 - x.pct, x.stacks); return m; };
 // 只加總某個來源（'self' 自身給予／'other' 他人給予）的效果；數值可以是負的（減益）
 const effSumFrom = (u, key, from) => { let v = 0; for (const x of (u && u.effects) || []) if (x.from === from) v += x[key] || 0; return v; };
 /* 攻擊者這一方的暴擊率＝自身暴擊率 ± 自身給予的暴擊增益 ± 他人給予的暴擊增益
    （目標的易傷在命中時才加上，見 hitEnemy） */
 const unitCrit = (u) => critRate(cfg) + effSumFrom(u, 'crit', 'self') + effSumFrom(u, 'crit', 'other');
-// XM556 的堅盾鎖敵：鎖定中（移速 −70%、不耗彈藥）
+// XM556 的堅盾鎖敵：鎖定中（移速 −50%、不耗彈藥）
 const isLocked = () => !!(player && cfg.skill && cfg.skill.id === 'lockon' && player.buffT > 0);
 // 鎖定中打出暴擊 → 自身傷害 +10%，可疊加，持續到鎖定結束
 function addLockStack() {
