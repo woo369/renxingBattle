@@ -2544,7 +2544,7 @@ function updateArchitect(e, dt, toward, dist) {
   if (e.reloadT > 0) { e.reloadT -= dt; if (e.reloadT <= 0) e.ammo = B.magazine; }
   else if (dist <= B.lockRange && e.cool <= 0) {
     const mz = spritePoint(e, m, m.muzzle), a = Math.atan2(player.y - mz.y, player.x - mz.x) + rand(-0.03, 0.03);
-    bullets.push({ x: mz.x, y: mz.y, vx: Math.cos(a) * B.bulletSpeed, vy: Math.sin(a) * B.bulletSpeed, age: 0, life: B.bulletLife, r: 5, team: 'e', dmg: B.bulletDmg, boss: true, style: 'shell' });
+    bullets.push({ x: mz.x, y: mz.y, vx: Math.cos(a) * B.bulletSpeed, vy: Math.sin(a) * B.bulletSpeed, age: 0, life: B.bulletLife, r: 5, team: 'e', dmg: B.bulletDmg, boss: true });   // 一般攻擊：普通子彈
     burst(mz.x, mz.y, '#ffb36b', 4); e.atkT = 0; e.cool = B.fireCooldown;
     if (--e.ammo <= 0) {
       e.magsDone = (e.magsDone || 0) + 1;
