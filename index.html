@@ -1162,7 +1162,9 @@ const CLONE = { maxCount: 4, hpRatio: 0.5, minGap: 20, maxGap: 100 };
 // 分身站位：以玩家為中心的方向與距離（距離＝玩家碰撞半徑＋20～100）
 // 擴編隊形：方陣——四個分身站在玩家周圍的四個角（[角度, 距離]）；1、2 號在下方，3、4 號在上方
 const CLONE_SLOTS = [[Math.PI * 0.75, 52], [Math.PI * 0.25, 52], [Math.PI * 1.25, 52], [Math.PI * 1.75, 52]];
-const CLONE_CONVERGE = 6 * Math.PI / 180;   // 分身的槍線往主軸（玩家瞄準線）偏 6 度，子彈在遠處交會
+// 分身的槍線往主軸（玩家瞄準線）偏一個角度，子彈在遠處交會：電腦版 6 度（可以用準星微調）、手機版 8 度
+const CLONE_CONVERGE_DEG = { desktop: 6, touch: 8 };
+const cloneConverge = () => (isTouch() ? CLONE_CONVERGE_DEG.touch : CLONE_CONVERGE_DEG.desktop) * Math.PI / 180;
 let jamWaves = [], parts = [], partCount = 0, partClock = 0, clones = [], missiles = [], medkits = [], medClock = 0;
 
 /* ───────── Boss ───────── */
@@ -2803,7 +2805,7 @@ function clonesShoot(flags) {
     const mz = muzzleWorld(c);
     // 分身在瞄準線的哪一側：往另一側（主軸方向）轉 2 度
     const cross = Math.cos(player.angle) * (c.y - player.y) - Math.sin(player.angle) * (c.x - player.x);
-    const base = player.angle - Math.sign(cross) * CLONE_CONVERGE;
+    const base = player.angle - Math.sign(cross) * cloneConverge();
     for (let i = 0; i < wp.pellets; i++) {
       const a = base + (i - mid) * wp.spread + rand(-wp.jitter, wp.jitter), sp = rand(wp.speed[0], wp.speed[1]);
       const life = bulletRange(cfg) / sp;
@@ -2816,7 +2818,7 @@ function clonesShoot(flags) {
 function cloneShootOwn(c) {
   const D = c.def, wp = D.weapon, mid = (wp.pellets - 1) / 2, mz = muzzleWorld(c);
   const cross = Math.cos(player.angle) * (c.y - player.y) - Math.sin(player.angle) * (c.x - player.x);
-  const base = player.angle - Math.sign(cross) * CLONE_CONVERGE;
+  const base = player.angle - Math.sign(cross) * cloneConverge();
   for (let i = 0; i < wp.pellets; i++) {
     const a = base + (i - mid) * wp.spread + rand(-wp.jitter, wp.jitter), sp = rand(wp.speed[0], wp.speed[1]), life = bulletRange(D) / sp;
     bullets.push({ x: mz.x, y: mz.y, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp, age: 0, life, maxLife: life, r: wp.radius, team: 'p', pellet: wp.pellets > 1, dist: 0, fromClone: true, src: c, def: D,
