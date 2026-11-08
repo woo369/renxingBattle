@@ -970,9 +970,9 @@ const WAR_PHASES = [
   },
   {
     name: '第三階段', end: 240,  // 4 分鐘，撐過即過關（目前還沒有三階精英，所以沒有 Boss）
-    spawnTable: [{ T: AEGIS, w: 40 }, { T: CENTAUR, w: 30, sc: { dmg: 1.2, evade: 1.2 } }, { T: SWORDSHIELD, w: 30, sc: { hp: 1.5, dmg: 1.1 } }],
-    // 聖盾GA 40%、肯陶羅斯 30%（強化：傷害 ×1.2（燃燒不變）、迴避率 ×1.2）、劍盾士 30%（強化：生命 ×1.5、傷害 ×1.1）
-    packs: ['aegis', 'cent', 'sws'],
+    spawnTable: [{ T: AEGIS, w: 25 }, { T: SCEPTER, w: 25 }, { T: CENTAUR, w: 25, sc: { dmg: 1.2, evade: 1.2 } }, { T: SWORDSHIELD, w: 25, sc: { hp: 1.5, dmg: 1.1 } }],
+    // 暫定平分：聖盾GA、靈蛇權杖、肯陶羅斯（強化：傷害 ×1.2（燃燒不變）、迴避率 ×1.2）、劍盾士（強化：生命 ×1.5、傷害 ×1.1）各 25%
+    packs: ['aegis', 'scep', 'cent', 'sws'],
     initial: 4,
     spawn: { every: 3.2, min: 2.2, max: 12 },   // 同時最多 12 隻
     partsEvery: 5,               // 零件每 5 秒出現一個
@@ -1635,7 +1635,7 @@ const ENEMY_CODEX = () => [
     where: '出現：戰事' },
   { id: 'scep', rank: 'normal', T: SCEPTER, name: '靈蛇權杖', weapon: '光束機槍', img: ASSETS.ui.codex_scep,
     desc: '扛著光束機槍的人形，光束子彈飛得更快更遠，還會穿透擴編人形。被光束打中會干擾瞄準：每中一發命中率 −1%（敵人等於多了 1% 迴避率），可以疊加，4 秒內沒再被打中才會消失。',
-    where: '出現：（尚未加入關卡）' },
+    where: '出現：戰事（第三階段）' },
   { id: 'aegis', rank: 'normal', T: AEGIS, name: '聖盾GA', weapon: '盾牌、電磁刀', img: ASSETS.ui.codex_aegis,
     desc: '手持大盾與電磁刀的重裝肉盾，移動緩慢但非常耐打，貼身時撞到也很痛。靠近後會舉盾蓄力，地上出現狹窄的扇形預警，接著用電磁刀突刺——電磁傷害無視護甲、無法迴避，只能趁蓄力時離開範圍或閃避。',
     where: '出現：戰事（第三階段）' },
