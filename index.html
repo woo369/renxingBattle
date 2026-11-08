@@ -1090,9 +1090,10 @@ const WAR_PHASES = [
   },
   {
     name: '第三階段', end: 240,  // 4 分鐘
-    spawnTable: [{ T: AEGIS, w: 100 / 8 }, { T: SCEPTER, w: 100 / 8 }, { T: HIND, w: 100 / 8 }, { T: LIGHTCANNON, w: 100 / 8 }, { T: SCOUT, w: 100 / 8 }, { T: HAMMER, w: 100 / 8 }, { T: CENTAUR, w: 100 / 8, sc: { dmg: 1.2, evade: 1.2 } }, { T: SWORDSHIELD, w: 100 / 8, sc: { hp: 1.5, dmg: 1.1, shield: 1.5 } }],
-    // 暫定平分（各 12.5%）：聖盾GA、靈蛇權杖、牝鹿、光炮士、偵查士、重錘士、肯陶羅斯（強化：傷害 ×1.2（燃燒不變）、迴避率 ×1.2）、劍盾士（強化：生命 ×1.5、傷害 ×1.1、護盾 ×1.5）
-    packs: ['aegis', 'scep', 'hind', 'lcan', 'scout', 'hammer', 'cent', 'sws'],
+    spawnTable: [{ T: AEQUES, w: 5 }, { T: HAMMER, w: 5 }, { T: SCOUT, w: 5 },
+      { T: AEGIS, w: 85 / 6 }, { T: SCEPTER, w: 85 / 6 }, { T: HIND, w: 85 / 6 }, { T: LIGHTCANNON, w: 85 / 6 }, { T: CENTAUR, w: 85 / 6, sc: { dmg: 1.2, evade: 1.2 } }, { T: SWORDSHIELD, w: 85 / 6, sc: { hp: 1.5, dmg: 1.1, shield: 1.5 } }],
+    // 埃奎斯、重錘士、偵查士各 5%；其餘 85% 平分（各約 14.2%）：聖盾GA、靈蛇權杖、牝鹿、光炮士、肯陶羅斯（強化：傷害 ×1.2（燃燒不變）、迴避率 ×1.2）、劍盾士（強化：生命 ×1.5、傷害 ×1.1、護盾 ×1.5）
+    packs: ['aeq', 'hammer', 'scout', 'aegis', 'scep', 'hind', 'lcan', 'cent', 'sws'],
     bossPool: { tier: 3 },       // 時間到 → 從三階精英中隨機抽一名當 Boss，擊敗後過關
     initial: 4,
     spawn: { every: 3.2, min: 2.2, max: 12 },   // 同時最多 12 隻
@@ -1817,7 +1818,7 @@ const ENEMY_CODEX = () => [
     where: '出現：戰事（第三階段）' },
   { id: 'aeq', rank: 'normal', T: AEQUES, name: '埃奎斯', weapon: '防空導彈發射架 ×4', img: ASSETS.ui.codex_aeq,
     desc: '兩用防空導彈戰車。展開雷達鎖定 4 秒時（頭上出現「雷達鎖定」）會移動到離目標 400～600 的位置，接著兩管輪流發射追蹤導彈。導彈離目標超過 200 會持續轉向追蹤，進入 200 以內就鎖定位置直飛，地上會標出爆炸範圍——這時候閃開就能躲掉。填裝要 14 秒，填裝時會停在原地。不會閃躲子彈，擊敗後可以獲得 3 個零件。',
-    where: '出現：（尚未加入關卡）' },
+    where: '出現：戰事（第三階段）' },
   { id: 'lcan', rank: 'normal', T: LIGHTCANNON, name: '光炮士', weapon: '大型光束武器', img: ASSETS.ui.codex_lcan,
     desc: '扛著大型光束武器的人形。進入射程後會停下來架槍瞄準 0.8 秒（地上出現藍色落點警示，會跟著目標移動），接著以低弧度拋射光束彈，落地爆炸。被炸到會受到干擾：射速 −15%、移動速度 −10%，持續 3 秒。',
     where: '出現：戰事（第三階段）' },
