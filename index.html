@@ -1053,7 +1053,7 @@ const CLONE = { maxCount: 4, hpRatio: 0.5, minGap: 20, maxGap: 100 };
 // 分身站位：以玩家為中心的方向與距離（距離＝玩家碰撞半徑＋20～100）
 // 擴編隊形：方陣——四個分身站在玩家周圍的四個角（[角度, 距離]）；1、2 號在下方，3、4 號在上方
 const CLONE_SLOTS = [[Math.PI * 0.75, 52], [Math.PI * 0.25, 52], [Math.PI * 1.25, 52], [Math.PI * 1.75, 52]];
-const CLONE_CONVERGE = 4 * Math.PI / 180;   // 分身的槍線往主軸（玩家瞄準線）偏 4 度，子彈在遠處交會
+const CLONE_CONVERGE = 6 * Math.PI / 180;   // 分身的槍線往主軸（玩家瞄準線）偏 6 度，子彈在遠處交會
 let jamWaves = [], parts = [], partCount = 0, partClock = 0, clones = [], missiles = [], medkits = [], medClock = 0;
 
 /* ───────── Boss ───────── */
