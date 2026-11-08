@@ -1105,7 +1105,7 @@ const WAR_PHASES = [
     // 獨眼 30%、多眼 20%、複眼 15%、鋼獅 15%（強化：生命 ×1.25）、肯陶羅斯 10%、劍盾士 10%
     packs: ['cyc', 'meye', 'ceye', 'lion', 'cent', 'sws'],
     initial: 4,
-    spawn: { every: 3.2, min: 2.2, max: 12 },   // 同時最多 12 隻
+    spawn: { every: 2.8, min: 1.9, max: 14 },   // 每 2.8 秒生成一隻，逐漸加快到 1.9 秒；同時最多 14 隻
     partsEvery: 7,               // 零件改成每 7 秒出現一個
     medkitEvery: 8, medkitHeal: 10,   // 每 8 秒出現一個醫療箱，恢復 10 生命
     bossPool: { tier: 2 },       // 時間到 → 從二階精英中隨機抽一名當 Boss，擊敗後進入第三階段
@@ -1119,7 +1119,7 @@ const WAR_PHASES = [
     packs: ['aeq', 'hammer', 'scout', 'aegis', 'scep', 'hind', 'lcan', 'cent', 'sws'],
     bossPool: { tier: 3 },       // 時間到 → 從三階精英中隨機抽一名當 Boss，擊敗後過關
     initial: 4,
-    spawn: { every: 3.2, min: 2.2, max: 12 },   // 同時最多 12 隻
+    spawn: { every: 2.8, min: 1.9, max: 14 },   // 每 2.8 秒生成一隻，逐漸加快到 1.9 秒；同時最多 14 隻
     partsEvery: 5,               // 零件每 5 秒出現一個
     medkitEvery: 8, medkitHeal: 10, medkitMax: 4,   // 醫療箱同第二階段，但場上最多 4 個
   },
