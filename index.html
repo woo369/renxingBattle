@@ -2871,7 +2871,7 @@ function updateTi(e, dt, toward, dist) {
   if (e.mode === 'chase') {
     // 追擊：抽好這輪的攻擊，走進該攻擊的距離就出手
     e.atk = e.atk || (Math.random() < 0.5 ? 'combo' : 'thrust');
-    const need = e.atk === 'combo' ? 30 : 80; face(toward);   // 連斬貼近到 30、突刺貼近到 80 才出手
+    const need = e.atk === 'combo' ? 50 : 80; face(toward);   // 連斬貼近到 50、突刺貼近到 80 才出手
     if (dist > need) { e.moving = true; moveWithCover(e, Math.cos(toward) * B.speed * dt, Math.sin(toward) * B.speed * dt); }
     else { go(e.atk); e.dir = toward; e.cut = 0; }
   } else if (e.mode === 'combo') {
