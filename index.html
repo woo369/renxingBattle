@@ -975,7 +975,7 @@ const LIGHTCANNON = { ...ENEMY,
   hitDebuff: { id: 'lcan', name: '光炮干擾（射速 −15%、移速 −10%）', mark: '擾', color: '#ff4d4d', rate: -0.15, spd: -0.1, time: 3 },
   fireCooldown: 2,           // 每 2 秒開火一次
   magazine: 3, reload: 4 };
-// 埃奎斯：三階普通敵人，兩用防空導彈戰車。保持 400～600 距離，雷達鎖定 4 秒後輪流發射 2 發追蹤導彈。擊殺掉 5 個零件
+// 埃奎斯：三階普通敵人，兩用防空導彈戰車。雷達鎖定 4 秒（期間移動到 400～600 距離）後輪流發射 2 發追蹤導彈。擊殺掉 3 個零件
 const AEQUES = { ...ENEMY,
   name: '埃奎斯',
   sprite: 'aeq',             // 埃奎斯的動畫
@@ -984,13 +984,13 @@ const AEQUES = { ...ENEMY,
   hp: 220, armor: 5, evade: 0,
   speed: 140, radius: 32,
   lockRange: 600,            // 進入 600 以內開始雷達鎖定
-  keep: [400, 600],          // 瞄準、填裝時保持在 400～600 的距離
+  keep: [400, 600],          // 雷達鎖定時移動到 400～600 的距離（填裝時不移動）
   aim: 4,                    // 雷達鎖定 4 秒
   salvo: 2, salvoGap: 1,     // 輪流發射 2 發，相隔 1 秒
   missile: { speed: 150, homeUntil: 200, r: 50, dmg: 20, life: 10 },   // 平飛每秒 150；離玩家超過 200 會追蹤，200 以內直飛；終點半徑 50、20 爆炸傷害
   bulletDmg: 20,             // 圖鑑用
   magazine: 2, reload: 14,   // 兩發打完填裝 14 秒
-  dropParts: 5 };            // 擊殺獲得 5 個零件
+  dropParts: 3 };            // 擊殺獲得 3 個零件
 // 光束子彈：比普通子彈快 1.5 倍、射程遠 1.5 倍（飛行時間不變），不受重力影響，可以穿透擴編人形
 const BEAM = { speedMul: 1.5, rangeMul: 1.5 };
 
@@ -1775,7 +1775,7 @@ const ENEMY_CODEX = () => [
     desc: '笨重的機甲，有 10 點護甲，非常耐打。射擊時會停在原地，停下與重新起步都要花上一點時間。擊敗後可以獲得 1 個零件。',
     where: '出現：戰事（第二階段強化：生命 ×1.25）' },
   { id: 'aeq', rank: 'normal', T: AEQUES, name: '埃奎斯', weapon: '防空導彈發射架 ×4', img: ASSETS.ui.codex_aeq,
-    desc: '兩用防空導彈戰車。會和目標保持 400～600 的距離，展開雷達鎖定 4 秒（頭上出現「雷達鎖定」），接著兩管輪流發射追蹤導彈。導彈離目標超過 200 會持續轉向追蹤，進入 200 以內就鎖定位置直飛，地上會標出爆炸範圍——這時候閃開就能躲掉。填裝要 14 秒。不會閃躲子彈，擊敗後可以獲得 5 個零件。',
+    desc: '兩用防空導彈戰車。展開雷達鎖定 4 秒時（頭上出現「雷達鎖定」）會移動到離目標 400～600 的位置，接著兩管輪流發射追蹤導彈。導彈離目標超過 200 會持續轉向追蹤，進入 200 以內就鎖定位置直飛，地上會標出爆炸範圍——這時候閃開就能躲掉。填裝要 14 秒，填裝時會停在原地。不會閃躲子彈，擊敗後可以獲得 3 個零件。',
     where: '出現：（尚未加入關卡）' },
   { id: 'lcan', rank: 'normal', T: LIGHTCANNON, name: '光炮士', weapon: '大型光束武器', img: ASSETS.ui.codex_lcan,
     desc: '扛著大型光束武器的人形。進入射程後會停下來架槍瞄準 0.8 秒（地上出現藍色落點警示，會跟著目標移動），接著以低弧度拋射光束彈，落地爆炸。被炸到會受到干擾：射速 −15%、移動速度 −10%，持續 3 秒。',
@@ -3295,9 +3295,10 @@ function updateSam(e, dt, toward, dist) {
   const T = e.T, m = ASSETS[T.sprite].meta; e.angle = toward; e.phase += dt; e.faceLeft = Math.cos(toward) < 0;
   if (e.kvx || e.kvy) { e.kvx = e.kvy = 0; }   // 戰車：不會被擊退
   if (e.reloadT > 0) { e.reloadT -= dt; if (e.reloadT <= 0) e.ammo = T.magazine; }
-  // 移動：維持在 400～600 之間（太遠靠近、太近後退）
-  const want = dist > T.keep[1] ? 1 : dist < T.keep[0] ? -1 : 0;
-  e.moving = want !== 0 && e.fired == null;
+  // 移動：只有雷達鎖定時才調整到 400～600 之間；準備好但目標太遠時往前開；填裝、發射時停在原地（讓玩家打得到）
+  const ready = !(e.reloadT > 0) && e.fired == null;
+  const want = e.aimT != null ? (dist > T.keep[1] ? 1 : dist < T.keep[0] ? -1 : 0) : ready && dist > T.lockRange ? 1 : 0;
+  e.moving = want !== 0;
   if (e.moving) moveWithCover(e, Math.cos(toward) * T.speed * want * dt, Math.sin(toward) * T.speed * want * dt);
   if (e.aimT == null && e.fired == null && !(e.reloadT > 0) && dist <= T.lockRange) { e.aimT = 0; floatText(e.x, e.y - 70, '雷達鎖定', '#ff6b6b'); }
   if (e.aimT != null) {
