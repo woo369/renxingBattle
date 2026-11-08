@@ -145,6 +145,9 @@ body:not(.touch) #touchui{display:none}
 @media (max-width:520px){#hud{gap:8px}.hud-block{padding:5px 9px}#hudScore{gap:10px}.hud-num{font-size:18px}.icon-btn{width:38px}}
 @keyframes flash{0%{opacity:0;transform:translate(-50%,-50%) scale(.7)}25%{opacity:1}100%{opacity:0;transform:translate(-50%,-50%) scale(1.15)}}
 /* 首頁按鈕列、關卡、圖鑑 */
+.clear-banner{margin:-4px 0 10px;font-size:15px;font-weight:800;letter-spacing:.2em;color:var(--gold);text-shadow:0 0 14px #f9cf7088}
+.clear-time{margin:0 0 12px;font-size:15px;color:var(--ink)}
+.clear-time b{font-size:24px;color:var(--aqua);letter-spacing:.04em}
 .menu-row{display:flex;gap:10px;justify-content:center;flex-wrap:wrap;margin-bottom:14px}
 /* 首頁：①關卡 ②角色 */
 .step-h{display:flex;align-items:center;justify-content:center;gap:8px;margin:12px 0 6px;font-size:13px;font-weight:800;letter-spacing:.14em;color:var(--muted)}
@@ -407,7 +410,9 @@ body.touch #testPanel{max-height:38vh}   /* 手機：不要擋到左下的移動
 <div id="over" class="overlay" hidden>
   <div class="sheet" style="max-width:400px">
     <h2 id="overTitle">本回合結束</h2>
-    <p class="stats-line" style="margin-bottom:0">你的最終得分</p>
+    <p class="clear-banner" id="clearBanner" hidden>恭喜通關</p>
+    <p class="clear-time" id="clearTime" hidden></p>
+    <p class="stats-line" style="margin-bottom:0" id="scoreLabel">你的最終得分</p>
     <p class="big-score" id="finalScore">0</p>
     <p class="stats-line" id="finalStats"></p>
     <div class="row">
@@ -986,6 +991,9 @@ function scaleStats(T, sc) {
   if (sc.dmg) {
     o.bulletDmg = T.bulletDmg * sc.dmg;
     if (T.special && T.special.damage) o.special = { ...T.special, damage: T.special.damage * sc.dmg };
+    if (T.special && T.special.dmg) o.special = { ...(o.special || T.special), dmg: T.special.dmg * sc.dmg };   // 緹的衝刺斬
+    if (T.combo) o.combo = { ...T.combo, dmg: T.combo.dmg * sc.dmg };      // 緹的連斬
+    if (T.thrust) o.thrust = { ...T.thrust, dmg: T.thrust.dmg * sc.dmg };  // 緹的突刺
   }
   o.scale = sc;
   return o;
@@ -1030,6 +1038,8 @@ const WAR_PHASES = [
    精英分成三個等級（tier：對應戰事第 1／2／3 階段的 Boss）；這個模式以第 2 階段為基準，
    第 1 階段的精英會強化，第 3 階段的精英暫不調整。 */
 const DUEL_TIER_SCALE = { 1: { hp: 1.5, dmg: 1.2 }, 2: null, 3: null };
+// 個別精英的對決倍率（優先於等級倍率）：緹 生命 ×0.8、所有攻擊 ×0.5
+const DUEL_BOSS_SCALE = { ti: { hp: 0.8, dmg: 0.5 } };
 const DUEL_PHASES = [
   {
     name: '菁英對決', end: 5,      // 入場 5 秒後精英出現
@@ -2080,13 +2090,18 @@ function updateSwap() {
 $('swapBtn').addEventListener('click', () => swapChar(false));
 function endGame(cleared) {
   setTimeout(() => { if (state === 'play' || gameLoading) return; releaseUnused(openingPacks()); prefetch(); }, 300);   // 清掉上一局的素材，先在背景準備下一場
-  $('overTitle').textContent = cleared ? (phase ? phase.name : '') + '完成！' : '本回合結束';
+  const warClear = cleared && selectedLevel === 'war';   // 戰事通關：恭喜通關＋通關時間與分數
+  $('overTitle').textContent = warClear ? '恭喜通關！' : cleared ? (phase ? phase.name : '') + '完成！' : '本回合結束';
+  $('clearBanner').hidden = !warClear; $('clearBanner').textContent = '戰事 全三階段完成';
+  $('scoreLabel').textContent = warClear ? '通關分數' : '你的最終得分';
   $('bossBar').hidden = true;
   const isBest = score > best;
   if (isBest) { best = score; store.set('rxxlc-best', String(best)); }
   $('finalScore').textContent = score.toLocaleString('zh-TW');
-  const m = Math.floor(gameTime / 60), s = Math.floor(gameTime % 60);
-  $('finalStats').textContent = '存活 ' + m + ':' + String(s).padStart(2, '0') + (isBest ? ' · 新紀錄' : (best ? ' · 最高分 ' + best.toLocaleString('zh-TW') : ''));
+  const m = Math.floor(gameTime / 60), s = Math.floor(gameTime % 60), mmss = m + ':' + String(s).padStart(2, '0');
+  const bestTxt = isBest ? '新紀錄' : (best ? '最高分 ' + best.toLocaleString('zh-TW') : '');
+  $('clearTime').hidden = !warClear; $('clearTime').innerHTML = '通關時間 <b>' + mmss + '</b>';
+  $('finalStats').textContent = warClear ? bestTxt : '存活 ' + mmss + (bestTxt ? ' · ' + bestTxt : '');
   showBest(); setState('over');
 }
 // 進入下一個階段（擊敗 Boss 後）；沒有下一階段就過關
@@ -2655,7 +2670,7 @@ function damageClone(c, amount, pierce) {
 }
 function spawnBoss(id) {
   // 菁英對決：依精英等級套用倍率
-  const sc = phase && phase.bossScale === 'tier' ? DUEL_TIER_SCALE[BOSSES[id].tier] : null;
+  const sc = phase && phase.bossScale === 'tier' ? (DUEL_BOSS_SCALE[id] || DUEL_TIER_SCALE[BOSSES[id].tier]) : null;
   const B = scaleStats(BOSSES[id], sc); bossSpawned = true;
   const a = rand(0, Math.PI * 2), d = 420;
   boss = { boss: true, B, id, x: player.x + Math.cos(a) * d, y: player.y + Math.sin(a) * d, r: B.radius, hp: B.hp, maxHp: B.hp,
