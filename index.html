@@ -1670,9 +1670,10 @@ function upright(q, ox, oy) { ctx.setTransform(DPR * q.k, 0, 0, DPR * q.k, DPR *
 function ground(q, ox, oy) { const ky = q.k * VIEW3D.squash; ctx.setTransform(DPR * q.k, 0, 0, DPR * ky, DPR * (q.x - ox * q.k), DPR * (q.y - oy * ky)); }
 const onScreen = (q, m) => q.x > -m && q.x < W + m && q.y > -m && q.y < H + m;
 /* 全自動畫質：畫面解析度（DPR）在 1～2 倍之間自動調整，玩家不用設定
-   ・遊戲中每約 1.5 秒看一次平均幀時間：超過 21ms（不到約 48fps）→ 降一級（−0.25）
-   ・連續 8 秒都很順（每幀 18ms 以內）→ 試著升一級；升上去又卡的話，這一級先封鎖 30 秒（再失敗就 60、120…秒）
-   ・目前的等級記在這台裝置上，下次開啟從這裡開始 */
+   ・遊戲中每約 1 秒（60 幀）看一次平均幀時間：超過 21ms（不到約 48fps）→ 降一級（−0.25）
+   ・連續 3 秒都很順（每幀 18ms 以內）→ 試著升一級；升上去又卡的話，這一級先封鎖 10 秒（再失敗就 20、40、最多 60 秒）
+   ・目前的等級記在這台裝置上，下次開啟從這裡開始（但每次開局都會重新往上試） */
+const PERF = { frames: 60, slowMs: 21, smoothMs: 18, upAfter: 3, block: 10000, blockMax: 60000 };
 const QUALITY_KEY = 'gfl-render-cap';
 const maxCap = () => clamp(window.devicePixelRatio || 1, 1, 2);
 let renderCap = 2, perfMs = 0, perfN = 0, smoothT = 0;
@@ -1686,19 +1687,19 @@ function setRenderCap(v) {
 function watchPerf(ms) {
   if (state !== 'play' || gameLoading || ms > 100) return;   // 載入、切換分頁造成的長停頓不算
   perfMs += ms; perfN++;
-  if (perfN < 90) return;
+  if (perfN < PERF.frames) return;
   const avg = perfMs / perfN, span = perfMs / 1000, now = performance.now(); perfMs = perfN = 0;
   const cur = Math.min(renderCap, maxCap());
-  if (avg > 21 && cur > 1) {
+  if (avg > PERF.slowMs && cur > 1) {
     // 太卡：降一級，並封鎖剛剛那一級一段時間
-    const b = capBlock[cur] || (capBlock[cur] = { wait: 30000 });
-    b.until = now + b.wait; b.wait = Math.min(b.wait * 2, 480000);
+    const b = capBlock[cur] || (capBlock[cur] = { wait: PERF.block });
+    b.until = now + b.wait; b.wait = Math.min(b.wait * 2, PERF.blockMax);
     smoothT = 0; setRenderCap(Math.max(1, Math.round((cur - 0.25) * 4) / 4));
-  } else if (avg <= 18 && cur < maxCap()) {
-    // 很順：累積 8 秒後試著升一級（被封鎖的等級先不升）
+  } else if (avg <= PERF.smoothMs && cur < maxCap()) {
+    // 很順：累積 3 秒後試著升一級（被封鎖的等級先不升）
     smoothT += span;
     const up = Math.min(maxCap(), cur + 0.25);
-    if (smoothT >= 8 && !(capBlock[up] && now < capBlock[up].until)) { smoothT = 0; setRenderCap(up); }
+    if (smoothT >= PERF.upAfter && !(capBlock[up] && now < capBlock[up].until)) { smoothT = 0; setRenderCap(up); }
   } else smoothT = 0;
 }
 function resize() {
@@ -2161,6 +2162,7 @@ function setLoadingTips(on, ids = ['startTip', 'retryTip']) {
 }
 let gameLoading = false;
 function startGame() {
+  for (const k in capBlock) delete capBlock[k]; smoothT = 0; perfMs = perfN = 0;   // 自動畫質：每次開局都重新往上試
   if (gameLoading) return;
   audio();
   phaseBoss = levelPhases() ? levelPhases().map((ph) => ph.bossPool ? pickBoss(ph.bossPool) : null) : [];   // 開局就抽好各階段的 Boss
