@@ -741,7 +741,7 @@ const CLASS_NAMES = { AR: '突擊步槍', SMG: '衝鋒槍', HG: '手槍', RF: '�
 // 關卡：之後新增關卡就在這裡加
 const LEVELS = [
   { id: 'training', name: '訓練場', open: true, desc: '無限延伸的戰場，與跟你相同角色的影子敵人持續對戰，看能撐多久。' },
-  { id: 'war', name: '戰事', open: true, desc: '三階段的戰事，敵人會階段性地變強，階段末尾會出現 Boss。' },
+  { id: 'war', name: '戰事', open: true, desc: '三階段的戰事，敵人會階段性地變強；第一、二階段末尾會出現 Boss，撐過第三階段即過關。' },
   { id: 'duel', name: '菁英對決', open: true, desc: '入場 5 秒後出現一名隨機精英敵人，擊敗它即可過關。場上會定時出現零件與醫療箱。' },
   { id: 'test', name: '測試模式', open: true, desc: '不會自動出怪，可以自選召喚任何敵人或精英，零件無限。' },
   { id: 'locked1', name: '尚未解鎖', open: false, desc: '敬請期待' },
@@ -921,6 +921,7 @@ function scaleStats(T, sc) {
   if (!sc) return T;
   const o = { ...T };
   if (sc.hp) o.hp = Math.round(T.hp * sc.hp);
+  if (sc.evade) o.evade = (T.evade || 0) * sc.evade;   // 迴避率倍率（例：10% ×1.2 → 12%）
   if (sc.dmg) {
     o.bulletDmg = T.bulletDmg * sc.dmg;
     if (T.special && T.special.damage) o.special = { ...T.special, damage: T.special.damage * sc.dmg };
@@ -950,7 +951,17 @@ const WAR_PHASES = [
     spawn: { every: 3.2, min: 2.2, max: 12 },   // 同時最多 12 隻
     partsEvery: 7,               // 零件改成每 7 秒出現一個
     medkitEvery: 8, medkitHeal: 10,   // 每 8 秒出現一個醫療箱，恢復 10 生命
-    bossPool: { tier: 2 },       // 時間到 → 從二階精英中隨機抽一名當 Boss，擊敗後過關
+    bossPool: { tier: 2 },       // 時間到 → 從二階精英中隨機抽一名當 Boss，擊敗後進入第三階段
+  },
+  {
+    name: '第三階段', end: 240,  // 4 分鐘，撐過即過關（目前還沒有三階精英，所以沒有 Boss）
+    spawnTable: [{ T: AEGIS, w: 40 }, { T: CENTAUR, w: 30, sc: { dmg: 1.2, evade: 1.2 } }, { T: SWORDSHIELD, w: 30, sc: { hp: 1.5, dmg: 1.1 } }],
+    // 聖盾GA 40%、肯陶羅斯 30%（強化：傷害 ×1.2（燃燒不變）、迴避率 ×1.2）、劍盾士 30%（強化：生命 ×1.5、傷害 ×1.1）
+    packs: ['aegis', 'cent', 'sws'],
+    initial: 4,
+    spawn: { every: 3.2, min: 2.2, max: 12 },   // 同時最多 12 隻
+    partsEvery: 5,               // 零件每 5 秒出現一個
+    medkitEvery: 8, medkitHeal: 10, medkitMax: 4,   // 醫療箱同第二階段，但場上最多 4 個
   },
 ];
 /* 菁英對決：直接打精英 Boss
@@ -1609,7 +1620,7 @@ const ENEMY_CODEX = () => [
     where: '出現：戰事' },
   { id: 'aegis', rank: 'normal', T: AEGIS, name: '聖盾GA', weapon: '盾牌、電磁刀', img: ASSETS.ui.codex_aegis,
     desc: '手持大盾與電磁刀的重裝肉盾，移動緩慢但非常耐打，貼身時撞到也很痛。靠近後會舉盾蓄力，地上出現狹窄的扇形預警，接著用電磁刀突刺——電磁傷害無視護甲、無法迴避，只能趁蓄力時離開範圍或閃避。',
-    where: '出現：戰事第三階段（尚未開放）' },
+    where: '出現：戰事（第三階段）' },
   { id: 'lion', rank: 'normal', T: LION, name: '鋼獅', weapon: '機甲砲', img: ASSETS.ui.codex_lion,
     desc: '笨重的機甲，有 10 點護甲，非常耐打。射擊時會停在原地，停下與重新起步都要花上一點時間。擊敗後可以獲得 1 個零件。',
     where: '出現：戰事（第二階段強化：生命 ×1.25）' },
@@ -1618,10 +1629,10 @@ const ENEMY_CODEX = () => [
     where: '出現：戰事' },
   { id: 'sws', rank: 'normal', T: SWORDSHIELD, name: '劍盾士', weapon: '光束武器', img: ASSETS.ui.codex_sws,
     desc: '手持光束武器的敵人，身上有 40 點護盾，要先打破護盾才傷得到本體；護盾被打光 15 秒後會恢復。光束子彈飛得更快更遠，還會穿透擴編人形。距離太遠或太近時會用閃避調整位置（冷卻 5 秒）。擊敗後可以獲得 1 個零件。',
-    where: '出現：戰事' },
+    where: '出現：戰事（第三階段強化：生命 ×1.5、傷害 ×1.1）' },
   { id: 'cent', rank: 'normal', T: CENTAUR, name: '肯陶羅斯', weapon: '複合弓', img: ASSETS.ui.codex_cent,
     desc: '手持複合弓的弓箭手，會在 400 的距離停下，朝目標當下的位置往高處拋射箭矢；地上會先出現落點預警。被貼近到 100 以內就會轉身後撤，拉開距離再繼續攻擊。',
-    where: '出現：戰事' },
+    where: '出現：戰事（第三階段強化：傷害 ×1.2、迴避率 ×1.2）' },
   { id: 'ceye', rank: 'normal', T: COMPOUND_EYE, name: '複眼巨人', weapon: '機槍', img: ASSETS.ui.codex_ceye,
     desc: '手持機槍的敵人，停在中距離高速連射，5 發一個彈匣；打完要換彈 4 秒，是靠近輸出的空檔。',
     where: '出現：戰事' },
@@ -3825,13 +3836,15 @@ function update(dt) {
     }
     if (hit) bullets.splice(i, 1);
   }
+  // 零件、醫療箱：玩家或擴編人形碰到都算撿起（效果一樣歸給整個梯隊）
+  const canPick = (it) => [player, ...clones].some((u) => Math.hypot(it.x - u.x, it.y - u.y) < u.r + PARTS.pickR);
   // 零件：定時散落；靠近就撿起
   if (phase) {
     partClock += dt;
     if (partClock > (phase.partsEvery || PARTS.every) && parts.length < PARTS.maxOnField) { partClock = 0; spawnPart(); }
     for (let i = parts.length - 1; i >= 0; i--) {
       const pt = parts[i], d = Math.hypot(pt.x - player.x, pt.y - player.y);
-      if (d < player.r + PARTS.pickR) {
+      if (canPick(pt)) {
         parts.splice(i, 1); partCount++; updateParts();
         floatText(pt.x, pt.y - 20, '零件 +1', '#f9cf70'); burst(pt.x, pt.y, '#f9cf70', 8); sfx.reload();
       } else if (d > 1600) parts.splice(i, 1);
@@ -3840,14 +3853,14 @@ function update(dt) {
   // 醫療箱：定時出現；靠近就撿起回血
   if (phase && phase.medkitEvery) {
     medClock += dt;
-    if (medClock > phase.medkitEvery && medkits.length < 3) {
+    if (medClock > phase.medkitEvery && medkits.length < (phase.medkitMax || 3)) {
       medClock = 0;
       const a = rand(0, Math.PI * 2), d = rand(PARTS.minDist, PARTS.maxDist);
       medkits.push({ x: player.x + Math.cos(a) * d, y: player.y + Math.sin(a) * d, ph: rand(0, 6) });
     }
     for (let i = medkits.length - 1; i >= 0; i--) {
       const m = medkits[i], d = Math.hypot(m.x - player.x, m.y - player.y);
-      if (d < player.r + PARTS.pickR) {
+      if (canPick(m)) {
         medkits.splice(i, 1);
         if (player.hp >= player.maxHp && clones.length) {
           // 自己滿血、有擴編人形 → 所有擴編人形各補 5 生命
