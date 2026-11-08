@@ -2792,13 +2792,7 @@ function updateClones(dt) {
       c[k] = player[k];
     if (!same) {
       // 和目前操控的人形不同（例如切到副角色時的主要角色分身）：玩家開火時，用自己的武器、自己的射速一起開火
-      // 鎖敵用自己的鎖敵範圍（圓心是中間的玩家）；手機版會直接瞄準範圍內最近的敵人，電腦版跟著準星方向
-      c.target = null;
-      if (isTouch() || !mouse.seen) {
-        let best = Infinity;
-        for (const e of enemies) { const d = Math.hypot(e.x - player.x, e.y - player.y); if (d <= c.def.lockRange && d < best) { best = d; c.target = e; } }
-        if (c.target && (player.wantsFire || c.shot > 0 || !player.moving)) { c.angle = Math.atan2(c.target.y - c.y, c.target.x - c.x); c.faceLeft = Math.cos(c.angle) < 0; c.aiming = true; }
-      }
+      // 瞄準跟著目前操控的人形（往主軸偏一個角度），不會自己鎖定；子彈飛到自己的射程
       c.cool = Math.max(0, (c.cool || 0) - dt); c.shot = Math.max(0, (c.shot || 0) - dt); c.buffT = 0;
       if (player.wantsFire && c.cool <= 0) cloneShootOwn(c);
     }
@@ -2826,8 +2820,7 @@ function clonesShoot(flags) {
 function cloneShootOwn(c) {
   const D = c.def, wp = D.weapon, mid = (wp.pellets - 1) / 2, mz = muzzleWorld(c);
   const cross = Math.cos(player.angle) * (c.y - player.y) - Math.sin(player.angle) * (c.x - player.x);
-  // 有自己鎖定的目標就直接瞄準它，否則跟著玩家的瞄準線（往主軸偏一點）
-  const base = c.target && enemies.includes(c.target) ? Math.atan2(c.target.y - mz.y, c.target.x - mz.x) : player.angle - Math.sign(cross) * cloneConverge();
+  const base = player.angle - Math.sign(cross) * cloneConverge();   // 跟著玩家的瞄準線，往主軸偏一點
   for (let i = 0; i < wp.pellets; i++) {
     const a = base + (i - mid) * wp.spread + rand(-wp.jitter, wp.jitter), sp = rand(wp.speed[0], wp.speed[1]), life = bulletRange(D) / sp;
     bullets.push({ x: mz.x, y: mz.y, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp, age: 0, life, maxLife: life, r: wp.radius, team: 'p', pellet: wp.pellets > 1, dist: 0, fromClone: true, src: c, def: D,
@@ -5096,10 +5089,6 @@ function draw(t) {
       ctx.strokeStyle = 'rgba(80,255,140,0.8)'; ctx.lineWidth = 1.6; ctx.setLineDash([7, 5]); ctx.beginPath();
       for (let i = 0; i <= 72; i++) { const a = i / 72 * Math.PI * 2, q = proj(player.x + Math.cos(a) * D.lockRange, player.y + Math.sin(a) * D.lockRange); i ? ctx.lineTo(q.x, q.y) : ctx.moveTo(q.x, q.y); }
       ctx.stroke(); ctx.setLineDash([]);
-    }
-    for (const t of new Set(clones.map((c) => c.target).filter((t) => t && t !== lockedTarget && enemies.includes(t)))) {
-      ground(proj(t.x, t.y), t.x, t.y); ctx.strokeStyle = '#50ff8c'; ctx.lineWidth = 2;
-      ctx.beginPath(); ctx.arc(t.x, t.y, 11, 0, Math.PI * 2); ctx.stroke(); ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
     }
     if (lockedTarget) {
       const e = lockedTarget; ground(proj(e.x, e.y), e.x, e.y); ctx.strokeStyle = '#ff5d67'; ctx.lineWidth = 2;
