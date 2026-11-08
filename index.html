@@ -1178,7 +1178,7 @@ const BOSSES = {
     lockRange: 90,               // 圖鑑用：連斬距離
     bulletDmg: 30,               // 圖鑑用：每刀傷害
     radius: 20,
-    combo: { cuts: [{ arc: 100, r: 80 }, { arc: 120, r: 100 }, { arc: 30, r: 150 }], dmg: 30, lockBefore: 0.15 },   // 連斬：三刀各 30，間隔 0.35 秒
+    combo: { cuts: [{ arc: 100, r: 80 }, { arc: 120, r: 100 }, { arc: 30, r: 180 }], dmg: 30, lockBefore: 0.15 },   // 連斬：三刀各 30，間隔 0.35 秒
     thrust: { arc: 15, r: 200, dmg: 45, lockBefore: 0.35 },   // 突刺：蓄力後 15°、半徑 200、45 傷害
     cooldown: 2.5,               // 每輪攻擊後冷卻 2.5 秒
     special: { afterRounds: 3, aim: 2, lockLast: 0.5, maxDash: 500, arc: 150, r: 80, dmg: 30, slow: 0.5, slowTime: 5 },
@@ -2871,7 +2871,7 @@ function updateTi(e, dt, toward, dist) {
   if (e.mode === 'chase') {
     // 追擊：抽好這輪的攻擊，走進該攻擊的距離就出手
     e.atk = e.atk || (Math.random() < 0.5 ? 'combo' : 'thrust');
-    const need = e.atk === 'combo' ? 70 : 80; face(toward);   // 突刺範圍雖遠，也要貼近到 80 才出手
+    const need = e.atk === 'combo' ? 30 : 80; face(toward);   // 連斬貼近到 30、突刺貼近到 80 才出手
     if (dist > need) { e.moving = true; moveWithCover(e, Math.cos(toward) * B.speed * dt, Math.sin(toward) * B.speed * dt); }
     else { go(e.atk); e.dir = toward; e.cut = 0; }
   } else if (e.mode === 'combo') {
