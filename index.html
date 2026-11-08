@@ -350,7 +350,7 @@ body.touch #testPanel{max-height:38vh}   /* 手機：不要擋到左下的移動
         <button class="btn" type="button">更換</button>
       </div>
     </div>
-    <p class="team-note" id="teamNote" hidden>戰事可以帶兩名人形：主要角色可以擴編，副角色不能擴編，作為輔助或戰術使用。遊戲中按「切換」換人，各自的生命、彈藥、技能冷卻會分開保存。</p>
+    <p class="team-note" id="teamNote" hidden>戰事可以帶兩名人形，遊戲中按「切換」換人，各自的生命、彈藥、技能冷卻分開保存。擴編出來的永遠是主要角色，切換時也會留在場上；主要角色倒下後，之後擴編改成副角色。任何一名倒下後就不能再切換。</p>
     <div class="menu-row">
       <button id="codexBtn" class="btn" type="button">人形圖鑑</button>
       <button id="ecodexBtn" class="btn" type="button">敵人圖鑑</button>
@@ -1997,7 +1997,7 @@ function beginGame() {
   cfg = CHARACTERS[selectedId];
   score = 0; gameTime = 0; spawnClock = 0; shake = 0; hurtT = 0;
   player = makePlayer(cfg);
-  team = usesTeam() ? { ids: [selectedId, subId], states: [null, null], active: 0, mainClones: [], down: [false, false], cd: 0 } : null;
+  team = usesTeam() ? { ids: [selectedId, subId], states: [null, null], active: 0, down: [false, false], cd: 0, cloneSrc: 0 } : null;   // cloneSrc：擴編出來的是哪一位（主要角色倒下後改成副角色）
   cam = { x: 0, y: 0 }; chunks.clear(); coverCache = null; computeZoom(); stream();
   enemies = []; bullets = []; particles = []; floaters = []; grenades = []; blasts = []; runFx = []; rings = [];
   // 依關卡決定敵人數值
@@ -2022,8 +2022,9 @@ function refreshCharHud() {
 }
 /* ───────── 戰事：主要角色／副角色切換 ─────────
    切換時把目前人形的整份數據（生命、彈藥、技能冷卻、效果……）保存起來，換上另一名人形的數據；位置與朝向沿用。
-   主要角色才能擴編：換成副角色時，擴編人形先撤到後方（不會受傷），換回主要角色時再回到身邊。
-   出擊中的人形倒下時，如果另一名還活著就自動換上；兩名都倒下才結束。 */
+   擴編人形一直留在場上，不受切換影響（副角色可以用技能輔助它們）。擴編出來的永遠是主要角色；
+   主要角色倒下後，之後擴編出來的改成副角色（已經在場上的主要角色分身繼續留著）。
+   任何一名倒下 → 自動換上另一名，切換按鈕消失；兩名都倒下才結束。 */
 const SWAP_CD = 1;   // 切換冷卻（秒），避免連續切換
 const isMainActive = () => !team || team.active === 0;
 function swapChar(forced) {
@@ -2031,23 +2032,20 @@ function swapChar(forced) {
   const other = 1 - team.active;
   if (team.down[other] || (!forced && team.cd > 0)) return false;
   team.states[team.active] = player;
-  if (team.active === 0) { team.mainClones = clones; clones = []; }
   const def = CHARACTERS[team.ids[other]], np = team.states[other] || makePlayer(def);
   np.x = player.x; np.y = player.y; np.angle = player.angle; np.moveAngle = player.moveAngle; np.faceLeft = player.faceLeft;
   np.dodgeT = 0; np.trail = []; np.shot = 0; np.invT = Math.max(np.invT || 0, 0.4);   // 換人瞬間短暫無敵
   team.active = other; player = np; cfg = def; lockedTarget = null; team.cd = SWAP_CD;
-  if (other === 0) { clones = team.mainClones; team.mainClones = []; for (const c of clones) { c.x = player.x; c.y = player.y; c.invT = 0.6; } }
   burst(player.x, player.y, '#9cc6ff', 14); floatText(player.x, player.y - 56, (other === 0 ? '主要角色：' : '副角色：') + def.name, '#cfe3ff');
   refreshCharHud();
   return true;
 }
 function updateSwap() {
   const b = $('swapBtn');
-  b.hidden = !team || state !== 'play'; if (b.hidden) return;
+  b.hidden = !team || state !== 'play' || team.down[0] || team.down[1]; if (b.hidden) return;   // 有人倒下：切換按鈕消失
   const other = 1 - team.active, def = CHARACTERS[team.ids[other]];
   const im = $('swapImg'), src = previewOf(def); if (src && im.dataset.id !== def.id) { im.src = src; im.dataset.id = def.id; }
-  $('swapName').textContent = team.down[other] ? '已倒下' : '切換';
-  b.disabled = team.down[other];
+  $('swapName').textContent = '切換';
   const f = team.cd > 0 ? team.cd / SWAP_CD : 0;
   $('swapCd').style.background = f > 0 ? 'conic-gradient(rgba(4,14,20,.6) ' + (f * 360) + 'deg, transparent 0)' : 'none';
 }
@@ -2519,15 +2517,16 @@ function spawnPart() {
 function updateParts() {
   if (phase && phase.infiniteParts) partCount = 99;   // 測試模式：零件無限
   $('partsNum').textContent = phase && phase.infiniteParts ? '∞' : partCount;
-  const can = state === 'play' && phase && isMainActive() && partCount >= PARTS.cost && clones.length < CLONE.maxCount;   // 副角色不能擴編
+  const can = state === 'play' && phase && partCount >= PARTS.cost && clones.length < CLONE.maxCount;
   $('expandBtn').hidden = !can;
 }
 function expandEchelon() {
-  if (state !== 'play' || !isMainActive() || partCount < PARTS.cost || clones.length >= CLONE.maxCount) return;
+  if (state !== 'play' || partCount < PARTS.cost || clones.length >= CLONE.maxCount) return;
   partCount -= PARTS.cost;
   const slot = CLONE_SLOTS[clones.length];
-  const hp = Math.round(cfg.maxHp * CLONE.hpRatio);
-  const c = { clone: true, slot, x: player.x, y: player.y, r: cfg.radius, hp, maxHp: hp, def: cfg, angle: player.angle, moveAngle: 0,
+  const D = team ? CHARACTERS[team.ids[team.cloneSrc]] : cfg;   // 擴編的是主要角色（主要角色倒下後改成副角色），不管目前操控誰
+  const hp = Math.round(D.maxHp * CLONE.hpRatio);
+  const c = { clone: true, slot, x: player.x, y: player.y, r: D.radius, hp, maxHp: hp, def: D, cool: 0, angle: player.angle, moveAngle: 0,
     moving: false, aiming: false, shot: 0, faceLeft: player.faceLeft, invT: 0.6, dodgeT: 0, trail: [] };
   clones.push(c);
   burst(c.x, c.y, '#53dfcb', 18); floatText(player.x, player.y - 56, '擴編！', '#53dfcb'); sfx.skill();
@@ -2569,8 +2568,14 @@ function updateClones(dt) {
     const sp = player.dodgeT > 0 ? cfg.dodgeMove.distance / cfg.dodgeMove.time * 2 : cfg.speed * speedMul(player) * 1.25;
     if (d > 2) moveWithCover(c, dx / d * Math.min(d, sp * dt), dy / d * Math.min(d, sp * dt));
     if (d > 400) { c.x = tx; c.y = ty; }                 // 卡住太遠就直接歸位
-    for (const k of ['angle', 'moveAngle', 'moving', 'aiming', 'shot', 'shotMax', 'faceLeft', 'backward', 'rest', 'dodgeT', 'dodgeDir', 'buffT', 'curSpeed'])
+    const same = c.def === cfg;
+    for (const k of same ? ['angle', 'moveAngle', 'moving', 'aiming', 'shot', 'shotMax', 'faceLeft', 'backward', 'rest', 'dodgeT', 'dodgeDir', 'buffT', 'curSpeed'] : ['angle', 'moveAngle', 'moving', 'aiming', 'faceLeft', 'backward', 'rest', 'dodgeT', 'dodgeDir', 'curSpeed'])
       c[k] = player[k];
+    if (!same) {
+      // 和目前操控的人形不同（例如切到副角色時的主要角色分身）：玩家開火時，用自己的武器、自己的射速一起開火
+      c.cool = Math.max(0, (c.cool || 0) - dt); c.shot = Math.max(0, (c.shot || 0) - dt); c.buffT = 0;
+      if (player.wantsFire && c.cool <= 0) cloneShootOwn(c);
+    }
     c.invT = Math.max(c.invT - dt, player.dodgeT > 0 ? player.invT : 0);
   }
 }
@@ -2578,6 +2583,7 @@ function updateClones(dt) {
 function clonesShoot(flags) {
   const wp = cfg.weapon, mid = (wp.pellets - 1) / 2;
   for (const c of clones) {
+    if (c.def !== cfg) continue;   // 不同人形的分身自己開火（cloneShootOwn）
     const mz = muzzleWorld(c);
     // 分身在瞄準線的哪一側：往另一側（主軸方向）轉 2 度
     const cross = Math.cos(player.angle) * (c.y - player.y) - Math.sin(player.angle) * (c.x - player.x);
@@ -2590,9 +2596,21 @@ function clonesShoot(flags) {
     burst(mz.x, mz.y, '#f6cb76', 4);
   }
 }
+// 分身用自己的武器開火（和目前操控的人形不同時）；技能強化不會帶過去
+function cloneShootOwn(c) {
+  const D = c.def, wp = D.weapon, mid = (wp.pellets - 1) / 2, mz = muzzleWorld(c);
+  const cross = Math.cos(player.angle) * (c.y - player.y) - Math.sin(player.angle) * (c.x - player.x);
+  const base = player.angle - Math.sign(cross) * CLONE_CONVERGE;
+  for (let i = 0; i < wp.pellets; i++) {
+    const a = base + (i - mid) * wp.spread + rand(-wp.jitter, wp.jitter), sp = rand(wp.speed[0], wp.speed[1]), life = bulletRange(D) / sp;
+    bullets.push({ x: mz.x, y: mz.y, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp, age: 0, life, maxLife: life, r: wp.radius, team: 'p', pellet: wp.pellets > 1, dist: 0, fromClone: true, src: c, def: D,
+      buff: 1 + effSum(c, 'dmg'), res: 1 + effSum(c, 'dmg'), crit: critRate(D) + effSumFrom(c, 'crit', 'self') + effSumFrom(c, 'crit', 'other'), purple: false });
+  }
+  c.cool = wp.cooldown; c.shot = c.shotMax = wp.anim; burst(mz.x, mz.y, '#f6cb76', 4);
+}
 function damageClone(c, amount, pierce) {
   if (c.invT > 0) return;
-  const ar = cfg.armor;
+  const ar = (c.def || cfg).armor;
   const blocked = !pierce && ar.value > 0 && (amount <= ar.value ? Math.random() < ar.blockLow : Math.random() < ar.blockHigh);   // pierce：電磁傷害無視護甲
   const real = blocked ? Math.max(1, amount - ar.value) : amount;   // 格擋：傷害 − 護甲值，最低 1
   if (blocked) floatText(c.x, c.y - 34, '格擋', '#f9cf70');
@@ -3774,6 +3792,7 @@ function update(dt) {
   let target = null, best = Infinity;
   for (const e of enemies) { const d = Math.hypot(e.x - player.x, e.y - player.y); if (d <= cfg.lockRange && d < best) { best = d; target = e; } }
   const wantsFire = (mouseDown || fireHeld || keys.has('Space') || keys.has('KeyJ')) && player.dodgeT <= 0;
+  player.wantsFire = wantsFire;   // 分身（不同人形）跟著開火用
 
   // 瞄準
   if (!isTouch() && mouse.seen) {
@@ -4058,7 +4077,7 @@ function update(dt) {
     // 戰事：出擊中的人形倒下 → 另一名還活著就自動換上
     if (team && !team.down[1 - team.active]) {
       const fallen = cfg.name; team.down[team.active] = true;
-      if (team.active === 0) { for (const c of clones) burst(c.x, c.y, '#ff8f83', 10); clones = []; }   // 主要角色倒下：擴編人形一起撤退
+      if (team.active === 0) team.cloneSrc = 1;   // 主要角色倒下：之後擴編出來的改成副角色
       swapChar(true); floatText(player.x, player.y - 80, fallen + ' 倒下', '#ff8f83'); updateSwap();
     } else endGame();
   }
