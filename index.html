@@ -1020,11 +1020,11 @@ const HAMMER = { ...ENEMY,
   speed: 100, radius: 24,
   lockRange: 260,
   shift: 0.4,                // 起步／停下要 0.4 秒加減速（笨重感）
-  gun: { min: 200, charge: 0.5, cd: 2, dmg: 10, speed: 600, life: 0.8, r: 7, slow: 0.5, slowTime: 4 },   // 電磁砲：200 以外才用；每 2 秒最多一發
-  slam: { range: 50, reach: 45, r: 70, dmg: 25, recover: 0.5, cd: 0.8 },   // 重錘：距離 50 出手，落點在前方 45、半徑 70；揮完停 0.5 秒，再隔 0.8 秒才能再揮
+  gun: { min: 200, charge: 0.5, cd: 2, dmg: 10, speed: 600, life: 0.8, r: 7, slow: 0.5, slowTime: 4 },   // 電磁砲：200 以外才用；打完冷卻 2 秒
+  slam: { range: 50, reach: 45, r: 70, dmg: 25, recover: 0.5, cd: 1 },   // 重錘：距離 50 出手，落點在前方 45、半徑 70；攻擊完冷卻 1 秒（前 0.5 秒停在砸地姿勢）
   bulletDmg: 10,             // 圖鑑用
   contactDmg: 15,
-  dropParts: 1 };
+  dropParts: 3 };            // 擊殺獲得 3 個零件
 // 光束子彈：比普通子彈快 1.5 倍、射程遠 1.5 倍（飛行時間不變），不受重力影響，可以穿透擴編人形
 const BEAM = { speedMul: 1.5, rangeMul: 1.5 };
 
@@ -1813,7 +1813,7 @@ const ENEMY_CODEX = () => [
     desc: '高瘦的機甲，腹部裝著一門機砲，子彈無視護甲。身上有 50 點護盾，打光後 20 秒恢復。沒在開火時看到子彈飛來，會往上跳躍 1.5 秒躲開（冷卻 8 秒），趁它開火或換彈時攻擊最有效。擊敗後可以獲得 1 個零件。',
     where: '出現：戰事（第三階段）' },
   { id: 'hammer', rank: 'normal', T: HAMMER, name: '重錘士', weapon: '重錘、電磁槍', img: ASSETS.ui.codex_hammer,
-    desc: '笨重的機甲，護甲高達 20，起步和停下都慢半拍。目標在 200 以外時，會站定蓄力 0.5 秒發射電磁閃電球，打中會降低 50% 移動速度 4 秒。目標靠近到 200 以內，或身上有緩速效果時，就會走過去揮下重錘，砸出半徑 70 的圓形範圍傷害——地上出現紅圈時趕快離開。擊敗後可以獲得 1 個零件。',
+    desc: '笨重的機甲，護甲高達 20，起步和停下都慢半拍。目標在 200 以外時，會站定蓄力 0.5 秒發射電磁閃電球，打中會降低 50% 移動速度 4 秒。目標靠近到 200 以內，或身上有任何緩速效果（包含其他敵人造成的）時，就會走過去揮下重錘，砸出半徑 70 的圓形範圍傷害——地上出現紅圈時趕快離開。電磁砲打完冷卻 2 秒，重錘攻擊完冷卻 1 秒。擊敗後可以獲得 3 個零件。',
     where: '出現：戰事（第三階段）' },
   { id: 'aeq', rank: 'normal', T: AEQUES, name: '埃奎斯', weapon: '防空導彈發射架 ×4', img: ASSETS.ui.codex_aeq,
     desc: '兩用防空導彈戰車。展開雷達鎖定 4 秒時（頭上出現「雷達鎖定」）會移動到離目標 400～600 的位置，接著兩管輪流發射追蹤導彈。導彈離目標超過 200 會持續轉向追蹤，進入 200 以內就鎖定位置直飛，地上會標出爆炸範圍——這時候閃開就能躲掉。填裝要 14 秒，填裝時會停在原地。不會閃躲子彈，擊敗後可以獲得 3 個零件。',
@@ -1866,8 +1866,8 @@ function enemyRows(it) {
   if (T.ai === 'hammer') {
     const G = T.gun, H = T.slam;
     return [['生命', T.hp], ['護甲', T.armor || '無'], ['迴避率', pct(T.evade || 0)], ['移動速度', T.speed], ['鎖敵距離', T.lockRange],
-      ['電磁砲', G.dmg + '（電磁：無視護甲、不可迴避）'], ['電磁砲蓄力', fmt(G.charge) + ' 秒（距離 ' + G.min + ' 以外、每 ' + G.cd + ' 秒最多 1 發）'], ['命中減益', '移速 −' + pct(G.slow) + '（' + G.slowTime + ' 秒）'],
-      ['重錘', H.dmg + '（半徑 ' + H.r + '，範圍）'], ['重錘時機', '距離 ' + G.min + ' 以內或目標緩速時靠近，' + H.range + ' 出手'],
+      ['電磁砲', G.dmg + '（電磁：無視護甲、不可迴避）'], ['電磁砲蓄力', fmt(G.charge) + ' 秒（距離 ' + G.min + ' 以外，打完冷卻 ' + G.cd + ' 秒）'], ['命中減益', '移速 −' + pct(G.slow) + '（' + G.slowTime + ' 秒）'],
+      ['重錘', H.dmg + '（半徑 ' + H.r + '，範圍）'], ['重錘時機', '距離 ' + G.min + ' 以內或目標有任何緩速效果時靠近，' + H.range + ' 出手'], ['重錘冷卻', H.cd + ' 秒'],
       ['碰撞傷害', T.contactDmg], ['擊殺掉落', '零件 ×' + T.dropParts]];
   }
   if (T.ai === 'lobber') {
@@ -3433,7 +3433,8 @@ function updateLobber(e, dt, toward, dist) {
   if (dist < e.r + player.r && e.touchCd <= 0 && player.invT <= 0) { damage(T.contactDmg); e.touchCd = T.contactEvery; }
 }
 // 重錘士：遠距離站定發射電磁閃電球；近距離或目標被緩速時走過去揮重錘。起步／停下有加減速（笨重感），不會被擊退
-const isSlowed = (u) => ((u && u.effects) || []).some((x) => x.id === 'slow' || (x.spd || 0) < 0);
+// 緩速：任何讓移動速度降低的效果都算（夢想家／重錘士的雷電球、光炮干擾、Boss 的減速、XM556 鎖定時的自身減速）
+const isSlowed = (u) => (u === player && isLocked()) || ((u && u.effects) || []).some((x) => x.id === 'slow' || (x.spd || 0) < 0);
 function updateHammer(e, dt, toward, dist) {
   const T = e.T, G = T.gun, H = T.slam, m = ASSETS.hammer.meta; e.angle = toward; e.phase += dt;
   e.kvx = e.kvy = 0;   // 機甲：不會被擊退
@@ -3451,7 +3452,7 @@ function updateHammer(e, dt, toward, dist) {
         burst(mz.x, mz.y, '#7fd4ff', 12); e.fired = true;
       }
     }
-    if (e.gunT >= m.gun.dur) { e.gunT = null; e.cool = Math.max(0, G.cd - m.gun.dur); }
+    if (e.gunT >= m.gun.dur) { e.gunT = null; e.cool = G.cd; }   // 打完冷卻 2 秒
   } else if (e.slamT != null) {
     // 重錘：鎖定落點，動畫砸到地面那一刻判定
     e.slamT += dt;
@@ -3465,7 +3466,7 @@ function updateHammer(e, dt, toward, dist) {
       for (const c of clones.slice()) if (hitU(c)) { damageClone(c, H.dmg); burst(c.x, c.y, '#ff5b6b', 6); }
       for (let k = 0; k < 18; k++) { const a = k / 18 * Math.PI * 2; particles.push({ x: e.slamX + Math.cos(a) * 10, y: e.slamY + Math.sin(a) * 10, vx: Math.cos(a) * H.r * 3.2, vy: Math.sin(a) * H.r * 3.2, life: 0.3, max: 0.3, color: k % 2 ? '#d8c7a4' : '#ff8a5a' }); }
     }
-    if (e.slamT >= m.attack.dur + H.recover) { e.slamT = null; e.cool = H.cd; }
+    if (e.slamT >= m.attack.dur + H.recover) { e.slamT = null; e.cool = H.cd - H.recover; }   // 攻擊完冷卻 1 秒（含停在砸地姿勢的 0.5 秒）
   } else {
     e.faceLeft = Math.cos(toward) < 0;
     if (isSlowed(player) || dist < G.min) {
