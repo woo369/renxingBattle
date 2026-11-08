@@ -217,10 +217,22 @@ body.touch #swapBtn img{width:38px;height:32px}
 .ecodex-cat .pics{display:flex;align-items:flex-end;justify-content:center;height:72px;gap:2px}
 .ecodex-cat .pics img{height:100%;width:auto;max-width:33%;object-fit:contain}
 .ecodex-cat .pics img.shadow{filter:brightness(0);opacity:.88}
+.ecodex-cat .pics img:only-child{max-width:none}
 .ecodex-cat b{font-size:16px;letter-spacing:.08em}
 .ecodex-cat small{font-size:12px;color:var(--muted)}
 .ecodex-top{position:relative;display:flex;align-items:center;justify-content:center;min-height:28px}
 .ecodex-top .ecodex-group{margin:0}
+.ecodex-sub{margin:10px 0 0;font-size:12px;font-weight:800;letter-spacing:.12em;color:var(--muted)}
+.ecodex-sub.elite{color:var(--gold)}
+#ecodexTabs .ecodex-sub + .codex-tabs{margin-top:6px}
+.ecodex-group.f-sf,.ecodex-cat.f-sf b{color:#ff8a7a}
+.ecodex-group.f-kcco,.ecodex-cat.f-kcco b{color:#b6d97a}
+.ecodex-group.f-paradeus,.ecodex-cat.f-paradeus b{color:#d6c8ff}
+.ecodex-group.f-unknown,.ecodex-cat.f-unknown b{color:#a9b8bf}
+.ecodex-cat.f-sf{border-color:#6e3a36}
+.ecodex-cat.f-kcco{border-color:#4f6436}
+.ecodex-cat.f-paradeus{border-color:#5a4f7e}
+.ecodex-cat.f-unknown{border-color:#3a4b53}
 .ecodex-back{position:absolute;left:0;top:50%;transform:translateY(-50%);font:inherit;font-size:12px;padding:4px 10px;border-radius:8px;border:1px solid #2a5463;background:#102a35;color:var(--ink);cursor:pointer}
 .codex-tab.elite{border-color:#8a6a2e;background:#2a2412}
 .codex-tab.elite.is-on{border-color:var(--gold);box-shadow:0 0 0 2px #f9cf7055}
@@ -1894,33 +1906,48 @@ function enemyRows(it) {
     ...(T.accDown ? [['命中減益', '每發 −' + fmt(T.accDown.pct * 100) + '% 命中率（可疊加，' + T.accDown.time + ' 秒）']] : []),
     ...(T.dropParts ? [['擊殺掉落', '零件 ×' + T.dropParts]] : [])];
 }
-// 敵人圖鑑第一層：選擇「一般敵人」或「精英敵人」
+// 敵人圖鑑的陣營分類（第一層），陣營內再分一般／精英；排列照下面的順序，沒列到的歸到「未知」
 const ECODEX_RANKS = [['normal', '一般敵人'], ['elite', '精英敵人']];
+const ECODEX_FACTIONS = [
+  ['sf', '鐵血工造', ['wasp', 'beast', 'lion', 'ouroboros', 'ouroboros_elite', 'dreamer', 'judge', 'interferer', 'scarecrow', 'architect']],
+  ['kcco', '正規軍', ['cyclops', 'meye', 'ceye', 'aegis', 'cent', 'hind', 'aeq', 'lycaon']],
+  ['paradeus', '帕拉蒂斯', ['sws', 'scep', 'lcan', 'scout', 'hammer', 'ti']],
+  ['unknown', '未知', ['shadow']],
+];
+const factionOf = (id) => (ECODEX_FACTIONS.find((f) => f[2].includes(id)) || ECODEX_FACTIONS[3])[0];
+function factionItems(fid) {
+  const F = ECODEX_FACTIONS.find((f) => f[0] === fid), list = ENEMY_CODEX().filter((x) => factionOf(x.id) === fid);
+  const ord = (x) => { const k = F[2].indexOf(x.id); return k < 0 ? 999 : k; };
+  return list.sort((a, b) => ord(a) - ord(b));
+}
 function buildEnemyMenu() {
-  const list = ENEMY_CODEX(), wrap = $('ecodexTabs'); wrap.textContent = ''; $('ecodexDetail').textContent = '';
+  const wrap = $('ecodexTabs'); wrap.textContent = ''; $('ecodexDetail').textContent = '';
   const box = document.createElement('div'); box.className = 'ecodex-pick';
-  for (const [rank, label] of ECODEX_RANKS) {
-    const items = list.filter((x) => x.rank === rank), b = document.createElement('button');
-    b.type = 'button'; b.className = 'ecodex-cat ' + rank;
+  for (const [fid, label] of ECODEX_FACTIONS) {
+    const items = factionItems(fid); if (!items.length) continue;
+    const b = document.createElement('button'); b.type = 'button'; b.className = 'ecodex-cat f-' + fid;
     const pics = document.createElement('span'); pics.className = 'pics';
     for (const it of items.slice(0, 3)) { const im = new Image(); im.src = it.img; im.alt = ''; if (it.shadow) im.className = 'shadow'; pics.appendChild(im); }
     const t = document.createElement('b'); t.textContent = label;
-    const n = document.createElement('small'); n.textContent = items.length + ' 種';
+    const ne = items.filter((x) => x.rank === 'elite').length, n = document.createElement('small');
+    n.textContent = items.length + ' 種' + (ne ? '（精英 ' + ne + '）' : '');
     b.append(pics, t, n); b.addEventListener('click', () => buildEnemyCodex(items[0].id)); box.appendChild(b);
   }
   wrap.appendChild(box);
 }
-// 敵人圖鑑第二層：該分類的敵人列表＋詳細資料
+// 敵人圖鑑第二層：該陣營的敵人列表（分一般／精英）＋詳細資料
 function buildEnemyCodex(id) {
   const list = ENEMY_CODEX(), wrap = $('ecodexTabs'); wrap.textContent = '';
-  const cur = (list.find((x) => x.id === id) || list[0]).rank;
+  const fid = factionOf((list.find((x) => x.id === id) || list[0]).id), F = ECODEX_FACTIONS.find((f) => f[0] === fid), items = factionItems(fid);
   const top = document.createElement('div'); top.className = 'ecodex-top';
   const back = document.createElement('button'); back.type = 'button'; back.className = 'ecodex-back'; back.textContent = '‹ 返回分類'; back.addEventListener('click', buildEnemyMenu);
-  top.appendChild(back); wrap.appendChild(top);
-  for (const [rank, label] of ECODEX_RANKS.filter(([r]) => r === cur)) {
-    const g = document.createElement('p'); g.className = 'ecodex-group ' + rank; g.textContent = label; top.appendChild(g);
+  const g = document.createElement('p'); g.className = 'ecodex-group f-' + fid; g.textContent = F[1];
+  top.append(back, g); wrap.appendChild(top);
+  for (const [rank, label] of ECODEX_RANKS) {
+    const sub = items.filter((x) => x.rank === rank); if (!sub.length) continue;
+    const h = document.createElement('p'); h.className = 'ecodex-sub ' + rank; h.textContent = label; wrap.appendChild(h);
     const tabs = document.createElement('div'); tabs.className = 'codex-tabs';
-    for (const it of list.filter((x) => x.rank === rank)) {
+    for (const it of sub) {
       const t = document.createElement('button'); t.type = 'button'; t.className = 'codex-tab ' + rank + (it.id === id ? ' is-on' : '');
       const im = new Image(); im.src = it.img; im.alt = ''; if (it.shadow) im.className = 'shadow';
       const sp = document.createElement('span'); sp.textContent = it.name;
@@ -1935,7 +1962,7 @@ function buildEnemyCodex(id) {
   const info = document.createElement('div'); info.style.minWidth = '0';
   const h = document.createElement('p'); h.className = 'codex-name'; h.textContent = it.name;
   const rk = document.createElement('span'); rk.className = 'rank ' + it.rank; const tr = (it.B || it.T).tier, TIER = ['', '一階', '二階', '三階'];
-  rk.textContent = (it.rank === 'elite' ? '精英' : '一般') + (tr ? '｜' + TIER[tr] : ''); h.appendChild(rk);
+  rk.textContent = (ECODEX_FACTIONS.find((f) => f[0] === factionOf(it.id)) || [])[1] + '｜' + (it.rank === 'elite' ? '精英' : '一般') + (tr ? '｜' + TIER[tr] : ''); h.appendChild(rk);
   const sub = document.createElement('p'); sub.className = 'codex-sub'; sub.textContent = it.weapon;
   const ds = document.createElement('p'); ds.className = 'codex-text'; ds.textContent = it.desc;
   const dl = document.createElement('dl'); dl.className = 'stat-grid';
