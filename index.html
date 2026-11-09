@@ -3451,6 +3451,7 @@ function drawAgent(e) {
   if (S && !S.released) {
     // 蓄力中：預告衝擊波會擴散到多遠（隨吸收的傷害變大）
     const R = sp.baseR + S.absorbed * sp.perR, pulse = 0.5 + 0.5 * Math.sin(gameTime * 6);
+    ctx.setTransform(DPR, 0, 0, DPR, 0, 0);   // 圈是用螢幕座標畫的：先重設成基本變換（不然會沿用上一個物件的變換而跑掉）
     ctx.setLineDash([8, 6]); ctx.strokeStyle = 'rgba(255,110,180,' + (0.4 + 0.3 * pulse) + ')'; ctx.lineWidth = 1.8; strokePts(ringPts(e.x, e.y, R)); ctx.setLineDash([]);
     ground(q, e.x, e.y); ctx.fillStyle = 'rgba(255,120,190,' + (0.12 + 0.08 * pulse) + ')'; ctx.beginPath(); ctx.arc(e.x, e.y, 34 + 6 * pulse, 0, Math.PI * 2); ctx.fill(); ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
   }
