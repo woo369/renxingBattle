@@ -779,9 +779,9 @@ const CHARACTERS = {
       duration: 14,              // 效果 14 秒（結束後才開始冷卻）
       cooldown: 8,
       rate: 0.4,                 // 射速 +40%
-      vuln: 0.1,                 // 被標記的敵人受到的傷害 +10%
-      killDmg: 0.6, maxStacks: 3,   // 擊殺被標記的敵人：傷害 ×1.6（每層 +60%，最多 3 層 → ×2.8）
-      desc: '被動：子彈無視護盾，直接打掉敵人的血量，同時也會削掉一樣多的護盾。發動後 14 秒內：射擊速度提升 40%，並在鎖敵範圍內的敵人頭上打上灰色準星標記，被標記的敵人受到的傷害增加 10%。每擊殺 1 個被標記的敵人，自己的傷害變成 1.6 倍（最多疊 3 層：1.6 → 2.2 → 2.8 倍）。14 秒結束後，增益和所有標記一起消失，之後冷卻 8 秒。',
+      vuln: 0.1,                 // 被標記的敵人：易傷 10%（打它的暴擊率 +10%）
+      killDmg: 1.6, maxStacks: 3,   // 擊殺被標記的敵人：傷害 ×1.6，每層再乘 1.6（最多 3 層 → ×4.1）
+      desc: '被動：子彈無視護盾，直接打掉敵人的血量，同時也會削掉一樣多的護盾。發動後 14 秒內：射擊速度提升 40%，並在鎖敵範圍內的敵人頭上打上灰色準星標記，被標記的敵人有 10% 易傷（打牠時暴擊率 +10%）。每擊殺 1 個被標記的敵人，自己的傷害再乘上 1.6 倍（最多疊 3 層：1.6 → 2.56 → 4.1 倍）。14 秒結束後，增益和所有標記一起消失，之後冷卻 8 秒。',
     },
     portrait: 'portrait_de',
     assets: ASSETS.de,
@@ -2712,15 +2712,15 @@ function endDeter() {
   player.effects = (player.effects || []).filter((x) => x.id !== 'deter_rate' && x.id !== 'deter_dmg');
   player.deterStacks = 0; for (const e of enemies) e.marked = false; renderEffects(true);
 }
-// 擊殺被標記的敵人：傷害倍率疊一層（1.6 → 2.2 → 2.8 倍）
+// 擊殺被標記的敵人：傷害倍率疊一層，每層再乘 1.6（1.6 → 2.56 → 4.1 倍）
 function deterKill(e) {
   const sk = CHARACTERS.deagle.skill;
   if (!e.marked || !(player.buffT > 0) || cfg.skill.id !== 'deter') return;
   player.deterStacks = Math.min(sk.maxStacks, (player.deterStacks || 0) + 1);
-  const ex = player.effects.find((x) => x.id === 'deter_dmg'), v = sk.killDmg * player.deterStacks;
-  if (ex) { ex.dmg = v; ex.t = player.buffT; ex.mark = '傷' + player.deterStacks; ex.name = '傷害 ×' + (1 + v).toFixed(1); }
-  else addEffect(player, { id: 'deter_dmg', name: '傷害 ×' + (1 + v).toFixed(1), mark: '傷' + player.deterStacks, color: '#ffb347', dmg: v, time: player.buffT }, player);
-  floatText(player.x, player.y - 58, '傷害 ×' + (1 + v).toFixed(1), '#ffb347'); renderEffects(true);
+  const ex = player.effects.find((x) => x.id === 'deter_dmg'), v = Math.pow(sk.killDmg, player.deterStacks) - 1;   // 傷害增益記成「倍率 − 1」
+  if (ex) { ex.dmg = v; ex.t = player.buffT; ex.mark = '傷' + player.deterStacks; ex.name = '傷害 ×' + +(1 + v).toFixed(2); }
+  else addEffect(player, { id: 'deter_dmg', name: '傷害 ×' + +(1 + v).toFixed(2), mark: '傷' + player.deterStacks, color: '#ffb347', dmg: v, time: player.buffT }, player);
+  floatText(player.x, player.y - 58, '傷害 ×' + +(1 + v).toFixed(2), '#ffb347'); renderEffects(true);
 }
 function updateSkill() {
   const sk = cfg.skill;
@@ -2880,11 +2880,10 @@ const enemyEvade = (e) => Math.max(0, (e.boss ? e.B.evade : e.T.evade) - (e.debu
 // atkCrit：攻擊者這一方的暴擊率（unitCrit）；沒給就用出擊人形本人的
 function hitEnemy(e, dmg, color, small, atkCrit) {
   // 暴擊率＝自身暴擊率 ± 自身給予的暴擊增益 ± 他人給予的暴擊增益 ＋ 目標易傷（亨利的易傷、稻草人蓄力時的易傷），限制在 0～100%
-  const vuln = (e.debuffT > 0 ? e.vuln || 0 : 0) + (e.selfVuln || 0);
+  const vuln = (e.debuffT > 0 ? e.vuln || 0 : 0) + (e.selfVuln || 0) + (e.marked ? CHARACTERS.deagle.skill.vuln : 0);   // 威懾印記的標記：易傷 10%
   const crit = Math.random() < clamp((atkCrit ?? unitCrit(player)) + vuln, 0, 1);
   hitEnemy.lastCrit = crit;
   if (crit) dmg *= 2;
-  if (e.marked) dmg *= 1 + CHARACTERS.deagle.skill.vuln;   // 威懾印記：被標記的敵人受到傷害 +10%
   // 敵人護甲：格擋機率見 ENEMY_BLOCK
   const ar = e.boss ? e.B.armor : e.T.armor;
   if (ar && (dmg <= ar ? Math.random() < ENEMY_BLOCK.low : Math.random() < ENEMY_BLOCK.high)) {
