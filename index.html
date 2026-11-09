@@ -1320,7 +1320,7 @@ const BOSSES = {
     tier: 3,                     // 精英等級：三階
     ai: 'agent',                 // 使用代理人專用的行為
     weapon: '機械步槍 ×4（裙擺下）',
-    desc: '鐵血工造的高階人形，腿上掛著四挺機械步槍，從裙擺下輪流開火：每 0.25 秒換一根槍管連射兩發。每打完兩輪彈匣會展開反彈力場。',
+    desc: '鐵血工造的高階人形，腿上掛著四挺機械步槍，從裙擺下輪流開火：每 0.25 秒換一根槍管，每根開兩發（間隔 0.5 秒）。每打完兩輪彈匣會展開反彈力場。',
     specialDesc: '反彈力場：停下來蓄力 5 秒並獲得 500 護盾，蓄力期間受到的傷害全部吸收，蓄力完成後化為衝擊波釋放。衝擊波基本範圍 300、傷害 25；蓄力期間每吸收 1 點傷害，範圍 +1、傷害 +1.5。衝擊波的波前以每秒 300 向外擴散，只有波前那一圈有傷害，可以用閃避穿過去。',
     hp: 2000, armor: 0,
     evade: 0.05,
@@ -1328,7 +1328,7 @@ const BOSSES = {
     lockRange: 380,
     bulletDmg: 20,
     fireCooldown: 0.25,          // 每 0.25 秒換一根槍管
-    burst: 2, burstGap: 0.06,    // 每根槍管連射 2 發（間隔 0.06 秒）→ 每秒 8 發
+    burst: 2, burstGap: 0.5,     // 每根槍管開 2 發（兩發之間隔 0.5 秒）→ 4 根輪流，平均每秒 8 發
     magazine: 32, reload: 6,
     bulletSpeed: 330, bulletLife: 1.35,
     special: {
@@ -3392,18 +3392,24 @@ function updateAgent(e, dt, toward, dist) {
   if (dist > B.lockRange * 0.9) { moveWithCover(e, Math.cos(toward) * B.speed * dt, Math.sin(toward) * B.speed * dt); e.moving = true; }
   else e.moving = false;
   e.cool -= dt;
-  if (e.reloadT > 0) { e.reloadT -= dt; if (e.reloadT <= 0) e.ammo = B.magazine; }
-  else if (inRange && e.cool <= 0) {
-    // 四根槍管輪流：每 0.25 秒一根，連射 2 發（第 2 發在槍管裡晚 0.06 秒出發）
+  // 每根槍管的第 2 發：排程到 0.5 秒後再開（開火當下才瞄準）
+  const shoot = (bi) => {
+    const mz = spritePoint(e, m, m.muzzles[bi]), a = Math.atan2(player.y - mz.y, player.x - mz.x) + rand(-0.03, 0.03);
+    bullets.push({ x: mz.x, y: mz.y, vx: Math.cos(a) * B.bulletSpeed, vy: Math.sin(a) * B.bulletSpeed, age: 0, life: B.bulletLife, r: 5, team: 'e', dmg: B.bulletDmg, boss: true });
+    burst(mz.x, mz.y, '#ffd27a', 3); e.lastShot = gameTime; e.ammo--;
+  };
+  e.q = e.q || []; if (e.left == null) e.left = e.ammo;
+  for (let i = e.q.length - 1; i >= 0; i--) { e.q[i].t -= dt; if (e.q[i].t <= 0) { shoot(e.q[i].b); e.q.splice(i, 1); } }
+  if (e.reloadT > 0) { e.reloadT -= dt; if (e.reloadT <= 0) e.ammo = e.left = B.magazine; }
+  else if (inRange && e.cool <= 0 && e.left > 0) {
+    // 四根槍管輪流：每 0.25 秒換一根開第 1 發，同一根的第 2 發在 0.5 秒後
     e.barrel = ((e.barrel ?? -1) + 1) % 4;
-    const mz = spritePoint(e, m, m.muzzles[e.barrel]), a = Math.atan2(player.y - mz.y, player.x - mz.x) + rand(-0.03, 0.03);
-    for (let k = 0; k < B.burst; k++) {
-      const back = k * B.burstGap * B.bulletSpeed;
-      bullets.push({ x: mz.x - Math.cos(a) * back, y: mz.y - Math.sin(a) * back, vx: Math.cos(a) * B.bulletSpeed, vy: Math.sin(a) * B.bulletSpeed, age: 0, life: B.bulletLife + k * B.burstGap, r: 5, team: 'e', dmg: B.bulletDmg, boss: true });
-    }
-    burst(mz.x, mz.y, '#ffd27a', 3); e.cool = B.fireCooldown; e.lastShot = gameTime;
-    e.ammo -= B.burst;
-    if (e.ammo <= 0) {
+    shoot(e.barrel); e.left--;
+    for (let k = 1; k < B.burst && e.left > 0; k++) { e.q.push({ t: k * B.burstGap, b: e.barrel }); e.left--; }
+    e.cool = B.fireCooldown;
+  }
+  if (!(e.reloadT > 0) && e.left <= 0 && !e.q.length && e.ammo <= 0) {
+    {
       e.magsDone = (e.magsDone || 0) + 1;
       if (e.magsDone >= sp.afterMags) {
         e.magsDone = 0; e.spec = { t: 0, absorbed: 0, released: false }; e.absorbing = true; e.shield = e.shieldMax = sp.shield;
