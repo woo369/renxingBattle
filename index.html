@@ -1971,7 +1971,7 @@ function enemyRows(it) {
   if (it.B && it.B.ai === 'agent') {
     const B = it.B, S = B.special;
     return [['生命', B.hp], ['護甲', '無'], ['迴避率', pct(B.evade)], ['移動速度', B.speed], ['鎖敵距離', B.lockRange],
-      ['每發傷害', B.bulletDmg], ['射速', '每秒 ' + Math.round(B.burst / B.fireCooldown) + ' 發（4 根槍管輪流，各連射 ' + B.burst + ' 發）'], ['彈匣', B.magazine + ' 發'], ['換彈', B.reload + ' 秒'],
+      ['每發傷害', B.bulletDmg], ['射速', '每秒 ' + Math.round(B.burst / B.fireCooldown) + ' 發（4 根槍管輪流，每根 ' + B.burst + ' 發、間隔 ' + B.burstGap + ' 秒）'], ['彈匣', B.magazine + ' 發'], ['換彈', B.reload + ' 秒'],
       ['反彈力場', '每 ' + S.afterMags + ' 輪彈匣；蓄力 ' + S.charge + ' 秒、護盾 ' + S.shield], ['衝擊波', '範圍 ' + S.baseR + '、傷害 ' + S.baseDmg + '（每吸收 1 傷害：範圍 +' + S.perR + '、傷害 +' + S.perDmg + '）'], ['波前速度', '每秒 ' + S.waveSpeed + '（可閃避）']];
   }
   if (it.B && it.B.ai === 'minotaur') {
