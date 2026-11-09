@@ -3404,8 +3404,8 @@ const ENEMY_SFX_BOSS = {
   ouroboros: { b: 'ACL', m: 'MSL' }, ouroboros_elite: { b: 'ACL', m: 'MSL' }, judge: { b: 'AR' }, lycaon: { b: 'MG' }, interferer: { b: 'MG' },
   architect: { b: 'AR', m: 'CAN' }, dreamer: { b: 'RF' }, greatsword: { b: 'ACS', m: 'RKT' }, minotaur: { m: 'RKT' }, agent: { b: 'AR' },
 };
-const ENEMY_SFX_SPRITE = { wasp: { b: 'AR' }, cyc: { b: 'AR' }, ceye: { b: 'MG' }, meye: { b: 'SG' }, scout: { b: 'ACS' }, hind: { b: 'ACS' }, lion: { b: 'ACL' }, aeq: { h: 'MSL' } };
-const ENEMY_SFX_VOL = 0.45;   // 敵人槍聲整體音量（相對玩家）
+const ENEMY_SFX_SPRITE = { wasp: { b: 'AR' }, cyc: { b: 'AR' }, ceye: { b: 'MG' }, meye: { b: 'SG' }, scout: { b: 'ACS' }, hind: { b: 'ACL' }, lion: { b: 'ACL' }, aeq: { h: 'MSL' } };
+const ENEMY_SFX_VOL = 0.2;    // 敵人槍聲整體音量（相對玩家）
 function enemyShotSfx(e, nb0, nm0, nh0) {
   if (!AC || muted) return;
   const map = e.boss ? ENEMY_SFX_BOSS[e.id] : e.T === ENEMY ? (e.def && { b: e.def.weapon.class }) : ENEMY_SFX_SPRITE[e.T.sprite];
