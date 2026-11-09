@@ -3435,9 +3435,9 @@ function drawShockWaves() {
   for (const w of shockWaves) {
     const pts = ringPts(w.x, w.y, w.R), fade = 1 - 0.5 * (w.R / w.max);
     ctx.lineJoin = 'round';
-    ctx.strokeStyle = 'rgba(255,90,170,' + 0.3 * fade + ')'; ctx.lineWidth = 14; strokePts(pts);
-    ctx.strokeStyle = 'rgba(255,190,225,' + 0.95 * fade + ')'; ctx.lineWidth = 3; strokePts(pts);
-    ctx.setLineDash([5, 6]); ctx.strokeStyle = 'rgba(255,120,190,0.35)'; ctx.lineWidth = 1.2; strokePts(ringPts(w.x, w.y, w.max)); ctx.setLineDash([]);
+    ctx.strokeStyle = 'rgba(255,40,40,' + 0.35 * fade + ')'; ctx.lineWidth = 14; strokePts(pts);
+    ctx.strokeStyle = 'rgba(255,170,160,' + 0.95 * fade + ')'; ctx.lineWidth = 3; strokePts(pts);
+    ctx.setLineDash([5, 6]); ctx.strokeStyle = 'rgba(255,50,50,0.5)'; ctx.lineWidth = 1.4; strokePts(ringPts(w.x, w.y, w.max)); ctx.setLineDash([]);
   }
 }
 function drawAgent(e) {
@@ -3452,7 +3452,10 @@ function drawAgent(e) {
     // 蓄力中：預告衝擊波會擴散到多遠（隨吸收的傷害變大）
     const R = sp.baseR + S.absorbed * sp.perR, pulse = 0.5 + 0.5 * Math.sin(gameTime * 6);
     ctx.setTransform(DPR, 0, 0, DPR, 0, 0);   // 圈是用螢幕座標畫的：先重設成基本變換（不然會沿用上一個物件的變換而跑掉）
-    ctx.setLineDash([8, 6]); ctx.strokeStyle = 'rgba(255,110,180,' + (0.4 + 0.3 * pulse) + ')'; ctx.lineWidth = 1.8; strokePts(ringPts(e.x, e.y, R)); ctx.setLineDash([]);
+    // 亮紅色警示（不懂這招的玩家一看就知道危險）：外圈光暈＋粗實線
+    const rp = ringPts(e.x, e.y, R); ctx.lineJoin = 'round';
+    ctx.strokeStyle = 'rgba(255,30,30,' + (0.18 + 0.14 * pulse) + ')'; ctx.lineWidth = 10; strokePts(rp);
+    ctx.strokeStyle = 'rgba(255,45,45,' + (0.75 + 0.25 * pulse) + ')'; ctx.lineWidth = 2.6; strokePts(rp);
     ground(q, e.x, e.y); ctx.fillStyle = 'rgba(255,120,190,' + (0.12 + 0.08 * pulse) + ')'; ctx.beginPath(); ctx.arc(e.x, e.y, 34 + 6 * pulse, 0, Math.PI * 2); ctx.fill(); ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
   }
   drawBossGround(e, q, 26, 9);
