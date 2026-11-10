@@ -979,16 +979,17 @@ const CHARACTERS = {
       class: 'MG',
       magazine: 40,              // 彈鏈 40 發
       pellets: 1,
-      damage: 25,                // 每發傷害
+      damage: 50,                // 每發傷害（12.7 毫米，全遊戲口徑最大、傷害最高的機槍）
       spread: 0, jitter: 0.075,  // 散布：一般人形（0.05）的 1.5 倍；強擊模式恢復正常
       speed: [700, 760], radius: 3.4,
       cooldown: 0.2,             // 每秒 5 發
       reloadMode: 'magazine',
-      reload: 6.5,               // 換彈 6.5 秒
+      reload: 7,                 // 換彈 7 秒
       anim: 0.12,
       sound: 'rifle',
     },
     // 機槍要趴下才能開火：停下按開火 → 趴下；跑步中開火 → 先減速停下再趴下；放開開火 → 起身；趴射中移動 → 起身後加速
+    // ※ Kord 的起身是所有機槍裡最慢的：之後新增其他機槍時，upTime／upStill 都要比 Kord 短
     mg: { stopTime: 0.35, downTime: 0.45, upTime: 0.4, downStill: 0.22, upStill: 0.22, accelTime: 0.6 },   // 原地不動時趴下／起身比較快（Still）
     // 趴射的分體動畫：身體不動，雙手握住機槍的位置當轉軸，只做上下轉動（左右照常翻面）
     anim: { scale: ASSETS.kord.scale, kick: 4, recoil: 0.06, runCycle: 0.5, backCycle: 0.6, bob: 0, aimUp: 14, aimDown: 14 },
@@ -2477,6 +2478,7 @@ const TIPS = [
   ['xm556', 'XM556 不會因為別人說自己是矮子就生氣。'],
   ['kord', '機槍人形要趴下才能開火：停下開火會直接趴下，跑步中開火會先減速停下再趴下；放開開火就會起身。'],
   ['kord', '機槍人形趴射時直接移動，會先起身、再慢慢加速，記得提早停下來架槍。'],
+  ['kord', 'Kord 的射擊死角非常多，請謹慎操作。'],
 ];
 let tipTimer = null, tipLast = -1;
 function showTip() {
@@ -3306,7 +3308,7 @@ function expandEchelon() {
   partCount -= PARTS.cost;
   const slot = CLONE_SLOTS[clones.length];
   const D = team ? CHARACTERS[team.ids[team.cloneSrc]] : cfg;   // 擴編的是主要角色（主要角色倒下後改成副角色），不管目前操控誰
-  const hp = Math.round(D.maxHp * CLONE.hpRatio);
+  const hp = D.weapon.class === 'MG' ? D.maxHp : Math.round(D.maxHp * CLONE.hpRatio);   // 機槍趴射機動性差：擴編人形是唯一保有 100% 血量的槍種
   const c = { clone: true, slot, x: player.x, y: player.y, r: D.radius, hp, maxHp: hp, def: D, cool: 0, angle: player.angle, moveAngle: 0,
     moving: false, aiming: false, shot: 0, faceLeft: player.faceLeft, invT: 0.6, dodgeT: 0, trail: [] };
   clones.push(c);
