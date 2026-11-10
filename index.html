@@ -674,10 +674,10 @@ const CHARACTERS = {
       id: 'aegisShield',
       name: '埃癸斯之盾',
       icon: 'skill_aegisShield',
-      shieldEvery: 10, shieldAmount: 30, shieldRadius: 200, needClones: 2,   // 被動：擴編人形 ≥ 2 時，每 10 秒給半徑 200 內的友方 30 點護盾
+      shieldEvery: 10, shieldAmount: 30, shieldRadius: 300, needClones: 2,   // 被動：擴編人形（加總）≥ 2 時，每 10 秒給半徑 300 內的友方 30 點護盾
       atkDown: 0.5, atkDownTime: 6, waveSpeed: 700,                          // 主動：鎖敵範圍內的敵人攻擊 −50%，持續 6 秒
       cooldown: 8,
-      desc: '被動：場上有 2 個以上的擴編人形時，每 10 秒給予自己周圍半徑 200 內的友方（含自己）30 點護盾（護盾上限照一般規則：最大生命的 2 倍）。主動：放出灰色衝擊波，讓自己鎖敵範圍（270）內的敵人攻擊力減少 50%，持續 6 秒。冷卻 8 秒。',
+      desc: '被動：擴編人形加起來有 2 個以上時開始計時（不滿 2 個就歸零），每 10 秒給予周圍半徑 300 內的所有友方（含自己、擴編人形）30 點護盾（護盾上限照一般規則：最大生命的 2 倍）。SP9 在隊伍裡當副人形時也有效。主動：放出灰色衝擊波，讓自己鎖敵範圍（270）內的敵人攻擊力減少 50%，持續 6 秒。冷卻 8 秒。',
     },
     portrait: 'portrait_sp9',
     assets: ASSETS.sp9,
@@ -2453,7 +2453,7 @@ function beginGame() {
   $('hudScore').hidden = testing;
   if (testing) $('phaseBlock').hidden = true;   // 測試模式不顯示分數與模式
   boss = null; bossSpawned = false;
-  jamWaves = []; homers = []; parts = []; partCount = (phase && phase.startParts) || 0; partClock = 0; clones = []; missiles = []; medkits = []; medClock = 0; shockWaves = [];
+  jamWaves = []; homers = []; parts = []; partCount = (phase && phase.startParts) || 0; partClock = 0; clones = []; missiles = []; aegisT = 0; medkits = []; medClock = 0; shockWaves = [];
   $('partsBlock').hidden = !phase; updateParts();
   if (phase && !phase.startParts) for (let i = 0; i < PARTS.initial; i++) spawnPart(); $('bossBar').hidden = true; $('phaseName').textContent = phase ? phase.name : '';
   for (let i = 0; i < (phase ? phase.initial : ENEMY.initial); i++) addEnemy();
@@ -2807,7 +2807,10 @@ function useSkill() {
   sfx.skill(); updateSkill();
 }
 let drawLater = [];
-let atkMulNow = 1;   // 目前正在更新的敵人的攻擊倍率（埃癸斯之盾）
+let atkMulNow = 1;
+let aegisT = 0;      // 埃癸斯之盾（被動）的計時
+let aiAllies = [];   // 之後的 AI 隊友放這裡（會算進「友方」）
+const friendlyUnits = () => [player, ...clones, ...aiAllies];   // 目前正在更新的敵人的攻擊倍率（埃癸斯之盾）
 // 被標記的敵人頭上的灰色準星（畫在所有人物之上，不會被擋住）
 function drawDeterMark(e) {
   const q = proj(e.x, e.y), h = (e.boss ? 120 : e.r * 2.2 + 46) * q.k, x = q.x, y = q.y - h, r = 8 * q.k + 2, t = gameTime * 2;
@@ -4970,27 +4973,30 @@ function update(dt) {
       renderEffects(true);
     } else if ((player.analysis || 0) >= sk.analysisMax) player.analysisT = 0;
   }
-  // 埃癸斯之盾（被動）：擴編人形 ≥ 2 時計時，每 10 秒給半徑 200 內的友方（含自己）30 點護盾
-  if (cfg.skill && cfg.skill.id === 'aegisShield') {
-    const sk = cfg.skill;
+  // 埃癸斯之盾（被動）：SP9 在場上或在隊伍裡（沒倒下）時都有效。
+  // 擴編人形（不分是誰的分身）加起來 ≥ 2 才計時，不滿 2 就歸零；每 10 秒給半徑 300 內的所有友方 30 點護盾
+  const aegisOn = cfg.id === 'sp9' || (team && team.ids.includes('sp9') && !team.down[team.ids.indexOf('sp9')]);
+  if (aegisOn) {
+    const sk = CHARACTERS.sp9.skill;
     if (clones.length >= sk.needClones) {
-      player.aegisT = (player.aegisT || 0) + dt;
-      if (player.aegisT >= sk.shieldEvery) {
-        player.aegisT = 0;
-        addShield(sk.shieldAmount);
-        for (const c of clones) if (Math.hypot(c.x - player.x, c.y - player.y) <= sk.shieldRadius) {
-          c.shield = Math.min((c.shield || 0) + sk.shieldAmount, c.maxHp * 2);
-          burst(c.x, c.y, '#9cc6ff', 8); floatText(c.x, c.y - 52, '護盾 +' + sk.shieldAmount, '#9cc6ff');
+      aegisT += dt;
+      if (aegisT >= sk.shieldEvery) {
+        aegisT = 0;
+        for (const u of friendlyUnits()) {
+          if (Math.hypot(u.x - player.x, u.y - player.y) > sk.shieldRadius) continue;
+          if (u === player) { addShield(sk.shieldAmount); continue; }
+          u.shield = Math.min((u.shield || 0) + sk.shieldAmount, u.maxHp * 2);   // 上限同一般規則：最大生命 ×2
+          burst(u.x, u.y, '#9cc6ff', 8); floatText(u.x, u.y - 52, '護盾 +' + sk.shieldAmount, '#9cc6ff');
         }
         rings.push({ x: player.x, y: player.y, r: sk.shieldRadius, life: 0.7, max: 0.7, color: '#9cc6ff' });
       }
-    }
+    } else aegisT = 0;
     let ex = player.effects.find((x) => x.id === 'aegis_p');
     if (clones.length >= sk.needClones) {
       if (!ex) { ex = { id: 'aegis_p', name: '埃癸斯之盾（被動）', mark: '盾', color: '#9cc6ff', t: 0, max: sk.shieldEvery, from: 'self' }; player.effects.push(ex); renderEffects(true); }
-      ex.t = Math.max(0.05, sk.shieldEvery - (player.aegisT || 0)); ex.max = sk.shieldEvery;   // 效果列：距離下一次護盾的秒數
+      ex.t = Math.max(0.05, sk.shieldEvery - aegisT); ex.max = sk.shieldEvery;   // 效果列：距離下一次護盾的秒數
     } else if (ex) { player.effects = player.effects.filter((x) => x !== ex); renderEffects(true); }
-  }
+  } else aegisT = 0;
   // 蜂鳥共鳴（被動）：每 4 秒獲得 1 隻蜂鳥，最多 3 隻
   if (cfg.skill && cfg.skill.id === 'resonance') {
     const sk = cfg.skill;
