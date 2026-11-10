@@ -813,9 +813,9 @@ const CHARACTERS = {
       id: 'waltz',
       name: '裏表華爾茲',
       icon: 'skill_waltz',
-      split: [{ at: 1.4, n: 3, pct: 0.45 }, { at: 1.2, n: 2, pct: 0.6 }],   // 被動：射速 ≥140% → 3 段 45%；≥120% → 2 段 60%
+      split: [{ at: 0.4, n: 3, pct: 0.45 }, { at: 0.2, n: 2, pct: 0.6 }],   // 被動：射速提升 ≥40%（含）→ 3 段 45%；≥20%（含）→ 2 段 60%
       rate: 0.4, duration: 6, cooldown: 10,                                // 主動：射速提升到 140%，6 秒；效果結束後冷卻 10 秒
-      desc: '被動（普攻分段計算）：自身射速達到原本的 120% 時，每發子彈拆成 2 段、每段 60% 的普攻傷害；達到 140% 時拆成 3 段、每段 45%。每一段各自判定迴避、暴擊、護甲與傷害增減益。主動：自身（含自己的擴編人形）射速提升到 140%，持續 6 秒；效果結束後冷卻 10 秒。',
+      desc: '被動（普攻分段計算）：自身射速提升 20% 以上（含 20%）時，每發子彈拆成 2 段、每段 60% 的普攻傷害；提升 40% 以上（含 40%）時拆成 3 段、每段 45%。射速提升的來源不限（自己的技能、蜂鳥共鳴等都算）。每一段各自判定迴避、暴擊、護甲與傷害增減益。主動：自身（含自己的擴編人形）射速提升到 140%，持續 6 秒；效果結束後冷卻 10 秒。',
     },
     portrait: 'portrait_m110',
     assets: ASSETS.m110,
@@ -3148,8 +3148,8 @@ const enemyEvade = (e) => Math.max(0, (e.boss ? e.B.evade : e.T.evade) - (e.debu
    各自判定迴避（含命中加成）、暴擊（含易傷）、護甲格擋，也各自吃子彈上的傷害增減益。回傳是否至少命中一段 */
 function splitFor(D, u) {
   const sk = D.skill; if (!sk || !sk.split) return null;
-  const rm = 1 + effSum(u, 'rate') + ownShare(u, 'rate');   // 射速倍率（原始 = 1）
-  for (const s of sk.split) if (rm >= s.at - 1e-6) return { n: s.n, pct: s.pct };
+  const up = effSum(u, 'rate') + ownShare(u, 'rate');   // 射速提升量（自身技能、蜂鳥共鳴等全部加總）
+  for (const s of sk.split) if (up >= s.at - 1e-6) return { n: s.n, pct: s.pct };   // 含門檻值本身
   return null;
 }
 function segmentedHit(e, b, D) {
@@ -3294,14 +3294,15 @@ function clonesShoot(flags) {
 // 分身用自己的武器開火（和目前操控的人形不同時）；技能強化不會帶過去
 function cloneShootOwn(c) {
   const D = c.def, wp = D.weapon, mid = (wp.pellets - 1) / 2, mz = muzzleWorld(c);
+  const segs = splitFor(D, c);   // 裏表華爾茲：擴編人形身上的射速加成（例如蜂鳥共鳴）也會觸發分段
   const cross = Math.cos(player.angle) * (c.y - player.y) - Math.sin(player.angle) * (c.x - player.x);
   const base = player.angle - Math.sign(cross) * cloneConverge();   // 跟著玩家的瞄準線，往主軸偏一點
   for (let i = 0; i < wp.pellets; i++) {
     const a = base + (i - mid) * wp.spread + rand(-wp.jitter, wp.jitter), sp = rand(wp.speed[0], wp.speed[1]), life = bulletRange(D) / sp;
     bullets.push({ x: mz.x, y: mz.y, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp, age: 0, life, maxLife: life, r: wp.radius, team: 'p', pellet: wp.pellets > 1, dist: 0, fromClone: true, src: c, def: D,
-      buff: 1 + effSum(c, 'dmg'), res: 1 + effSum(c, 'dmg'), crit: critRate(D) + effSumFrom(c, 'crit', 'self') + effSumFrom(c, 'crit', 'other'), purple: false });
+      buff: 1 + effSum(c, 'dmg'), res: 1 + effSum(c, 'dmg'), crit: critRate(D) + effSumFrom(c, 'crit', 'self') + effSumFrom(c, 'crit', 'other'), purple: false, segs });
   }
-  c.cool = wp.cooldown; c.shot = c.shotMax = wp.anim; burst(mz.x, mz.y, '#f6cb76', 4);
+  c.cool = wp.cooldown / (1 + effSum(c, 'rate'));   // 射速加成（蜂鳥共鳴等） c.shot = c.shotMax = wp.anim; burst(mz.x, mz.y, '#f6cb76', 4);
 }
 function damageClone(c, amount, pierce) {
   if (c.invT > 0) return;
@@ -5076,12 +5077,12 @@ function killEnemy(e) {
     burst(e.x, e.y, '#ff6b6b', 40); burst(e.x, e.y, '#f9cf70', 30); floatText(e.x, e.y - 60, '擊敗 ' + e.B.name + '！ +2000', '#f9cf70'); sfx.boom(); shake = 10;
     for (const d of enemies.filter((x) => x.owner === e)) { burst(d.x, d.y, '#ffb36b', 10); enemies.splice(enemies.indexOf(d), 1); }
     const rw = phase && phase.bossReward;
-    if (rw && rw.parts) { partCount += rw.parts; updateParts(); floatText(player.x, player.y - 78, '零件 +' + rw.parts, '#f9cf70'); }
+    if (rw && rw.parts) { partCount += rw.parts; updateParts(); }   // 擊殺獎勵的零件：不顯示文字
     if (!(phase && phase.test)) setTimeout(nextPhase, 1500);
     return;
   }
   const pts = e.T?.ai === 'drone' ? 50 : 100;
-  if (e.T?.dropParts && phase && !phase.infiniteParts) { partCount += e.T.dropParts; updateParts(); floatText(e.x, e.y - 48, '零件 +' + e.T.dropParts, '#f9cf70'); }
+  if (e.T?.dropParts && phase && !phase.infiniteParts) { partCount += e.T.dropParts; updateParts(); }   // 擊殺掉零件：不顯示文字
   enemies.splice(i, 1); score += pts;
   $('score').textContent = score;
   burst(e.x, e.y, '#ff8f83', 15); floatText(e.x, e.y - 30, '+' + pts, '#f9cf70'); sfx.kill();
@@ -5431,7 +5432,7 @@ function update(dt) {
           // 傷害順序：原始傷害 → 自身技能加成（裂傷紀錄／榮光延續）→ 其他人給的增益（蜂鳥共鳴）→ hitEnemy 判定暴擊 → 護甲
           const D = b.def || cfg, base = D.weapon.damage * (b.purple ? D.skill.purpleMult : 1) * (b.buff || 1);   // 用發射時的人形數值（中途切換角色也不會變）
           hitEnemy.pierceShield = D.skill && D.skill.id === 'deter';   // 沙漠之鷹的子彈無視護盾
-          const dmg = hitEnemy(e, base, b.purple ? '#c48bff' : b.buff > 1 ? '#ffb347' : null, false, b.crit);
+          const dmg = hitEnemy(e, base, b.purple ? '#c48bff' : b.buff > 1 ? '#ffb347' : (b.fromClone && b.def !== cfg) ? '#e3e8ea' : null, false, b.crit);   // 副人形操控中：主人形擴編的傷害也顯示
           hitEnemy.pierceShield = false;
           if (hitEnemy.lastCrit && (!b.fromClone || (b.src && b.src.def === cfg)) && isLocked()) addLockStack();   // 堅盾鎖敵：本人打出暴擊 → 傷害疊加
           hit = true; burst(b.x, b.y, b.purple ? '#b06bff' : '#ff8f83', b.purple ? 7 : 4); sfx.hit();
