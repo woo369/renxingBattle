@@ -1006,9 +1006,10 @@ const CHARACTERS = {
       cooldown: 3,
       modes: {
         pierce: { id: 'hp_pierce', name: '貫穿：子彈穿甲（傷害 −30%、射速 −20%）', mark: '穿', color: '#ff9a5c', dmg: -0.3, rate: -0.2, ap: true },
-        strike: { id: 'hp_strike', name: '強擊：精準度恢復＋傷害 10%', mark: '強', color: '#ffd34d', dmg: 0.1, jitterMul: 1 / 1.5 },
+        // 強擊的精準度：Kord 原始散布是一般人形（0.05）的 1.5 倍＝0.075，強擊時乘 1/1.5 恢復到 0.05（圖鑑只寫「精準度提升」）
+        strike: { id: 'hp_strike', name: '強擊：精準度提升＋傷害 10%', mark: '強', color: '#ffd34d', dmg: 0.1, jitterMul: 1 / 1.5 },
       },
-      desc: '點擊技能在兩種攻擊效果之間切換，冷卻 3 秒。貫穿（初始）：子彈穿透護甲（不會被格擋），自身傷害降低 30%、射速降低 20%。強擊：精準度恢復到一般人形的水準（Kord 原本的散布是一般人形的 1.5 倍），自身傷害提升 10%。',
+      desc: '點擊技能在兩種攻擊效果之間切換，冷卻 3 秒。貫穿（初始）：子彈穿透護甲（不會被格擋），自身傷害降低 30%、射速降低 20%。強擊：精準度提升，自身傷害提升 10%。',
     },
     portrait: 'portrait_kord',
     assets: ASSETS.kord,
@@ -2479,6 +2480,7 @@ const TIPS = [
   ['kord', '機槍人形要趴下才能開火：停下開火會直接趴下，跑步中開火會先減速停下再趴下；放開開火就會起身。'],
   ['kord', '機槍人形趴射時直接移動，會先起身、再慢慢加速，記得提早停下來架槍。'],
   ['kord', 'Kord 的射擊死角非常多，請謹慎操作。'],
+  [null, '人形是有射擊死角的，通常是正上方和正下方。'],
 ];
 let tipTimer = null, tipLast = -1;
 function showTip() {
