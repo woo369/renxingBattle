@@ -337,7 +337,7 @@ body.touch #testPanel{max-height:38vh}   /* 手機：不要擋到左下的移動
   </div>
 </div>
 
-<button id="expandBtn" type="button" hidden>擴編<small>消耗 10 零件</small></button>
+<button id="expandBtn" type="button" hidden title="擴編（E）">擴編<small>消耗 10 零件</small><small class="only-mouse">E</small></button>
 <button id="swapBtn" type="button" hidden aria-label="切換角色" title="切換角色（F）"><img id="swapImg" alt=""><span id="swapName"></span><small class="only-mouse">F</small><span class="swap-cd" id="swapCd"></span></button>
 
 <div id="bossBar" hidden><div id="bossHead"><b id="bossName">Boss</b><span id="bossHpNum"></span></div><div id="bossTrack"><div id="bossHpFill"></div><div id="bossShFill" hidden></div></div></div>
@@ -377,7 +377,7 @@ body.touch #testPanel{max-height:38vh}   /* 手機：不要擋到左下的移動
       <button id="ecodexBtn" class="btn" type="button">敵人圖鑑</button>
     </div>
     <button id="startBtn" class="btn primary" type="button" disabled>載入中…</button>
-    <p class="help only-mouse">WASD／方向鍵移動 · 滑鼠瞄準 · 左鍵或空白鍵開火 · Shift 或右鍵閃避 · Q 技能 · R 裝彈 · 滾輪縮放 · P／Esc 暫停</p>
+    <p class="help only-mouse">WASD／方向鍵移動 · 滑鼠瞄準 · 左鍵或空白鍵開火 · Shift 或右鍵閃避 · Q 技能 · E 擴編 · R 裝彈 · 滾輪縮放 · P／Esc 暫停</p>
     <p class="help only-touch">左半邊螢幕拖曳移動 · 右下角開火、裝彈、閃避、技能 · 範圍內自動鎖定最近的敵人</p>
     <div class="load-tip" id="startTip" hidden></div>
     <p class="best" id="bestLine"></p>
@@ -1007,7 +1007,7 @@ const CHARACTERS = {
         pierce: { id: 'hp_pierce', name: '貫穿：子彈穿甲（傷害 −30%、射速 −20%）', mark: '穿', color: '#ff9a5c', dmg: -0.3, rate: -0.2, ap: true },
         strike: { id: 'hp_strike', name: '強擊：精準度恢復＋傷害 10%', mark: '強', color: '#ffd34d', dmg: 0.1, jitterMul: 1 / 1.5 },
       },
-      desc: '點擊技能在兩種攻擊效果之間切換，冷卻 3 秒。貫穿（初始）：子彈穿透護甲（不會被格擋），自身傷害降低 30%、射速降低 20%。強擊：精準度恢復到一般人形的水準（Kord 原本的散布是一般人形的 1.5 倍），自身傷害提升 10%。機槍要趴下才能開火：停下開火會趴下，跑步中開火會先減速停下再趴下；停止開火會起身，趴射中直接移動會先起身、再慢慢加速。',
+      desc: '點擊技能在兩種攻擊效果之間切換，冷卻 3 秒。貫穿（初始）：子彈穿透護甲（不會被格擋），自身傷害降低 30%、射速降低 20%。強擊：精準度恢復到一般人形的水準（Kord 原本的散布是一般人形的 1.5 倍），自身傷害提升 10%。',
     },
     portrait: 'portrait_kord',
     assets: ASSETS.kord,
@@ -2475,6 +2475,8 @@ const TIPS = [
   ['type82', '82式的輸出來源是她的蘋果手榴彈，請善用技能。'],
   ['xm556', '請善待 XM556，她有很高的自尊心。'],
   ['xm556', 'XM556 不會因為別人說自己是矮子就生氣。'],
+  ['kord', '機槍人形要趴下才能開火：停下開火會直接趴下，跑步中開火會先減速停下再趴下；放開開火就會起身。'],
+  ['kord', '機槍人形趴射時直接移動，會先起身、再慢慢加速，記得提早停下來架槍。'],
 ];
 let tipTimer = null, tipLast = -1;
 function showTip() {
@@ -2675,7 +2677,8 @@ window.addEventListener('keydown', (e) => {
   if (state === 'play' && ['Space', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.code)) e.preventDefault();
   if (e.repeat) { keys.add(e.code); return; }
   if (e.code === 'KeyR' && state === 'play') reload();
-  if ((e.code === 'KeyQ' || e.code === 'KeyE') && state === 'play') useSkill();
+  if (e.code === 'KeyQ' && state === 'play') useSkill();
+  if (e.code === 'KeyE' && state === 'play' && !$('expandBtn').hidden) expandEchelon();   // 擴編（電腦版）
   if (e.code === 'KeyF' && state === 'play') swapChar(false);   // 切換主／副角色
   if ((e.code === 'ShiftLeft' || e.code === 'ShiftRight' || e.code === 'KeyK') && state === 'play') startDodge();
   if ((e.code === 'KeyP' || e.code === 'Escape')) { state === 'play' ? pauseGame() : resumeGame(); }
