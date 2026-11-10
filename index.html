@@ -3037,8 +3037,8 @@ function mgUpdate(dt, moveIn, fire) {
     if (p.mgSpd > 0 && moveIn) { p.mgSpd = Math.max(0, p.mgSpd - dt / M.stopTime); p.mgRan = true; }   // 跑步中：先減速到停下
     else { p.mgSpd = 0; p.prone = Math.min(1, p.prone + dt / (p.mgRan ? M.downTime : M.downStill)); }   // 再趴下（原地不動時比較快）
   } else if (p.prone > 0) { p.prone = Math.max(0, p.prone - dt / (moveIn ? M.upTime : M.upStill)); p.mgSpd = 0; }   // 起身中不能動（只是放開開火、沒有要走時比較快）
-  if (p.prone <= 0 && !wantDown) p.mgRan = false;
   else if (moveIn) p.mgSpd = Math.min(1, p.mgSpd + dt / M.accelTime);                 // 起身後慢慢加速
+  if (p.prone <= 0 && !wantDown) p.mgRan = false;
 }
 // 被埃癸斯之盾削弱的敵人：頭上一個灰色的盾牌＋向下箭頭
 function drawAtkDownMark(e) {
