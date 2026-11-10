@@ -989,7 +989,7 @@ const CHARACTERS = {
       sound: 'rifle',
     },
     // 機槍要趴下才能開火：停下按開火 → 趴下；跑步中開火 → 先減速停下再趴下；放開開火 → 起身；趴射中移動 → 起身後加速
-    mg: { stopTime: 0.35, downTime: 0.45, upTime: 0.4, accelTime: 0.6 },
+    mg: { stopTime: 0.35, downTime: 0.45, upTime: 0.4, downStill: 0.22, upStill: 0.22, accelTime: 0.6 },   // 原地不動時趴下／起身比較快（Still）
     // 趴射的分體動畫：身體不動，雙手握住機槍的位置當轉軸，只做上下轉動（左右照常翻面）
     anim: { scale: ASSETS.kord.scale, kick: 4, recoil: 0.06, runCycle: 0.5, backCycle: 0.6, bob: 0, aimUp: 14, aimDown: 14 },
     frames: {
@@ -3034,9 +3034,10 @@ function mgUpdate(dt, moveIn, fire) {
   // 開火比移動晚按 → 停下趴射；移動比開火晚按 → 起身移動
   const wantDown = fire && !(moveIn && (p.mgMoveAt || 0) > (p.mgFireAt || 0));
   if (wantDown) {
-    if (p.mgSpd > 0 && moveIn) p.mgSpd = Math.max(0, p.mgSpd - dt / M.stopTime);   // 跑步中：先減速到停下
-    else { p.mgSpd = 0; p.prone = Math.min(1, p.prone + dt / M.downTime); }          // 再趴下
-  } else if (p.prone > 0) { p.prone = Math.max(0, p.prone - dt / M.upTime); p.mgSpd = 0; }   // 起身中不能動
+    if (p.mgSpd > 0 && moveIn) { p.mgSpd = Math.max(0, p.mgSpd - dt / M.stopTime); p.mgRan = true; }   // 跑步中：先減速到停下
+    else { p.mgSpd = 0; p.prone = Math.min(1, p.prone + dt / (p.mgRan ? M.downTime : M.downStill)); }   // 再趴下（原地不動時比較快）
+  } else if (p.prone > 0) { p.prone = Math.max(0, p.prone - dt / (moveIn ? M.upTime : M.upStill)); p.mgSpd = 0; }   // 起身中不能動（只是放開開火、沒有要走時比較快）
+  if (p.prone <= 0 && !wantDown) p.mgRan = false;
   else if (moveIn) p.mgSpd = Math.min(1, p.mgSpd + dt / M.accelTime);                 // 起身後慢慢加速
 }
 // 被埃癸斯之盾削弱的敵人：頭上一個灰色的盾牌＋向下箭頭
@@ -3347,7 +3348,7 @@ function updateClones(dt) {
     if (d > 400) { c.x = tx; c.y = ty; }                 // 卡住太遠就直接歸位
     const same = c.def === cfg;
     if (same) c.prone = player.prone || 0;
-    else if (c.def.mg) c.prone = clamp((c.prone || 0) + (player.wantsFire && !player.moving ? dt / c.def.mg.downTime : -dt / c.def.mg.upTime), 0, 1);   // 機槍分身：跟著開火趴下
+    else if (c.def.mg) c.prone = clamp((c.prone || 0) + (player.wantsFire && !player.moving ? dt / c.def.mg.downStill : -dt / c.def.mg.upStill), 0, 1);   // 機槍分身：跟著開火趴下
     else c.prone = 0;
     for (const k of same ? ['angle', 'moveAngle', 'moving', 'aiming', 'shot', 'shotMax', 'faceLeft', 'backward', 'rest', 'dodgeT', 'dodgeDir', 'buffT', 'curSpeed'] : ['angle', 'moveAngle', 'moving', 'aiming', 'faceLeft', 'backward', 'rest', 'dodgeT', 'dodgeDir', 'curSpeed'])
       c[k] = player[k];
