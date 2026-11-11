@@ -1463,7 +1463,7 @@ const MAPGEN = (() => {
   // 能不能放東西：離路、佔領點、基地、地圖邊緣都要有距離；也不能跟已經放的東西重疊
   const free = (x, y, r, laneGap = 260) => Math.abs(x) < H - r - 300 && Math.abs(y) < H - r - 300 && laneDist(x, y) > r + laneGap
     && points.every((p) => Math.hypot(x - p.x, y - p.y) > r + CAPTURE.r + 350) && bases.every((b) => Math.hypot(x - b.x, y - b.y) > r + 1500)
-    && solids.every((o) => o.kind === 'house' ? (Math.abs(x - o.x) > o.w / 2 + r + 60 || Math.abs(y - o.y) > o.h / 2 + r + 60) : Math.hypot(x - o.x, y - o.y) > r + o.r + 80)
+    && solids.every((o) => o.w ? (Math.abs(x - o.x) > o.w / 2 + r + 60 || Math.abs(y - o.y) > o.h / 2 + r + 60) : Math.hypot(x - o.x, y - o.y) > r + o.r + 80)
     && forests.every((f) => Math.hypot(x - f.x, y - f.y) > r + f.r + 60) && !inIsland(x, y, r);
   const twin = (fn) => { fn(1); fn(-1); };
   // 河道：C 點外圍一條 U 型河，開口朝下方的地圖邊緣 → C 點變成一座島；路經過河的地方自動變成橋（左右各一座）
@@ -1485,9 +1485,11 @@ const MAPGEN = (() => {
       let ux = Math.cos(ang), uy = Math.sin(ang); if ((C.x - b.x) * ux + (C.y - b.y) * uy < 0) { ux = -ux; uy = -uy; }
       const vx = -uy, vy = ux, at = (u, v) => [b.x + ux * u + vx * v, b.y + uy * u + vy * v];
       // 每塊岩石＝後面高的「全磚」（擋子彈，可以躲）＋朝橋那側低的「半磚」岩台（擋人不擋子彈，趴在後面可以架槍射擊）
-      for (const [u, v, r, lu, lv, lr] of [[510, -300, 88, 450, -250, 64], [510, 300, 88, 450, 250, 64], [830, -170, 76, 775, -125, 56]]) {
-        const sd = rnd(), [x, y] = at(u, v), [lx, ly] = at(lu, lv);
-        solids.push({ kind: 'rock', x, y, r, seed: sd }, { kind: 'lowrock', x: lx, y: ly, r: lr, seed: sd });
+      // 每座橋的島內橋口左右各一塊岩石：一塊岩石＝高的全磚（寬約 55%）＋往路那側伸出的低岩台半磚（約 45%）
+      const [bx0, by0] = at(0, 0), [lx0] = at(480, 0);
+      for (const v of [-310, 310]) {
+        const [cx, cy] = at(480, v), W = 300, side = cx > lx0 ? 1 : -1;   // side：全磚在哪一側（半磚朝向路）
+        solids.push({ kind: 'rock', x: cx + side * W * 0.225, y: cy, r: W * 0.275, cx, cy, W, side, seed: rnd() }, { kind: 'lowrock', x: cx - side * W * 0.275, y: cy, r: W * 0.225 });
       }
     };
     for (const p of all) {
@@ -1495,6 +1497,16 @@ const MAPGEN = (() => {
       flush(); const o = { kind: 'river', x: p[0], y: p[1], r: RW }; rivers.push(o); solids.push(o);
     }
     flush();
+    // C 點外圍的營地：帳篷、彈藥箱、汽油桶（不放進佔領圈、不擋路）
+    const hit = (x, y, r) => solids.some((o) => o.w ? Math.abs(x - o.x) < o.w / 2 + r + 30 && Math.abs(y - o.y) < o.h / 2 + r + 30 : Math.hypot(x - o.x, y - o.y) < o.r + r + 30);
+    const campOK = (x, y, r) => {
+      const dx = x - C.x, dy = y - C.y, t = dx * dU[0] + dy * dU[1], sv = dx * nU[0] + dy * nU[1], m = R - RW - 70 - r;
+      return Math.hypot(dx, dy) > CAPTURE.r + 110 + r && Math.abs(sv) < m && (t > 0 || Math.hypot(t, sv) < m) && Math.abs(x) < H - 80 - r && Math.abs(y) < H - 80 - r && laneDist(x, y) > 240 + r && !hit(x, y, r);
+    };
+    const place = (n, r, d0, d1, make) => { for (let i = 0, tries = 0; i < n && tries < 400; tries++) { const a = rnd() * Math.PI * 2, d = d0 + rnd() * (d1 - d0), x = C.x + Math.cos(a) * d, y = C.y + Math.sin(a) * d; if (campOK(x, y, r)) { make(x, y); i++; } } };
+    place(6, 120, 520, 1500, (x, y) => solids.push({ kind: 'tent', x, y, w: 210, h: 150, col: Math.floor(rnd() * 3) }));
+    place(9, 42, 460, 1400, (x, y) => solids.push({ kind: 'crate', x, y, r: 36, n: 1 + Math.floor(rnd() * 3), seed: rnd() }));
+    place(7, 60, 460, 1400, (x, y) => { const k = 2 + Math.floor(rnd() * 3); for (let j = 0; j < k; j++) { const a = j * 2.1 + rnd(), d = j ? 40 : 0; solids.push({ kind: 'drum', x: x + Math.cos(a) * d, y: y + Math.sin(a) * d * 0.8, r: 18, col: Math.floor(rnd() * 3) }); } });
   }   // 每樣東西都放一對（對中心點對稱）
   // 山：一座山＝幾個重疊的圓
   for (let n = 0, tries = 0; n < 2 && tries < 600; tries++) {
@@ -1532,7 +1544,7 @@ const MAPGEN = (() => {
   for (let i = 0, tries = 0; i < 12 && tries < 1500; tries++) { const x = (rnd() * 2 - 1) * (H - 600), y = (rnd() * 2 - 1) * (H - 600); if (!free(x, y, 40, 140) || !free(-x, -y, 40, 140) || trees.some((t) => Math.abs(t.x - x) < 90 && Math.abs(t.y - y) < 90)) continue; const sz = 0.9 + rnd() * 0.4; trees.push({ x, y, sz }, { x: -x, y: -y, sz }); i++; }
   // 空間分格：碰撞／遮擋只查附近幾格
   const G = 600, grid = new Map(), put = (o, x0, y0, x1, y1) => { for (let gx = Math.floor(x0 / G); gx <= Math.floor(x1 / G); gx++) for (let gy = Math.floor(y0 / G); gy <= Math.floor(y1 / G); gy++) { const k = gx + ',' + gy; (grid.get(k) || grid.set(k, []).get(k)).push(o); } };
-  for (const o of solids) o.kind === 'house' ? put(o, o.x - o.w / 2, o.y - o.h / 2, o.x + o.w / 2, o.y + o.h / 2) : put(o, o.x - o.r, o.y - o.r, o.x + o.r, o.y + o.r);
+  for (const o of solids) o.w ? put(o, o.x - o.w / 2, o.y - o.h / 2, o.x + o.w / 2, o.y + o.h / 2) : put(o, o.x - o.r, o.y - o.r, o.x + o.r, o.y + o.r);
   for (const t of trees) { t.kind = 'tree'; t.r = 16 * t.sz; put(t, t.x - 50, t.y - 50, t.x + 50, t.y + 50); }
   for (const f of forests) { f.kind = 'forest'; put(f, f.x - f.r, f.y - f.r, f.x + f.r, f.y + f.r); }
   const near = (x, y) => grid.get(Math.floor(x / G) + ',' + Math.floor(y / G)) || [];
@@ -1542,7 +1554,8 @@ const MAPGEN = (() => {
 function mapSolidAt(x, y, r, bullet) {
   for (const o of MAPGEN.near(x, y)) {
     if (o.kind === 'forest' || (bullet && (o.kind === 'lake' || o.kind === 'river' || o.kind === 'lowrock'))) continue;   // 子彈可以飛過湖、河、半磚掩體   // 子彈可以飛過湖和河
-    if (o.kind === 'house') { if (Math.abs(x - o.x) < o.w / 2 + r && Math.abs(y - o.y) < o.h / 2 + r) return o; }
+    if (bullet && o.kind === 'tent') continue;   // 帳篷是布：擋人不擋子彈
+    if (o.w) { if (Math.abs(x - o.x) < o.w / 2 + r && Math.abs(y - o.y) < o.h / 2 + r) return o; }
     else if ((x - o.x) ** 2 + (y - o.y) ** 2 < (o.r + r) ** 2) return o;
   }
   return null;
@@ -1592,7 +1605,7 @@ function drawBigMapGround(x0, x1, y0, y1) {
   for (const d of MAPGEN.blobs) { if (!vis(d.x, d.y, d.r)) continue; const q = proj(d.x, d.y); ground(q, d.x, d.y); ctx.fillStyle = MAPCOL[d.kind]; ctx.beginPath(); ctx.arc(d.x, d.y, d.r, 0, Math.PI * 2); ctx.fill(); }
   for (const f of MAPGEN.forests) { if (!vis(f.x, f.y, f.r)) continue; const q = proj(f.x, f.y); ground(q, f.x, f.y); ctx.fillStyle = '#1a4038'; ctx.beginPath(); ctx.arc(f.x, f.y, f.r, 0, Math.PI * 2); ctx.fill(); }
   for (const o of MAPGEN.solids) {
-    if (o.kind === 'house' || o.kind === 'rock' || o.kind === 'lowrock' || !vis(o.x, o.y, o.r)) continue;
+    if (!(o.kind === 'lake' || o.kind === 'river' || o.kind === 'mountain') || !vis(o.x, o.y, o.r)) continue;
     const q = proj(o.x, o.y); ground(q, o.x, o.y);
     if (o.kind === 'river') { ctx.fillStyle = '#2a6a96'; ctx.beginPath(); ctx.arc(o.x, o.y, o.r, 0, Math.PI * 2); ctx.fill(); continue; }
     if (o.kind === 'lake') { ctx.fillStyle = 'rgba(40,120,190,0.55)'; ctx.beginPath(); ctx.arc(o.x, o.y, o.r, 0, Math.PI * 2); ctx.fill(); ctx.strokeStyle = 'rgba(150,210,255,0.35)'; ctx.lineWidth = 6; ctx.stroke(); continue; }
@@ -1631,14 +1644,15 @@ function drawBigMapGround(x0, x1, y0, y1) {
   poly(-H, -H, H, H, null, 'rgba(255,214,120,0.7)', 3);
 }
 // 立體物件（跟角色一起依前後排序）：樹、平房、佔領點旗桿
+const ACTOR_KIND = { tree: 't', house: 'h', rock: 'r', tent: 'k', crate: 'k', drum: 'k' };   // 半磚（lowrock）跟全磚畫成同一塊岩石
 function mapActors() {
   if (!bigMap()) return [];
   const vb = viewBounds(), x0 = cam.x - vb.hw - 300, x1 = cam.x + vb.hw + 300, y0 = cam.y + vb.t - 300, y1 = cam.y + vb.b + 400, out = [];
   const G = MAPGEN.G, seen = new Set();
   for (let gx = Math.floor(x0 / G); gx <= Math.floor(x1 / G); gx++) for (let gy = Math.floor(y0 / G); gy <= Math.floor(y1 / G); gy++) for (const o of MAPGEN.grid.get(gx + ',' + gy) || []) {
-    if (seen.has(o) || (o.kind !== 'tree' && o.kind !== 'house' && o.kind !== 'rock' && o.kind !== 'lowrock')) continue; seen.add(o);
+    if (seen.has(o) || !ACTOR_KIND[o.kind]) continue; seen.add(o);
     if (o.x < x0 || o.x > x1 || o.y < y0 || o.y > y1) continue;
-    out.push({ it: o, k: o.kind === 'tree' ? 't' : o.kind === 'house' ? 'h' : 'r', y: o.kind === 'house' ? o.y + o.h / 2 : o.y });
+    out.push({ it: o, k: ACTOR_KIND[o.kind], y: o.w ? o.y + o.h / 2 : o.kind === 'rock' ? o.cy + o.W * 0.24 : o.y });
   }
   for (const p of capPoints) if (p.x > x0 && p.x < x1 && p.y > y0 && p.y < y1) out.push({ it: p, k: 'f', y: p.y });
   return out;
@@ -1650,22 +1664,56 @@ function drawTree(t) {
   ctx.fillStyle = '#4b3424'; ctx.fillRect(t.x - 5 * s, t.y - 34 * s, 10 * s, 36 * s);
   for (const [dx, dy, r, c] of [[0, -58, 34, '#1f5a3a'], [-16, -48, 24, '#246a43'], [15, -50, 24, '#22633f'], [-4, -72, 22, '#2e7a4e'], [6, -62, 14, '#3f9662']]) { ctx.fillStyle = c; ctx.beginPath(); ctx.arc(t.x + dx * s, t.y + dy * s, r * s, 0, Math.PI * 2); ctx.fill(); }
 }
-// 岩石掩體：全磚＝高大的岩石；半磚＝低矮的石堆（看得出來子彈可以從上面飛過）
+// 岩石掩體（只畫在全磚那個物件上，半磚跟它是同一塊岩石）：輪廓照玩家給的範本——右邊高的岩塊、左邊低平的岩台
+// 座標：u＝0（半磚端）～1（全磚端），z＝高度（以岩石寬度 W 為單位）；碰撞圓都在畫出來的岩石底下，陰影不算
+const ROCK_SIL = [[0, 0.02], [0.01, 0.07], [0.08, 0.12], [0.3, 0.15], [0.45, 0.16], [0.47, 0.4], [0.53, 0.46], [0.72, 0.46], [0.82, 0.4], [0.9, 0.3], [0.97, 0.15], [1, 0.03], [0.92, -0.03], [0.55, -0.05], [0.2, -0.04], [0.05, -0.01]];
+const ROCK_TOP = [[0.47, 0.4], [0.53, 0.46], [0.72, 0.46], [0.82, 0.4], [0.66, 0.35], [0.52, 0.36]];
+const ROCK_LEDGE = [[0.01, 0.07], [0.08, 0.12], [0.3, 0.15], [0.45, 0.16], [0.47, 0.12], [0.25, 0.09], [0.05, 0.05]];
 function drawRock(o) {
-  const q = proj(o.x, o.y), r = o.r, low = o.kind === 'lowrock', h = low ? r * 0.6 : r * 1.35, s = o.seed || 0.5;
-  ground(q, o.x, o.y); ctx.fillStyle = 'rgba(5,15,20,0.45)'; ctx.beginPath(); ctx.ellipse(o.x + r * 0.15, o.y + 4, r * 1.1, r * 0.5, 0, 0, Math.PI * 2); ctx.fill();
+  const W = o.W, base = o.cy + W * 0.24, q = proj(o.cx, base), side = o.side;
+  const P = ([u, z]) => [o.cx + (u - 0.5) * W * side, base - z * W];
+  const path = (pts, col) => { ctx.fillStyle = col; ctx.beginPath(); pts.forEach((p, i) => { const [x, y] = P(p); i ? ctx.lineTo(x, y) : ctx.moveTo(x, y); }); ctx.closePath(); ctx.fill(); };
+  ground(q, o.cx, base); ctx.fillStyle = 'rgba(5,15,20,0.4)'; ctx.beginPath(); ctx.ellipse(o.cx + W * 0.08 * side, base - W * 0.02, W * 0.56, W * 0.2, 0, 0, Math.PI * 2); ctx.fill();
+  upright(q, o.cx, base);
+  path(ROCK_SIL, '#5f5b54'); path(ROCK_LEDGE, '#76716a'); path(ROCK_TOP, '#7a756b');
+  ctx.strokeStyle = 'rgba(0,0,0,0.25)'; ctx.lineWidth = 3; ctx.beginPath(); ctx.moveTo(...P([0.66, 0.35])); ctx.lineTo(...P([0.62, 0.1])); ctx.stroke();
+  ctx.strokeStyle = 'rgba(0,0,0,0.18)'; ctx.beginPath(); ctx.moveTo(...P([0.47, 0.12])); ctx.lineTo(...P([0.47, 0.38])); ctx.stroke();
+}
+// 營地：帳篷、彈藥箱、汽油桶
+const TENTCOL = [['#6f7a4a', '#566038'], ['#7c7258', '#615842'], ['#5f6f5a', '#4a5746']];
+const DRUMCOL = ['#a8432f', '#4f6b3a', '#3e5f86'];
+function drawCamp(o) {
+  if (o.kind === 'tent') {
+    const by = o.y + o.h / 2, q = proj(o.x, by), [c1, c2] = TENTCOL[o.col], L = o.x - o.w / 2, R = o.x + o.w / 2, Ht = 105, back = 52;
+    ground(q, o.x, by); ctx.fillStyle = 'rgba(5,15,20,0.4)'; ctx.fillRect(L + 10, by - 8, o.w, 22);
+    upright(q, o.x, by);
+    ctx.fillStyle = c2; ctx.beginPath(); ctx.moveTo(L, by); ctx.lineTo(o.x, by - Ht); ctx.lineTo(o.x + 18, by - Ht - back); ctx.lineTo(R + 18, by - back * 0.4); ctx.lineTo(R, by); ctx.closePath(); ctx.fill();   // 側面屋頂往後延伸
+    ctx.fillStyle = c1; ctx.beginPath(); ctx.moveTo(L, by); ctx.lineTo(o.x, by - Ht); ctx.lineTo(R, by); ctx.closePath(); ctx.fill();   // 正面
+    ctx.fillStyle = '#2a2a22'; ctx.beginPath(); ctx.moveTo(o.x - 26, by); ctx.lineTo(o.x, by - 62); ctx.lineTo(o.x + 26, by); ctx.closePath(); ctx.fill();   // 門
+    ctx.strokeStyle = 'rgba(0,0,0,0.3)'; ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(o.x, by - Ht); ctx.lineTo(o.x + 18, by - Ht - back); ctx.stroke();
+    ctx.fillStyle = '#4a3a2a'; ctx.fillRect(o.x - 2, by - Ht - 10, 4, 12);
+    return;
+  }
+  const q = proj(o.x, o.y);
+  ground(q, o.x, o.y); ctx.fillStyle = 'rgba(5,15,20,0.4)'; ctx.beginPath(); ctx.ellipse(o.x + 6, o.y + 2, o.r * 1.15, o.r * 0.5, 0, 0, Math.PI * 2); ctx.fill();
   upright(q, o.x, o.y);
-  const blob = (cx, cy, rx, ry, col) => { ctx.fillStyle = col; ctx.beginPath(); ctx.ellipse(cx, cy, rx, ry, 0, 0, Math.PI * 2); ctx.fill(); };
-  if (low) {
-    // 半磚：同一塊岩石往前伸出的低矮岩台（顏色跟全磚一樣，高度只有一半不到）
-    ctx.fillStyle = '#5f5b54'; ctx.beginPath(); ctx.moveTo(o.x - r, o.y); ctx.lineTo(o.x - r * 0.9, o.y - h * 0.8); ctx.lineTo(o.x - r * 0.2, o.y - h); ctx.lineTo(o.x + r * 0.7, o.y - h * (0.9 - s * 0.2)); ctx.lineTo(o.x + r, o.y - h * 0.3); ctx.lineTo(o.x + r * 0.85, o.y); ctx.closePath(); ctx.fill();
-    ctx.fillStyle = '#7a756b'; ctx.beginPath(); ctx.moveTo(o.x - r * 0.9, o.y - h * 0.8); ctx.lineTo(o.x - r * 0.2, o.y - h); ctx.lineTo(o.x + r * 0.7, o.y - h * (0.9 - s * 0.2)); ctx.lineTo(o.x + r * 0.2, o.y - h * 0.62); ctx.lineTo(o.x - r * 0.6, o.y - h * 0.55); ctx.closePath(); ctx.fill();
-  } else {
-    ctx.fillStyle = '#5f5b54'; ctx.beginPath();
-    ctx.moveTo(o.x - r, o.y); ctx.lineTo(o.x - r * (0.85 + s * 0.1), o.y - h * 0.55); ctx.lineTo(o.x - r * 0.45, o.y - h * (0.92 + s * 0.08)); ctx.lineTo(o.x + r * 0.2, o.y - h);
-    ctx.lineTo(o.x + r * 0.8, o.y - h * (0.7 - s * 0.1)); ctx.lineTo(o.x + r, o.y - h * 0.2); ctx.lineTo(o.x + r * 0.9, o.y); ctx.closePath(); ctx.fill();
-    ctx.fillStyle = '#7a756b'; ctx.beginPath(); ctx.moveTo(o.x - r * 0.45, o.y - h * (0.92 + s * 0.08)); ctx.lineTo(o.x + r * 0.2, o.y - h); ctx.lineTo(o.x + r * 0.8, o.y - h * (0.7 - s * 0.1)); ctx.lineTo(o.x + r * 0.1, o.y - h * 0.55); ctx.lineTo(o.x - r * 0.5, o.y - h * 0.6); ctx.closePath(); ctx.fill();
-    ctx.strokeStyle = 'rgba(0,0,0,0.25)'; ctx.lineWidth = 3; ctx.beginPath(); ctx.moveTo(o.x + r * 0.1, o.y - h * 0.55); ctx.lineTo(o.x + r * 0.25, o.y - h * 0.1); ctx.stroke();
+  if (o.kind === 'drum') {
+    const r = o.r, h = 46, c = DRUMCOL[o.col];
+    ctx.fillStyle = c; ctx.fillRect(o.x - r, o.y - h, r * 2, h);
+    ctx.fillStyle = 'rgba(0,0,0,0.25)'; ctx.fillRect(o.x + r * 0.35, o.y - h, r * 0.65, h); ctx.fillRect(o.x - r, o.y - h * 0.68, r * 2, 3); ctx.fillRect(o.x - r, o.y - h * 0.34, r * 2, 3);
+    ctx.fillStyle = c; ctx.beginPath(); ctx.ellipse(o.x, o.y - h, r, r * 0.4, 0, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = 'rgba(255,255,255,0.18)'; ctx.beginPath(); ctx.ellipse(o.x, o.y - h, r, r * 0.4, 0, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = '#222'; ctx.beginPath(); ctx.arc(o.x + r * 0.45, o.y - h, 3, 0, Math.PI * 2); ctx.fill();
+    return;
+  }
+  // 彈藥箱：疊 1～3 個
+  const bw = 62, bh = 30;
+  for (let i = 0; i < o.n; i++) {
+    const x = o.x - bw / 2 + (i === 2 ? 12 : i ? -6 : 0), y = o.y - bh * (i + 1);
+    ctx.fillStyle = '#5b6a3c'; ctx.fillRect(x, y, bw, bh);
+    ctx.fillStyle = '#6f8049'; ctx.fillRect(x, y - 9, bw, 9);
+    ctx.fillStyle = 'rgba(0,0,0,0.3)'; ctx.fillRect(x + 6, y + 6, 4, bh - 12); ctx.fillRect(x + bw - 10, y + 6, 4, bh - 12);
+    ctx.fillStyle = '#e8d27a'; ctx.fillRect(x + 20, y + 12, 22, 6);
   }
 }
 const HOUSECOL = [['#c9b48e', '#8f4a3a'], ['#b8bcc0', '#4f6f86'], ['#d2c3a2', '#6f5a45'], ['#a9a08e', '#7d3f3f']];
@@ -1705,7 +1753,8 @@ function miniBase(size) {
   g.fillStyle = '#285c3c'; for (const f of MAPGEN.forests) { g.beginPath(); g.arc(X(f.x), X(f.y), f.r * k, 0, Math.PI * 2); g.fill(); }
   g.fillStyle = '#2f7a4c'; for (const t of MAPGEN.trees) g.fillRect(X(t.x) - 0.5, X(t.y) - 0.5, 1, 1);
   for (const o of MAPGEN.solids) {
-    if (o.kind === 'house') { g.fillStyle = '#c9c2b0'; g.fillRect(X(o.x - o.w / 2), X(o.y - o.h / 2), Math.max(1.5, o.w * k), Math.max(1.5, o.h * k)); continue; }
+    if (o.kind === 'crate' || o.kind === 'drum') continue;
+    if (o.w) { g.fillStyle = o.kind === 'tent' ? '#7d8a5a' : '#c9c2b0'; g.fillRect(X(o.x - o.w / 2), X(o.y - o.h / 2), Math.max(1.5, o.w * k), Math.max(1.5, o.h * k)); continue; }
     g.fillStyle = o.kind === 'lake' || o.kind === 'river' ? '#3a86c4' : o.kind === 'rock' || o.kind === 'lowrock' ? '#9a948a' : '#6e6253'; g.beginPath(); g.arc(X(o.x), X(o.y), o.r * k, 0, Math.PI * 2); g.fill();
   }
   g.fillStyle = '#a07a50'; for (const b of MAPGEN.bridges) { g.beginPath(); g.arc(X(b.x), X(b.y), Math.max(1.5, 230 * k), 0, Math.PI * 2); g.fill(); }
@@ -6184,6 +6233,7 @@ function draw(t) {
     if (k === 't') { drawTree(it); continue; }
     if (k === 'h') { drawHouse(it); continue; }
     if (k === 'r') { drawRock(it); continue; }
+    if (k === 'k') { drawCamp(it); continue; }
     if (k === 'f') { drawFlag(it); continue; }
     if (k === 'c') drawCrate(it);
     else if (k === 'e' && it.boss) ({ dreamer: drawDreamer, scarecrow: drawScarecrow, interferer: drawInterferer, architect: drawArchitect, judge: drawJudge, lycaon: drawLycaon, ti: drawTi, greatsword: drawGreatsword, minotaur: drawMinotaur, agent: drawAgent }[it.B.ai] || drawBoss)(it);
