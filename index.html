@@ -1070,6 +1070,7 @@ const LEVELS = [
   { id: 'war', name: '戰事', open: true, desc: '三階段的戰事，敵人會階段性地變強，每個階段末尾都會出現 Boss，擊敗第三階段的 Boss 即過關。' },
   { id: 'duel', name: '菁英對決', open: true, desc: '入場 5 秒後出現一名隨機精英敵人，擊敗它即可過關。精英以三階的強度為基準，一階、二階精英會依類型強化到相同水準。場上會定時出現零件與醫療箱。' },
   { id: 'test', name: '測試模式', open: true, desc: '不會自動出怪，可以自選召喚任何敵人或精英，零件無限。' },
+  { id: 'battle', name: '戰局', open: true, desc: '（開發中）400×400 格的大地圖，之後會做成 7 打 7 的戰局。目前可以自由走動看看地圖：右上角是小地圖，按 M 或點小地圖可以打開全圖（單位會變成點）。' },
   { id: 'locked1', name: '尚未解鎖', open: false, desc: '敬請期待' },
 ];
 let selectedLevel = 'training';
@@ -1425,10 +1426,102 @@ const DUEL_PHASES = [
 ];
 // 測試模式：不自動出怪、不會結束；零件無限，畫面左側有召喚面板
 const TEST_PHASES = [{ name: '測試模式', end: Infinity, spawnTable: [], initial: 0, packs: [], test: true, infiniteParts: true }];
-const LEVEL_PHASES = { war: WAR_PHASES, duel: DUEL_PHASES, test: TEST_PHASES };   // 有分階段的關卡
+const BATTLE_PHASES = [{ name: '戰局', end: Infinity, spawnTable: [], initial: 0, packs: [], bigmap: true, infiniteParts: true }];
+const LEVEL_PHASES = { war: WAR_PHASES, duel: DUEL_PHASES, test: TEST_PHASES, battle: BATTLE_PHASES };   // 有分階段的關卡
 const levelPhases = () => LEVEL_PHASES[selectedLevel] || null;
 let phase = null, phaseIdx = 0, phaseStart = 0, spawnIdx = 0;   // 目前階段、階段開始時間、輪到第幾種敵人
 const phaseClock = () => gameTime - phaseStart;
+
+/* ───────── 戰局：400×400 格的大地圖 ─────────
+   一格 110（跟地面格線一樣）→ 地圖 44000×44000，中心是 (0,0)。地形目前只有外觀（不擋路）：
+   藍方基地在左下、紅方基地在右上，中間一條河、三條路、散落的樹林與岩地 */
+const BIGMAP = { cells: 400, cell: 110 };
+BIGMAP.half = BIGMAP.cells * BIGMAP.cell / 2;
+const bigMap = () => !!(phase && phase.bigmap);
+const MAPGEN = (() => {
+  let seed = 20261111; const rnd = () => { seed = (seed * 1664525 + 1013904223) >>> 0; return seed / 4294967296; };
+  const H = BIGMAP.half, bases = [{ x: -H + 3500, y: H - 3500, team: 'blue' }, { x: H - 3500, y: -H + 3500, team: 'red' }];
+  const blobs = [];   // { x, y, r, kind }：river 河、road 路、forest 樹林、rock 岩地
+  // 河：從左上到右下彎曲
+  for (let t = 0; t <= 1; t += 0.004) { const x = -H + t * 2 * H, y = -H + t * 2 * H + Math.sin(t * 9) * 3200; blobs.push({ x, y, r: 520 + Math.sin(t * 23) * 90, kind: 'river' }); }
+  // 路：兩個基地之間三條（中路直線、上路、下路沿邊）
+  const road = (pts) => { for (let i = 0; i < pts.length - 1; i++) { const [ax, ay] = pts[i], [bx, by] = pts[i + 1], n = Math.ceil(Math.hypot(bx - ax, by - ay) / 160); for (let k = 0; k <= n; k++) blobs.push({ x: ax + (bx - ax) * k / n, y: ay + (by - ay) * k / n, r: 230, kind: 'road' }); } };
+  const [b, r] = bases;
+  road([[b.x, b.y], [r.x, r.y]]);
+  road([[b.x, b.y], [b.x, -H + 3500], [r.x, r.y]]);
+  road([[b.x, b.y], [H - 3500, b.y], [r.x, r.y]]);
+  for (let i = 0; i < 90; i++) blobs.push({ x: (rnd() * 2 - 1) * (H - 1500), y: (rnd() * 2 - 1) * (H - 1500), r: 500 + rnd() * 1300, kind: rnd() < 0.7 ? 'forest' : 'rock' });
+  return { bases, blobs };
+})();
+const MAPCOL = { river: 'rgba(60,150,215,0.32)', road: 'rgba(214,196,150,0.14)', forest: 'rgba(60,150,95,0.13)', rock: 'rgba(120,125,120,0.1)' };
+const MINICOL = { river: '#3f7fa6', road: '#8d8466', forest: '#2f6a4a', rock: '#5d625e' };
+function keepInMap(u) { if (!bigMap()) return; const m = BIGMAP.half - 40; u.x = clamp(u.x, -m, m); u.y = clamp(u.y, -m, m); }
+// 地面上的大地圖：只畫鏡頭附近的地形，邊界與基地先裁到畫面範圍再投影
+function drawBigMapGround(x0, x1, y0, y1) {
+  for (const d of MAPGEN.blobs) {
+    if (d.x + d.r < x0 || d.x - d.r > x1 || d.y + d.r < y0 || d.y - d.r > y1) continue;
+    const q = proj(d.x, d.y); ground(q, d.x, d.y);
+    ctx.fillStyle = MAPCOL[d.kind]; ctx.beginPath(); ctx.ellipse(d.x, d.y, d.r, d.r, 0, 0, Math.PI * 2); ctx.fill();
+  }
+  ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+  const poly = (ax, ay, bx, by, fill, stroke, lw) => {
+    const cx0 = Math.max(ax, x0), cx1 = Math.min(bx, x1), cy0 = Math.max(ay, y0), cy1 = Math.min(by, y1);
+    if (cx0 >= cx1 || cy0 >= cy1) return;
+    const p = [proj(cx0, cy0), proj(cx1, cy0), proj(cx1, cy1), proj(cx0, cy1)];
+    ctx.beginPath(); p.forEach((v, i) => i ? ctx.lineTo(v.x, v.y) : ctx.moveTo(v.x, v.y)); ctx.closePath();
+    if (fill) { ctx.fillStyle = fill; ctx.fill(); }
+    if (stroke) { ctx.strokeStyle = stroke; ctx.lineWidth = lw; ctx.stroke(); }
+  };
+  for (const b of MAPGEN.bases) poly(b.x - 1600, b.y - 1600, b.x + 1600, b.y + 1600, b.team === 'blue' ? 'rgba(90,170,255,0.12)' : 'rgba(255,110,100,0.12)', b.team === 'blue' ? 'rgba(120,190,255,0.6)' : 'rgba(255,130,120,0.6)', 3);
+  // 地圖外：暗色＋邊界線
+  const H = BIGMAP.half, F = 1e5;
+  poly(-F, -F, F, -H, 'rgba(2,8,12,0.75)'); poly(-F, H, F, F, 'rgba(2,8,12,0.75)'); poly(-F, -H, -H, H, 'rgba(2,8,12,0.75)'); poly(H, -H, F, H, 'rgba(2,8,12,0.75)');
+  poly(-H, -H, H, H, null, 'rgba(255,214,120,0.7)', 3);
+}
+// 小地圖（右上）與全圖：視野拉遠時單位直接變成點
+let mapOpen = false, miniCanvas = null;
+function miniBase(size) {
+  const c = document.createElement('canvas'); c.width = c.height = size; const g = c.getContext('2d'), k = size / (BIGMAP.half * 2);
+  g.fillStyle = '#123039'; g.fillRect(0, 0, size, size);
+  for (const kind of ['forest', 'rock', 'road', 'river']) { g.fillStyle = MINICOL[kind]; for (const d of MAPGEN.blobs) if (d.kind === kind) { g.beginPath(); g.arc((d.x + BIGMAP.half) * k, (d.y + BIGMAP.half) * k, Math.max(0.6, d.r * k), 0, Math.PI * 2); g.fill(); } }
+  for (const b of MAPGEN.bases) { g.fillStyle = b.team === 'blue' ? '#5aaaff' : '#ff6e64'; const w = 3200 * k; g.fillRect((b.x + BIGMAP.half) * k - w / 2, (b.y + BIGMAP.half) * k - w / 2, w, w); }
+  return c;
+}
+function drawMapView(x, y, size, full) {
+  const key = 'm' + Math.round(size * DPR);
+  if (!miniCanvas || miniCanvas.key !== key) { miniCanvas = miniBase(Math.round(size * DPR)); miniCanvas.key = key; }
+  const k = size / (BIGMAP.half * 2), P = (wx, wy) => [x + (wx + BIGMAP.half) * k, y + (wy + BIGMAP.half) * k];
+  ctx.save();
+  ctx.globalAlpha = full ? 0.96 : 0.88; ctx.drawImage(miniCanvas, x, y, size, size); ctx.globalAlpha = 1;
+  ctx.strokeStyle = 'rgba(255,214,120,0.8)'; ctx.lineWidth = 1.5; ctx.strokeRect(x, y, size, size);
+  if (full) {   // 全圖：格線每 50 格一條，標出 400×400
+    ctx.strokeStyle = 'rgba(255,255,255,0.08)'; ctx.lineWidth = 1; ctx.beginPath();
+    for (let i = 50; i < BIGMAP.cells; i += 50) { const p = x + i / BIGMAP.cells * size, q = y + i / BIGMAP.cells * size; ctx.moveTo(p, y); ctx.lineTo(p, y + size); ctx.moveTo(x, q); ctx.lineTo(x + size, q); }
+    ctx.stroke();
+    ctx.fillStyle = '#ffe6a8'; ctx.font = '600 13px system-ui, sans-serif'; ctx.textAlign = 'center'; ctx.fillText('戰局地圖　400 × 400 格（按 M 或點地圖關閉）', x + size / 2, y + size + 18); ctx.textAlign = 'left';
+  }
+  // 目前的視野範圍
+  const vb = viewBounds(), [vx0, vy0] = P(cam.x - vb.hw, cam.y + vb.t), [vx1, vy1] = P(cam.x + vb.hw, cam.y + vb.b);
+  ctx.strokeStyle = 'rgba(255,255,255,0.7)'; ctx.lineWidth = 1; ctx.strokeRect(vx0, vy0, Math.max(2, vx1 - vx0), Math.max(2, vy1 - vy0));
+  // 單位＝點
+  const dot = (u, col, r) => { const [px, py] = P(u.x, u.y); ctx.fillStyle = col; ctx.beginPath(); ctx.arc(px, py, r, 0, Math.PI * 2); ctx.fill(); };
+  for (const e of enemies) dot(e, '#ff6e64', full ? 3 : 2);
+  for (const c of clones) dot(c, '#9fd8ff', full ? 3 : 2);
+  dot(player, '#ffffff', full ? 4.5 : 3); dot(player, '#36c2ff', full ? 3 : 2);
+  ctx.restore();
+}
+let hudBottom = 56, hudCheck = 0;   // 上方介面的底緣（手機上介面會換行變高），小地圖放在它下面
+const miniRect = () => {
+  if (performance.now() - hudCheck > 500) { hudCheck = performance.now(); const r = $('hud').getBoundingClientRect(), c = canvas.getBoundingClientRect(); if (r.height) hudBottom = r.bottom - c.top; }
+  const size = Math.min(150, Math.round(Math.min(W, H) * 0.3)); return { x: W - size - 12, y: Math.max(64, hudBottom + 8), size };
+};
+const fullRect = () => { const top = Math.max(92, hudBottom + 12), size = Math.round(Math.min(W - 40, H - top - 60)); return { x: (W - size) / 2, y: top, size }; };
+function drawBigMapHud() {
+  if (!bigMap() || !player) return;
+  ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+  if (mapOpen) { ctx.fillStyle = 'rgba(2,10,14,0.72)'; ctx.fillRect(0, 0, W, H); const f = fullRect(); drawMapView(f.x, f.y, f.size, true); }
+  else { const m = miniRect(); drawMapView(m.x, m.y, m.size, false); }
+}
 
 /* ───────── 零件與擴編（戰事關卡） ─────────
    地圖上會散落「零件」，撿到 10 個可以「擴編」：多一個跟隨自己的分身 */
@@ -2601,6 +2694,8 @@ function beginGame() {
   $('partsBlock').hidden = !phase; updateParts();
   if (phase && !phase.startParts) for (let i = 0; i < PARTS.initial; i++) spawnPart(); $('bossBar').hidden = true; $('phaseName').textContent = phase ? phase.name : '';
   for (let i = 0; i < (phase ? phase.initial : ENEMY.initial); i++) addEnemy();
+  mapOpen = false;
+  if (bigMap()) { const b = MAPGEN.bases[0]; player.x = b.x; player.y = b.y; cam = { x: b.x, y: b.y }; parts = []; chunks.clear(); stream(); }   // 戰局：從藍方基地出發
   $('score').textContent = '0'; refreshCharHud();
   setState('play'); last = performance.now();
 }
@@ -2684,6 +2779,7 @@ window.addEventListener('keydown', (e) => {
   if (e.code === 'KeyQ' && state === 'play') useSkill();
   if (e.code === 'KeyE' && state === 'play' && !$('expandBtn').hidden) expandEchelon();   // 擴編（電腦版）
   if (e.code === 'KeyF' && state === 'play') swapChar(false);   // 切換主／副角色
+  if (e.code === 'KeyM' && state === 'play' && bigMap()) mapOpen = !mapOpen;   // 戰局：全圖
   if ((e.code === 'ShiftLeft' || e.code === 'ShiftRight' || e.code === 'KeyK') && state === 'play') startDodge();
   if ((e.code === 'KeyP' || e.code === 'Escape')) { state === 'play' ? pauseGame() : resumeGame(); }
   if ((e.code === 'Equal' || e.code === 'NumpadAdd') && state === 'play') setZoom(userZoom * 1.1);
@@ -2707,6 +2803,11 @@ function endStick() {
   stickKnob.style.transform = 'translate(0,0)';
 }
 canvas.addEventListener('pointerdown', (e) => {
+  // 戰局：點小地圖打開全圖，全圖開著時點任何地方關閉
+  if (state === 'play' && bigMap()) {
+    const r = canvas.getBoundingClientRect(), px = e.clientX - r.left, py = e.clientY - r.top, m = miniRect();
+    if (mapOpen || (px >= m.x && px <= m.x + m.size && py >= m.y && py <= m.y + m.size)) { mapOpen = !mapOpen; e.preventDefault(); return; }
+  }
   if (e.pointerType === 'mouse') {
     setTouchMode(false);
     if (state === 'play' && e.button === 2) { startDodge(); return; }
@@ -5286,6 +5387,7 @@ function update(dt) {
     if (player.trailClock <= 0) { player.trailClock = 0.04; player.trail.push({ x: player.x, y: player.y, life: 0.25 }); }
     player.moving = true;
   } else if (len && player.moving) moveWithCover(player, dx / len * mag * spd * dt, dy / len * mag * spd * dt);
+  keepInMap(player);
   // 奔跑特效：依移動距離產生腳下塵土與身後速度線
   if (cfg.runFx && (player.dodgeT > 0 || player.curSpeed > cfg.runFxSpeed)) {
     player.dustClock = (player.dustClock || 0) - dt;
@@ -5378,7 +5480,7 @@ function update(dt) {
                       : Math.max(1.6, 4.2 - gameTime / 40);
   if (spawnClock > every && !boss && (!phase || phase.spawnTable.length)) { spawnClock = 0; addEnemy(); }   // Boss 戰期間不再生成小兵
   if (phase) {
-    const left = Math.max(0, phase.end - phaseClock()), m = Math.floor(left / 60), sec = Math.floor(left % 60);
+    const left = Math.max(0, phase.end - phaseClock()), shown = phase.end === Infinity ? phaseClock() : left, m = Math.floor(shown / 60), sec = Math.floor(shown % 60);   // 沒有時限（戰局）：改顯示經過時間
     $('phaseTime').textContent = phase.test ? '測試中' : m + ':' + String(sec).padStart(2, '0');
     if (left <= 0 && !bossSpawned) {
       if (phase.bossPool) {
@@ -5786,6 +5888,7 @@ function drawGround(t) {
   for (let x = Math.floor(x0 / gr) * gr; x < x1; x += gr) { const a = proj(x, y0), b = proj(x, y1); ctx.moveTo(a.x, a.y); ctx.lineTo(b.x, b.y); }
   for (let y = Math.floor(y0 / gr) * gr; y < y1; y += gr) { const a = proj(x0, y), b = proj(x1, y); ctx.moveTo(a.x, a.y); ctx.lineTo(b.x, b.y); }
   ctx.stroke();
+  if (bigMap()) drawBigMapGround(x0, x1, y0, y1);
   for (const c of chunks.values()) for (const d of c.details) {
     const q = proj(d.x, d.y);
     if (!onScreen(q, d.r * q.k + 20)) continue;
@@ -5994,6 +6097,7 @@ function draw(t) {
   hz.addColorStop(0, 'rgba(46,92,102,' + VIEW3D.haze + ')'); hz.addColorStop(VIEW3D.anchor * 0.55, 'rgba(46,92,102,0)');
   hz.addColorStop(0.82, 'rgba(4,14,20,0)'); hz.addColorStop(1, 'rgba(4,14,20,0.32)');
   ctx.fillStyle = hz; ctx.fillRect(0, 0, W, H);
+  if ((state === 'play' || state === 'pause') && player) drawBigMapHud();
   if (state === 'play' && player) {
     const ax = W / 2, ay = H * VIEW3D.anchor;
     for (const e of enemies) {
