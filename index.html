@@ -1072,7 +1072,7 @@ const LEVELS = [
   { id: 'war', name: '戰事', open: true, desc: '三階段的戰事，敵人會階段性地變強，每個階段末尾都會出現 Boss，擊敗第三階段的 Boss 即過關。' },
   { id: 'duel', name: '菁英對決', open: true, desc: '入場 5 秒後出現一名隨機精英敵人，擊敗它即可過關。精英以三階的強度為基準，一階、二階精英會依類型強化到相同水準。場上會定時出現零件與醫療箱。' },
   { id: 'test', name: '測試模式', open: true, desc: '不會自動出怪，可以自選召喚任何敵人或精英，零件無限。' },
-  { id: 'battle', name: '戰局', open: true, desc: '（開發中）150×150 格的大地圖，之後會做成 7 打 7 的戰局。地圖上有三個佔領點，站在點上就能佔領；山、房屋、樹木會擋路與子彈，樹林會遮擋視線。左上角是小地圖，按 M 或點小地圖可以打開全圖（單位會變成點）。' },
+  { id: 'battle', name: '戰局', open: true, desc: '（開發中）100×100 格的大地圖，之後會做成 7 打 7 的戰局。地圖上有三個佔領點，站在點上就能佔領；山、房屋、樹木會擋路與子彈，樹林會遮擋視線。左上角是小地圖，按 M 或點小地圖可以打開全圖（單位會變成點）。' },
   { id: 'locked1', name: '尚未解鎖', open: false, desc: '敬請期待' },
 ];
 let selectedLevel = 'training';
@@ -1434,42 +1434,54 @@ const levelPhases = () => LEVEL_PHASES[selectedLevel] || null;
 let phase = null, phaseIdx = 0, phaseStart = 0, spawnIdx = 0;   // 目前階段、階段開始時間、輪到第幾種敵人
 const phaseClock = () => gameTime - phaseStart;
 
-/* ───────── 戰局：150×150 格的大地圖 ─────────
+/* ───────── 戰局：100×100 格的大地圖 ─────────
    一格 110（跟地面格線一樣）→ 地圖 27500×27500，中心是 (0,0)。整張地圖對中心點對稱（雙方公平）：
    藍方基地在左下、紅方基地在右上；三條路（中路、上路、下路）；三個佔領點 A（左上）、B（中央）、C（右下）
    地形：山（擋路、擋子彈、擋視線）、平房（同上）、樹木（實體，擋路、擋子彈）、樹林（樹冠遮擋視線）、湖（擋路，子彈可以飛過） */
-const BIGMAP = { cells: 150, cell: 110 };
+const BIGMAP = { cells: 100, cell: 110 };
 BIGMAP.half = BIGMAP.cells * BIGMAP.cell / 2;
 const bigMap = () => !!(phase && phase.bigmap);
 const CAPTURE = { r: 320, rate: 10, flagH: 150 };   // 佔領點：半徑、每秒佔領點數（100 點約 10 秒）、旗桿高度
 const MAPGEN = (() => {
   let seed = 20261111; const rnd = () => { seed = (seed * 1664525 + 1013904223) >>> 0; return seed / 4294967296; };
-  const H = BIGMAP.half, M = H - 2000;
+  const H = BIGMAP.half, M = H - 1600, BASE = 1100;   // BASE：基地範圍（半邊）
   const bases = [{ x: -M, y: M, team: 'blue' }, { x: M, y: -M, team: 'red' }];
-  const points = [{ id: 'A', x: -0.62 * H, y: -0.62 * H }, { id: 'B', x: 0, y: 0 }, { id: 'C', x: 0.62 * H, y: 0.62 * H }];
+  const points = [{ id: 'A', x: -0.5 * H, y: -(H - 1150) }, { id: 'B', x: 0, y: 0 }, { id: 'C', x: 0.5 * H, y: H - 1150 }];   // C 點靠下方邊界（A 點對稱靠上方）
   // 三條路：中路（對角線）、上路（經過 A）、下路（經過 C）
   const [PA, , PC] = points;
-  // 下路從 C 點往上直直穿出河道（橋才會跟河垂直），上路對稱
-  const lanes = [[[-M, M], [M, -M]], [[M, -M], [M - 900, -M], [PA.x, PA.y], [PA.x, PA.y + 2200], [-M, M - 900], [-M, M]], [[-M, M], [-M + 900, M], [PC.x, PC.y], [PC.x, PC.y - 2200], [M, -M + 900], [M, -M]]];
+  // 下路：藍方基地 → 從左邊的橋橫著進 C 島 → 從右邊的橋出去 → 往上到紅方基地；上路是它的對稱
+  const low = [[-M, M], [PC.x - 2100, PC.y], [PC.x, PC.y], [PC.x + 2050, PC.y], [PC.x + 2050, PC.y - 2350], [M, -M]];
+  const lanes = [[[-M, M], [M, -M]], low.map(([x, y]) => [-x, -y]).reverse(), low];
   const segDist = (px, py, [ax, ay], [bx, by]) => { const vx = bx - ax, vy = by - ay, t = Math.min(1, Math.max(0, ((px - ax) * vx + (py - ay) * vy) / (vx * vx + vy * vy))); return Math.hypot(px - ax - vx * t, py - ay - vy * t); };
   const laneDist = (x, y) => Math.min(...lanes.flatMap((L) => L.slice(1).map((p, i) => segDist(x, y, L[i], p))));
   const blobs = [], solids = [], trees = [], forests = [];
   for (const L of lanes) for (let i = 0; i < L.length - 1; i++) { const [ax, ay] = L[i], [bx, by] = L[i + 1], n = Math.ceil(Math.hypot(bx - ax, by - ay) / 140); for (let k = 0; k <= n; k++) blobs.push({ x: ax + (bx - ax) * k / n, y: ay + (by - ay) * k / n, r: 210, kind: 'road' }); }
   // 能不能放東西：離路、佔領點、基地、地圖邊緣都要有距離；也不能跟已經放的東西重疊
   const free = (x, y, r, laneGap = 260) => Math.abs(x) < H - r - 300 && Math.abs(y) < H - r - 300 && laneDist(x, y) > r + laneGap
-    && points.every((p) => Math.hypot(x - p.x, y - p.y) > r + CAPTURE.r + 450) && bases.every((b) => Math.hypot(x - b.x, y - b.y) > r + 2000)
+    && points.every((p) => Math.hypot(x - p.x, y - p.y) > r + CAPTURE.r + 350) && bases.every((b) => Math.hypot(x - b.x, y - b.y) > r + 1500)
     && solids.every((o) => o.kind === 'house' ? (Math.abs(x - o.x) > o.w / 2 + r + 60 || Math.abs(y - o.y) > o.h / 2 + r + 60) : Math.hypot(x - o.x, y - o.y) > r + o.r + 80)
     && forests.every((f) => Math.hypot(x - f.x, y - f.y) > r + f.r + 60);
   const twin = (fn) => { fn(1); fn(-1); };
-  // 河道：C 點外圍一條 U 型河，開口朝右下角的地圖邊緣 → C 點變成一座島；路經過河的地方自動變成橋（左邊一座、右上一座）
+  // 河道：C 點外圍一條 U 型河，開口朝下方的地圖邊緣 → C 點變成一座島；路經過河的地方自動變成橋（左右各一座）
+  // 橋的島內那一側放掩體：大部分是「全磚」岩石（擋人也擋子彈，可以躲在後面），橋口前面有兩塊「半磚」矮石（擋人，子彈可以飛過）
   const rivers = [], bridges = [];
   {
-    const C = points[2], R = 1300, RW = 170, path = [];
-    for (let a = 90; a <= 360; a += 4) path.push([C.x + Math.cos(a * Math.PI / 180) * R, C.y + Math.sin(a * Math.PI / 180) * R]);
-    const arm = (x0, y0, dx, dy) => { const out = []; for (let t = 100; ; t += 100) { const x = x0 + dx * t, y = y0 + dy * t; if (Math.abs(x) > H + RW || Math.abs(y) > H + RW) break; out.push([x, y]); } return out; };
-    const all = [...arm(C.x, C.y + R, 0, 1).reverse(), ...path, ...arm(C.x + R, C.y, 1, 0)];
+    const C = points[2], R = 1150, RW = 170, all = [];
+    for (let y = H + RW; y > C.y; y -= 100) all.push([C.x - R, y]);
+    for (let a = 180; a <= 360; a += 5) all.push([C.x + Math.cos(a * Math.PI / 180) * R, C.y + Math.sin(a * Math.PI / 180) * R]);
+    for (let y = C.y + 100; y <= H + RW; y += 100) all.push([C.x + R, y]);
     let gap = [];
-    const flush = () => { if (!gap.length) return; const m = gap[gap.length >> 1], ang = Math.atan2(gap[gap.length - 1][1] - gap[0][1], gap[gap.length - 1][0] - gap[0][0]); bridges.push({ x: m[0], y: m[1], ang: ang + Math.PI / 2, len: RW * 2 + 140, w: Math.max(260, Math.hypot(gap[gap.length - 1][0] - gap[0][0], gap[gap.length - 1][1] - gap[0][1]) + 60) }); gap = []; };
+    const flush = () => {
+      if (!gap.length) return;
+      const m = gap[gap.length >> 1], ang = Math.atan2(gap[gap.length - 1][1] - gap[0][1], gap[gap.length - 1][0] - gap[0][0]) + Math.PI / 2;
+      const b = { x: m[0], y: m[1], ang, len: RW * 2 + 140, w: Math.max(260, Math.hypot(gap[gap.length - 1][0] - gap[0][0], gap[gap.length - 1][1] - gap[0][1]) + 60) };
+      bridges.push(b); gap = [];
+      // 島內方向（u）與橋寬方向（v）
+      let ux = Math.cos(ang), uy = Math.sin(ang); if ((C.x - b.x) * ux + (C.y - b.y) * uy < 0) { ux = -ux; uy = -uy; }
+      const vx = -uy, vy = ux, at = (u, v) => [b.x + ux * u + vx * v, b.y + uy * u + vy * v];
+      for (const [u, v, r] of [[400, -330, 95], [400, 330, 95], [640, -190, 80], [660, 240, 75], [540, -480, 70], [560, 470, 72]]) { const [x, y] = at(u, v); solids.push({ kind: 'rock', x, y, r, seed: rnd() }); }
+      for (const [u, v, r] of [[310, -150, 52], [310, 150, 52]]) { const [x, y] = at(u, v); solids.push({ kind: 'lowrock', x, y, r, seed: rnd() }); }
+    };
     for (const p of all) {
       if (laneDist(p[0], p[1]) < 230) { gap.push(p); continue; }   // 路經過的地方留給橋
       flush(); const o = { kind: 'river', x: p[0], y: p[1], r: RW }; rivers.push(o); solids.push(o);
@@ -1477,15 +1489,15 @@ const MAPGEN = (() => {
     flush();
   }   // 每樣東西都放一對（對中心點對稱）
   // 山：一座山＝幾個重疊的圓
-  for (let n = 0, tries = 0; n < 3 && tries < 400; tries++) {
-    const x = (rnd() * 2 - 1) * (H - 2500), y = (rnd() * 2 - 1) * (H - 2500), parts = [];
-    const k = 3 + Math.floor(rnd() * 3); for (let i = 0; i < k; i++) parts.push({ dx: (rnd() - 0.5) * 1300, dy: (rnd() - 0.5) * 900, r: 420 + rnd() * 520 });
+  for (let n = 0, tries = 0; n < 2 && tries < 600; tries++) {
+    const x = (rnd() * 2 - 1) * (H - 1800), y = (rnd() * 2 - 1) * (H - 1800), parts = [];
+    const k = 3 + Math.floor(rnd() * 2); for (let i = 0; i < k; i++) parts.push({ dx: (rnd() - 0.5) * 900, dy: (rnd() - 0.5) * 700, r: 330 + rnd() * 380 });
     if (!parts.every((p) => free(x + p.dx, y + p.dy, p.r, 380) && free(-x - p.dx, -y - p.dy, p.r, 380))) continue;
     twin((sg) => parts.forEach((p) => solids.push({ kind: 'mountain', x: sg * (x + p.dx), y: sg * (y + p.dy), r: p.r }))); n++;
   }
   // 湖
   for (let n = 0, tries = 0; n < 1 && tries < 300; tries++) {
-    const x = (rnd() * 2 - 1) * (H - 2500), y = (rnd() * 2 - 1) * (H - 2500), r = 500 + rnd() * 400;
+    const x = (rnd() * 2 - 1) * (H - 1600), y = (rnd() * 2 - 1) * (H - 1600), r = 360 + rnd() * 260;
     if (!free(x, y, r + 150) || !free(-x, -y, r + 150)) continue;
     twin((sg) => { solids.push({ kind: 'lake', x: sg * x, y: sg * y, r }); solids.push({ kind: 'lake', x: sg * (x + r * 0.6), y: sg * (y + r * 0.3), r: r * 0.7 }); }); n++;
   }
@@ -1493,12 +1505,12 @@ const MAPGEN = (() => {
   const house = (x, y) => { const w = 220 + Math.round(rnd() * 3) * 60, h = 180 + Math.round(rnd() * 2) * 50, col = Math.floor(rnd() * 4);
     if (!free(x, y, Math.max(w, h) / 2 + 40, 120) || !free(-x, -y, Math.max(w, h) / 2 + 40, 120)) return false;
     twin((sg) => solids.push({ kind: 'house', x: sg * x, y: sg * y, w, h, col })); return true; };
-  for (const p of [points[0], points[1]]) for (let i = 0, tries = 0; i < (p.id === 'B' ? 3 : 5) && tries < 200; tries++) { const a = rnd() * Math.PI * 2, d = CAPTURE.r + 700 + rnd() * 900; if (house(p.x + Math.cos(a) * d, p.y + Math.sin(a) * d)) i++; }
-  for (let i = 0, tries = 0; i < 4 && tries < 600; tries++) { const L = lanes[Math.floor(rnd() * 3)], k = Math.floor(rnd() * (L.length - 1)), t = rnd(), [ax, ay] = L[k], [bx, by] = L[k + 1], side = rnd() < 0.5 ? 1 : -1, len = Math.hypot(bx - ax, by - ay) || 1;
-    if (house(ax + (bx - ax) * t + side * -(by - ay) / len * 520, ay + (by - ay) * t + side * (bx - ax) / len * 520)) i++; }
+  for (const p of [points[0], points[1]]) for (let i = 0, tries = 0; i < (p.id === 'B' ? 3 : 4) && tries < 200; tries++) { const a = rnd() * Math.PI * 2, d = CAPTURE.r + 450 + rnd() * 700; if (house(p.x + Math.cos(a) * d, p.y + Math.sin(a) * d)) i++; }
+  for (let i = 0, tries = 0; i < 2 && tries < 600; tries++) { const L = lanes[Math.floor(rnd() * 3)], k = Math.floor(rnd() * (L.length - 1)), t = rnd(), [ax, ay] = L[k], [bx, by] = L[k + 1], side = rnd() < 0.5 ? 1 : -1, len = Math.hypot(bx - ax, by - ay) || 1;
+    if (house(ax + (bx - ax) * t + side * -(by - ay) / len * 450, ay + (by - ay) * t + side * (bx - ax) / len * 450)) i++; }
   // 樹林：一片範圍裡種滿實體樹木（樹冠會遮擋視線）＋零星的單棵樹
-  for (let n = 0, tries = 0; n < 4 && tries < 800; tries++) {
-    const x = (rnd() * 2 - 1) * (H - 1800), y = (rnd() * 2 - 1) * (H - 1800), r = 600 + rnd() * 700;
+  for (let n = 0, tries = 0; n < 3 && tries < 800; tries++) {
+    const x = (rnd() * 2 - 1) * (H - 1300), y = (rnd() * 2 - 1) * (H - 1300), r = 420 + rnd() * 450;
     if (!free(x, y, r, 200) || !free(-x, -y, r, 200)) continue;
     twin((sg) => forests.push({ x: sg * x, y: sg * y, r })); n++;
   }
@@ -1509,7 +1521,7 @@ const MAPGEN = (() => {
       const sz = 0.85 + rnd() * 0.4; trees.push({ x, y, sz }, { x: -x, y: -y, sz });
     }
   }
-  for (let i = 0, tries = 0; i < 25 && tries < 1500; tries++) { const x = (rnd() * 2 - 1) * (H - 600), y = (rnd() * 2 - 1) * (H - 600); if (!free(x, y, 40, 140) || !free(-x, -y, 40, 140) || trees.some((t) => Math.abs(t.x - x) < 90 && Math.abs(t.y - y) < 90)) continue; const sz = 0.9 + rnd() * 0.4; trees.push({ x, y, sz }, { x: -x, y: -y, sz }); i++; }
+  for (let i = 0, tries = 0; i < 12 && tries < 1500; tries++) { const x = (rnd() * 2 - 1) * (H - 600), y = (rnd() * 2 - 1) * (H - 600); if (!free(x, y, 40, 140) || !free(-x, -y, 40, 140) || trees.some((t) => Math.abs(t.x - x) < 90 && Math.abs(t.y - y) < 90)) continue; const sz = 0.9 + rnd() * 0.4; trees.push({ x, y, sz }, { x: -x, y: -y, sz }); i++; }
   // 空間分格：碰撞／遮擋只查附近幾格
   const G = 600, grid = new Map(), put = (o, x0, y0, x1, y1) => { for (let gx = Math.floor(x0 / G); gx <= Math.floor(x1 / G); gx++) for (let gy = Math.floor(y0 / G); gy <= Math.floor(y1 / G); gy++) { const k = gx + ',' + gy; (grid.get(k) || grid.set(k, []).get(k)).push(o); } };
   for (const o of solids) o.kind === 'house' ? put(o, o.x - o.w / 2, o.y - o.h / 2, o.x + o.w / 2, o.y + o.h / 2) : put(o, o.x - o.r, o.y - o.r, o.x + o.r, o.y + o.r);
@@ -1521,7 +1533,7 @@ const MAPGEN = (() => {
 // 某個位置（半徑 r）有沒有撞到地形。bullet＝子彈：湖擋不住子彈
 function mapSolidAt(x, y, r, bullet) {
   for (const o of MAPGEN.near(x, y)) {
-    if (o.kind === 'forest' || (bullet && (o.kind === 'lake' || o.kind === 'river'))) continue;   // 子彈可以飛過湖和河
+    if (o.kind === 'forest' || (bullet && (o.kind === 'lake' || o.kind === 'river' || o.kind === 'lowrock'))) continue;   // 子彈可以飛過湖、河、半磚掩體   // 子彈可以飛過湖和河
     if (o.kind === 'house') { if (Math.abs(x - o.x) < o.w / 2 + r && Math.abs(y - o.y) < o.h / 2 + r) return o; }
     else if ((x - o.x) ** 2 + (y - o.y) ** 2 < (o.r + r) ** 2) return o;
   }
@@ -1533,13 +1545,16 @@ function losBlocked(ax, ay, bx, by) {
   for (let i = 1; i < n; i++) {
     const x = ax + (bx - ax) * i / n, y = ay + (by - ay) * i / n;
     for (const o of MAPGEN.near(x, y)) {
-      if (o.kind === 'mountain' && (x - o.x) ** 2 + (y - o.y) ** 2 < o.r * o.r) return true;
+      if ((o.kind === 'mountain' || o.kind === 'rock') && (x - o.x) ** 2 + (y - o.y) ** 2 < o.r * o.r) return true;
       if (o.kind === 'house' && Math.abs(x - o.x) < o.w / 2 && Math.abs(y - o.y) < o.h / 2) return true;
       if (o.kind === 'forest' && (x - o.x) ** 2 + (y - o.y) ** 2 < (o.r - 80) ** 2) return true;
     }
   }
   return false;
 }
+function lowCoverAt(x, y) { for (const o of MAPGEN.near(x, y)) if (o.kind === 'lowrock' && (x - o.x) ** 2 + (y - o.y) ** 2 < (o.r + 6) ** 2) return o; return null; }
+// 趴下的人形躲在半磚後面：剛飛過半磚的子彈會從頭頂飛過去（趴下的人形自己開火不受影響）
+const overProne = (b, u) => b.overX != null && (u.prone || 0) >= 0.6 && Math.hypot(b.x - b.overX, b.y - b.overY) < 200;
 function keepInMap(u) { if (!bigMap()) return; const m = BIGMAP.half - 40; u.x = clamp(u.x, -m, m); u.y = clamp(u.y, -m, m); }
 // 佔領點：中立時 v＝中立點數（100 → 0，白旗下降）；被佔領後 v 從 0 升到 100（己方顏色的旗子升到頂）
 let capPoints = [];
@@ -1569,7 +1584,7 @@ function drawBigMapGround(x0, x1, y0, y1) {
   for (const d of MAPGEN.blobs) { if (!vis(d.x, d.y, d.r)) continue; const q = proj(d.x, d.y); ground(q, d.x, d.y); ctx.fillStyle = MAPCOL[d.kind]; ctx.beginPath(); ctx.arc(d.x, d.y, d.r, 0, Math.PI * 2); ctx.fill(); }
   for (const f of MAPGEN.forests) { if (!vis(f.x, f.y, f.r)) continue; const q = proj(f.x, f.y); ground(q, f.x, f.y); ctx.fillStyle = '#1a4038'; ctx.beginPath(); ctx.arc(f.x, f.y, f.r, 0, Math.PI * 2); ctx.fill(); }
   for (const o of MAPGEN.solids) {
-    if (o.kind === 'house' || !vis(o.x, o.y, o.r)) continue;
+    if (o.kind === 'house' || o.kind === 'rock' || o.kind === 'lowrock' || !vis(o.x, o.y, o.r)) continue;
     const q = proj(o.x, o.y); ground(q, o.x, o.y);
     if (o.kind === 'river') { ctx.fillStyle = '#2a6a96'; ctx.beginPath(); ctx.arc(o.x, o.y, o.r, 0, Math.PI * 2); ctx.fill(); continue; }
     if (o.kind === 'lake') { ctx.fillStyle = 'rgba(40,120,190,0.55)'; ctx.beginPath(); ctx.arc(o.x, o.y, o.r, 0, Math.PI * 2); ctx.fill(); ctx.strokeStyle = 'rgba(150,210,255,0.35)'; ctx.lineWidth = 6; ctx.stroke(); continue; }
@@ -1602,7 +1617,7 @@ function drawBigMapGround(x0, x1, y0, y1) {
     if (fill) { ctx.fillStyle = fill; ctx.fill(); }
     if (stroke) { ctx.strokeStyle = stroke; ctx.lineWidth = lw; ctx.stroke(); }
   };
-  for (const b of MAPGEN.bases) poly(b.x - 1500, b.y - 1500, b.x + 1500, b.y + 1500, b.team === 'blue' ? 'rgba(90,170,255,0.12)' : 'rgba(255,110,100,0.12)', b.team === 'blue' ? 'rgba(120,190,255,0.6)' : 'rgba(255,130,120,0.6)', 3);
+  for (const b of MAPGEN.bases) poly(b.x - 1100, b.y - 1100, b.x + 1100, b.y + 1100, b.team === 'blue' ? 'rgba(90,170,255,0.12)' : 'rgba(255,110,100,0.12)', b.team === 'blue' ? 'rgba(120,190,255,0.6)' : 'rgba(255,130,120,0.6)', 3);
   const H = BIGMAP.half, F = 1e5;
   poly(-F, -F, F, -H, 'rgba(2,8,12,0.75)'); poly(-F, H, F, F, 'rgba(2,8,12,0.75)'); poly(-F, -H, -H, H, 'rgba(2,8,12,0.75)'); poly(H, -H, F, H, 'rgba(2,8,12,0.75)');
   poly(-H, -H, H, H, null, 'rgba(255,214,120,0.7)', 3);
@@ -1613,9 +1628,9 @@ function mapActors() {
   const vb = viewBounds(), x0 = cam.x - vb.hw - 300, x1 = cam.x + vb.hw + 300, y0 = cam.y + vb.t - 300, y1 = cam.y + vb.b + 400, out = [];
   const G = MAPGEN.G, seen = new Set();
   for (let gx = Math.floor(x0 / G); gx <= Math.floor(x1 / G); gx++) for (let gy = Math.floor(y0 / G); gy <= Math.floor(y1 / G); gy++) for (const o of MAPGEN.grid.get(gx + ',' + gy) || []) {
-    if (seen.has(o) || (o.kind !== 'tree' && o.kind !== 'house')) continue; seen.add(o);
+    if (seen.has(o) || (o.kind !== 'tree' && o.kind !== 'house' && o.kind !== 'rock' && o.kind !== 'lowrock')) continue; seen.add(o);
     if (o.x < x0 || o.x > x1 || o.y < y0 || o.y > y1) continue;
-    out.push({ it: o, k: o.kind === 'tree' ? 't' : 'h', y: o.kind === 'house' ? o.y + o.h / 2 : o.y });
+    out.push({ it: o, k: o.kind === 'tree' ? 't' : o.kind === 'house' ? 'h' : 'r', y: o.kind === 'house' ? o.y + o.h / 2 : o.y });
   }
   for (const p of capPoints) if (p.x > x0 && p.x < x1 && p.y > y0 && p.y < y1) out.push({ it: p, k: 'f', y: p.y });
   return out;
@@ -1626,6 +1641,23 @@ function drawTree(t) {
   upright(q, t.x, t.y);
   ctx.fillStyle = '#4b3424'; ctx.fillRect(t.x - 5 * s, t.y - 34 * s, 10 * s, 36 * s);
   for (const [dx, dy, r, c] of [[0, -58, 34, '#1f5a3a'], [-16, -48, 24, '#246a43'], [15, -50, 24, '#22633f'], [-4, -72, 22, '#2e7a4e'], [6, -62, 14, '#3f9662']]) { ctx.fillStyle = c; ctx.beginPath(); ctx.arc(t.x + dx * s, t.y + dy * s, r * s, 0, Math.PI * 2); ctx.fill(); }
+}
+// 岩石掩體：全磚＝高大的岩石；半磚＝低矮的石堆（看得出來子彈可以從上面飛過）
+function drawRock(o) {
+  const q = proj(o.x, o.y), r = o.r, low = o.kind === 'lowrock', h = low ? r * 0.55 : r * 1.35, s = o.seed || 0.5;
+  ground(q, o.x, o.y); ctx.fillStyle = 'rgba(5,15,20,0.45)'; ctx.beginPath(); ctx.ellipse(o.x + r * 0.15, o.y + 4, r * 1.1, r * 0.5, 0, 0, Math.PI * 2); ctx.fill();
+  upright(q, o.x, o.y);
+  const blob = (cx, cy, rx, ry, col) => { ctx.fillStyle = col; ctx.beginPath(); ctx.ellipse(cx, cy, rx, ry, 0, 0, Math.PI * 2); ctx.fill(); };
+  if (low) {
+    blob(o.x - r * 0.45, o.y - h * 0.35, r * 0.55, h * 0.5, '#6d6a62'); blob(o.x + r * 0.4, o.y - h * 0.4, r * 0.6, h * 0.55, '#7b776d'); blob(o.x - r * 0.05, o.y - h * 0.65, r * 0.5, h * 0.45, '#8c877b');
+    blob(o.x + r * 0.15, o.y - h * 0.85, r * 0.28, h * 0.18, 'rgba(255,255,255,0.12)');
+  } else {
+    ctx.fillStyle = '#5f5b54'; ctx.beginPath();
+    ctx.moveTo(o.x - r, o.y); ctx.lineTo(o.x - r * (0.85 + s * 0.1), o.y - h * 0.55); ctx.lineTo(o.x - r * 0.45, o.y - h * (0.92 + s * 0.08)); ctx.lineTo(o.x + r * 0.2, o.y - h);
+    ctx.lineTo(o.x + r * 0.8, o.y - h * (0.7 - s * 0.1)); ctx.lineTo(o.x + r, o.y - h * 0.2); ctx.lineTo(o.x + r * 0.9, o.y); ctx.closePath(); ctx.fill();
+    ctx.fillStyle = '#7a756b'; ctx.beginPath(); ctx.moveTo(o.x - r * 0.45, o.y - h * (0.92 + s * 0.08)); ctx.lineTo(o.x + r * 0.2, o.y - h); ctx.lineTo(o.x + r * 0.8, o.y - h * (0.7 - s * 0.1)); ctx.lineTo(o.x + r * 0.1, o.y - h * 0.55); ctx.lineTo(o.x - r * 0.5, o.y - h * 0.6); ctx.closePath(); ctx.fill();
+    ctx.strokeStyle = 'rgba(0,0,0,0.25)'; ctx.lineWidth = 3; ctx.beginPath(); ctx.moveTo(o.x + r * 0.1, o.y - h * 0.55); ctx.lineTo(o.x + r * 0.25, o.y - h * 0.1); ctx.stroke();
+  }
 }
 const HOUSECOL = [['#c9b48e', '#8f4a3a'], ['#b8bcc0', '#4f6f86'], ['#d2c3a2', '#6f5a45'], ['#a9a08e', '#7d3f3f']];
 function drawHouse(o) {
@@ -1665,10 +1697,10 @@ function miniBase(size) {
   g.fillStyle = '#2f7a4c'; for (const t of MAPGEN.trees) g.fillRect(X(t.x) - 0.5, X(t.y) - 0.5, 1, 1);
   for (const o of MAPGEN.solids) {
     if (o.kind === 'house') { g.fillStyle = '#c9c2b0'; g.fillRect(X(o.x - o.w / 2), X(o.y - o.h / 2), Math.max(1.5, o.w * k), Math.max(1.5, o.h * k)); continue; }
-    g.fillStyle = o.kind === 'lake' || o.kind === 'river' ? '#3a86c4' : '#6e6253'; g.beginPath(); g.arc(X(o.x), X(o.y), o.r * k, 0, Math.PI * 2); g.fill();
+    g.fillStyle = o.kind === 'lake' || o.kind === 'river' ? '#3a86c4' : o.kind === 'rock' || o.kind === 'lowrock' ? '#9a948a' : '#6e6253'; g.beginPath(); g.arc(X(o.x), X(o.y), o.r * k, 0, Math.PI * 2); g.fill();
   }
   g.fillStyle = '#a07a50'; for (const b of MAPGEN.bridges) { g.beginPath(); g.arc(X(b.x), X(b.y), Math.max(1.5, 230 * k), 0, Math.PI * 2); g.fill(); }
-  for (const b of MAPGEN.bases) { g.fillStyle = b.team === 'blue' ? '#5aaaff' : '#ff6e64'; const w = 3000 * k; g.fillRect(X(b.x) - w / 2, X(b.y) - w / 2, w, w); }
+  for (const b of MAPGEN.bases) { g.fillStyle = b.team === 'blue' ? '#5aaaff' : '#ff6e64'; const w = 2200 * k; g.fillRect(X(b.x) - w / 2, X(b.y) - w / 2, w, w); }
   return c;
 }
 function drawMapView(x, y, size, full) {
@@ -1682,7 +1714,7 @@ function drawMapView(x, y, size, full) {
     ctx.strokeStyle = 'rgba(255,255,255,0.08)'; ctx.lineWidth = 1; ctx.beginPath();
     for (let i = 50; i < BIGMAP.cells; i += 50) { const p = x + i / BIGMAP.cells * size, q = y + i / BIGMAP.cells * size; ctx.moveTo(p, y); ctx.lineTo(p, y + size); ctx.moveTo(x, q); ctx.lineTo(x + size, q); }
     ctx.stroke();
-    ctx.fillStyle = '#ffe6a8'; ctx.font = '600 13px system-ui, sans-serif'; ctx.textAlign = 'center'; ctx.fillText('戰局地圖　150 × 150 格（按 M 或點地圖關閉）', x + size / 2, y - 8); ctx.textAlign = 'left';
+    ctx.fillStyle = '#ffe6a8'; ctx.font = '600 13px system-ui, sans-serif'; ctx.textAlign = 'center'; ctx.fillText('戰局地圖　100 × 100 格（按 M 或點地圖關閉）', x + size / 2, y - 8); ctx.textAlign = 'left';
   }
   // 佔領點
   for (const p of capPoints) {
@@ -5779,6 +5811,7 @@ function update(dt) {
     if (b.lacer) { b.dist += Math.hypot(b.vx, b.vy) * dt; if (!b.purple && b.dist >= cfg.skill.purpleAfter) { b.purple = true; burst(b.x, b.y, '#b06bff', 3); } }
     if (b.life <= 0 || Math.hypot(b.x - player.x, b.y - player.y) > far) { bullets.splice(i, 1); continue; }
     if (bigMap() && mapSolidAt(b.x, b.y, b.r, true)) { burst(b.x, b.y, '#c8c2b4', 3); bullets.splice(i, 1); continue; }   // 戰局：山、房屋、樹木擋子彈
+    if (bigMap() && lowCoverAt(b.x, b.y)) { b.overX = b.x; b.overY = b.y; }   // 子彈剛飛過半磚掩體（記下位置，見 overProne）
     if (b.beam) b.vy -= 34 * dt;   // 光束：直線飛行
     if (b.home) {
       // 追蹤：以固定速度、有限的轉向速率轉向玩家
@@ -5789,7 +5822,7 @@ function update(dt) {
     let hit = false;
     if (b.team === 'e') {
       let cHit = null;
-      for (const c of clones) if (!(b.missedC && b.missedC.has(c)) && Math.hypot(b.x - c.x, b.y - c.y) < b.r + c.r) { cHit = c; break; }
+      for (const c of clones) if (!(b.missedC && b.missedC.has(c)) && Math.hypot(b.x - c.x, b.y - c.y) < b.r + c.r && !overProne(b, c)) { cHit = c; break; }
       if (cHit && cHit.invT <= 0) {
         if (!b.elec && Math.random() < evadeRate(cfg) + effSum(player, 'evade') + effSum(cHit, 'evade')) { (b.missedC || (b.missedC = new Set())).add(cHit); floatText(cHit.x, cHit.y - 36, 'MISS', '#bfefff'); }
         else if (b.beam) {
@@ -5799,7 +5832,7 @@ function update(dt) {
         else { damageClone(cHit, b.dmg || ENEMY.bulletDmg, !!b.pierce || !!b.elec); if (b.elec && b.slow && clones.includes(cHit)) addSlow(cHit, b.slow, b.slowTime); if (b.atkDown && clones.includes(cHit)) addAtkDown(cHit, b.atkDown); bullets.splice(i, 1); continue; }
       }
       if (player.invT > 0) continue;   // 無敵時子彈直接穿過
-      if (!b.evaded && Math.hypot(b.x - player.x, b.y - player.y) < b.r + player.r) {
+      if (!b.evaded && Math.hypot(b.x - player.x, b.y - player.y) < b.r + player.r && !overProne(b, player)) {
         if (!b.elec && Math.random() < evadeRate(cfg) + effSum(player, 'evade')) {
           // 迴避：子彈穿過、不扣血，也不會打斷霞光萍蹤的強化（電磁傷害不可迴避）
           b.evaded = true; floatText(player.x, player.y - 40, 'MISS', '#bfefff'); sfx.evade();
@@ -6141,6 +6174,7 @@ function draw(t) {
     if (k === 'e' && (it.marked || it.atkDownT > 0)) drawLater.push(it);
     if (k === 't') { drawTree(it); continue; }
     if (k === 'h') { drawHouse(it); continue; }
+    if (k === 'r') { drawRock(it); continue; }
     if (k === 'f') { drawFlag(it); continue; }
     if (k === 'c') drawCrate(it);
     else if (k === 'e' && it.boss) ({ dreamer: drawDreamer, scarecrow: drawScarecrow, interferer: drawInterferer, architect: drawArchitect, judge: drawJudge, lycaon: drawLycaon, ti: drawTi, greatsword: drawGreatsword, minotaur: drawMinotaur, agent: drawAgent }[it.B.ai] || drawBoss)(it);
