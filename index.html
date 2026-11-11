@@ -2081,7 +2081,7 @@ function vsFighterTick(f, dt) {
   // 移動
   let mv = null;
   if (f.evadeT > 0) { f.evadeT -= dt; mv = f.evadeDir; }
-  else if (f.goal) { const gx = f.goal.x - f.x, gy = f.goal.y - f.y, near = tgt ? 60 : 30; if (gx * gx + gy * gy > near * near) mv = Math.atan2(gy, gx); }
+  else if (f.goal) { const gx = f.goal.x - f.x, gy = f.goal.y - f.y, near = f.goal.item ? 6 : tgt ? 60 : 30; /* 要撿的東西：一定要走到上面 */ if (gx * gx + gy * gy > near * near) mv = Math.atan2(gy, gx); }
   f.moving = false;
   if (mv != null && wantMove) {
     const fighting = tgt && f.evadeT <= 0;   // 交戰中調整站位：用 55% 速度走（趕路、躲子彈才全速）
@@ -2144,10 +2144,10 @@ function vsThink(f) {
   const nearestItem = (list, maxD) => { let it = null, bd = maxD; for (const p of list) { const d = Math.hypot(p.x - f.x, p.y - f.y); if (d < bd) { bd = d; it = p; } } return it; };
   const part = nearestItem(parts, role === 'collect' ? 3000 : 900), med = f.hp < f.maxHp * 0.6 ? nearestItem(medkits, 1200) : null;
   let goal = null;
-  if (role === 'collect' && part && !(tgt && Math.hypot(tgt.x - f.x, tgt.y - f.y) < range * 0.5)) goal = { x: part.x, y: part.y };
+  if (role === 'collect' && part && !(tgt && Math.hypot(tgt.x - f.x, tgt.y - f.y) < range * 0.5)) goal = { x: part.x, y: part.y, item: true };
   else if (!tgt) {
-    if (med) goal = { x: med.x, y: med.y };
-    else if (part) goal = { x: part.x, y: part.y };
+    if (med) goal = { x: med.x, y: med.y, item: true };
+    else if (part) goal = { x: part.x, y: part.y, item: true };
     else if (role === 'front' || !fronts.length) goal = { x: dirX * MAPGEN.hw * (role === 'front' ? 0.55 : 0.25), y: Math.sin(f.seed) * MAPGEN.hh * 0.6 };   // 往敵方推進
     else { const a = fronts[0]; goal = { x: a.x - dirX * 160, y: a.y + Math.sin(f.seed) * 120 }; }                      // 跟在前排後面
   } else {
@@ -2183,8 +2183,8 @@ function vsThink(f) {
         if (Math.hypot(px - tgt.x, py - tgt.y) < range * 0.98 && f.flankT <= 0) goal = { x: px, y: py };
       }
     }
-    if (!elite && part && Math.hypot(part.x - f.x, part.y - f.y) < 300 && !vis.some((u) => Math.hypot(u.x - f.x, u.y - f.y) < 350)) goal = { x: part.x, y: part.y };
-    if (med && f.hp < f.maxHp * 0.35) goal = { x: med.x, y: med.y };
+    if (!elite && part && Math.hypot(part.x - f.x, part.y - f.y) < 300 && !vis.some((u) => Math.hypot(u.x - f.x, u.y - f.y) < 350)) goal = { x: part.x, y: part.y, item: true };
+    if (med && f.hp < f.maxHp * 0.35) goal = { x: med.x, y: med.y, item: true };
   }
   if (goal) { goal.x = clamp(goal.x, -MAPGEN.hw + 60, MAPGEN.hw - 60); goal.y = clamp(goal.y, -MAPGEN.hh + 60, MAPGEN.hh - 60); }
   f.goal = goal;
