@@ -152,6 +152,12 @@ body:not(.touch) #touchui{display:none}
 .clear-time{margin:0 0 12px;font-size:15px;color:var(--ink)}
 .clear-time b{font-size:24px;color:var(--aqua);letter-spacing:.04em}
 .menu-row{display:flex;gap:10px;justify-content:center;flex-wrap:wrap;margin-bottom:14px}
+.set-row{display:flex;align-items:center;justify-content:space-between;gap:12px;margin:12px 0;text-align:left}
+.set-row>span{font-size:14px;color:#cfe3e8}
+.seg{display:flex;border:1px solid var(--line);border-radius:10px;overflow:hidden}
+.seg button{border:0;background:#102a35;color:#9fb8bf;padding:8px 18px;font-size:14px;cursor:pointer}
+.seg button.on{background:#258d83;color:#fff;font-weight:700}
+.set-note{font-size:12px;line-height:1.55;color:#9fb8bf;text-align:left;margin:4px 0 0}
 /* 首頁：①關卡 ②角色 */
 .step-h{display:flex;align-items:center;justify-content:center;gap:8px;margin:12px 0 6px;font-size:13px;font-weight:800;letter-spacing:.14em;color:var(--muted)}
 .step-h span{display:grid;place-items:center;width:20px;height:20px;border-radius:50%;background:var(--aqua);color:#062028;font-size:12px;letter-spacing:0}
@@ -397,12 +403,13 @@ body.touch #testPanel{max-height:38vh}   /* 手機：不要擋到左下的移動
     </div>
     <p class="team-note" id="teamNote" hidden>戰事可以帶兩名人形，遊戲中按「切換」換人，各自的生命、彈藥、技能冷卻分開保存。只有主人形擁有擴編能力，擴編出來的分身切換時也會留在場上；主人形倒下後，擴編能力會轉交給副人形。任何一名倒下後就不能再切換。</p>
     <div class="menu-row">
+      <button id="settingsBtn" class="btn" type="button">設定</button>
       <button id="codexBtn" class="btn" type="button">人形圖鑑</button>
       <button id="ecodexBtn" class="btn" type="button">敵人圖鑑</button>
     </div>
     <button id="startBtn" class="btn primary" type="button" disabled>載入中…</button>
     <p class="help only-mouse">WASD／方向鍵移動 · 滑鼠瞄準 · 左鍵或空白鍵開火 · Shift 或右鍵閃避 · Q 技能 · E 擴編 · R 裝彈 · 滾輪縮放 · P／Esc 暫停</p>
-    <p class="help only-touch">左半邊螢幕拖曳移動 · 右下角開火、裝彈、閃避、技能 · 範圍內自動鎖定最近的敵人</p>
+    <p class="help only-touch">左半邊螢幕拖曳移動 · 右下角開火、裝彈、閃避、技能 · 預設自動鎖定最近的敵人（可在「設定」改成手動瞄準）</p>
     <div class="load-tip" id="startTip" hidden></div>
     <p class="best" id="bestLine"></p>
   </div>
@@ -435,6 +442,17 @@ body.touch #testPanel{max-height:38vh}   /* 手機：不要擋到左下的移動
     <div class="codex-tabs" id="codexTabs"></div>
     <div id="codexDetail"></div>
     <div class="row" style="margin-top:18px"><button id="codexClose" class="btn primary" type="button">關閉</button></div>
+  </div>
+</div>
+
+<div id="settings" class="overlay sub" hidden>
+  <div class="sheet" style="max-width:400px">
+    <h2>設定</h2>
+    <label class="field" for="setZoom"><span>視野</span><input id="setZoom" type="range" min="0.4" max="1.4" step="0.01" value="1"></label>
+    <div class="set-row"><span>音效</span><div class="seg"><button type="button" id="setSndOn">開</button><button type="button" id="setSndOff">關</button></div></div>
+    <div class="set-row only-touch"><span>瞄準</span><div class="seg"><button type="button" id="setAimAuto">自動</button><button type="button" id="setAimManual">手動</button></div></div>
+    <p class="set-note only-touch" id="aimNote"></p>
+    <div class="row" style="margin-top:14px"><button id="settingsClose" class="btn primary" type="button">完成</button></div>
   </div>
 </div>
 
@@ -1858,7 +1876,7 @@ function drawBigMapHud() {
      霰彈槍／衝鋒槍＝前排：站在隊友前面，主動找敵人牽制；身邊沒有隊友時改當輸出
      手槍＝輔助：幫輸出護航；身邊沒有前排時改當前排
    ・精銳：每個角色各自的行為邏輯（VS_ELITE）。還沒寫專屬邏輯的角色先用普通邏輯，只加上預判瞄準與精銳的躲子彈方式 */
-const VS = { win: 30, startParts: 10, respawn: 5, view: 1000, partEvery: 0.625, partMax: 32, medEvery: 4.5, medMax: 4, medHeal: 0.4, pickR: 22, steal: 0.5, spawnInv: 2 };
+const VS = { win: 30, startParts: 10, respawn: 5, view: 1000, partEvery: 0.625, partMax: 32, medEvery: 4.5, medMax: 4, medHeal: 50, pickR: 22, steal: 0.5, spawnInv: 2 };
 const VS_ELITE = {
   // HK433：彈匣滿了才開技能（不滿先換彈）、優先移動躲子彈、必中才閃避並保留 1 次（生命 ≤ 25% 才無限制）、預判瞄準、找掩體、輸出太多時換位置夾擊
   hk433: { dodgeFree: 0.25, fullMagSkill: true, cover: true, flank: true },
@@ -2031,11 +2049,13 @@ function vsPickups() {
     burst(pt.x, pt.y, '#f9cf70', 8);
   }
   for (let i = medkits.length - 1; i >= 0; i--) {
-    const m = medkits[i], u = units.find((v) => v.hp < v.maxHp && Math.hypot(m.x - v.x, m.y - v.y) < v.r + VS.pickR); if (!u) continue;
+    // 醫療箱：撿到的那一隊（本體＋擴編人形）每人回 50 生命；全員滿血就不撿
+    const m = medkits[i], group = (v) => v === player || v.clone ? [...(vsDead() ? [] : [player]), ...clones] : [v.lead || v, ...(v.lead || v).clones];
+    const u = units.find((v) => Math.hypot(m.x - v.x, m.y - v.y) < v.r + VS.pickR && group(v).some((g) => g.hp < g.maxHp)); if (!u) continue;
     medkits.splice(i, 1);
-    const heal = Math.round(u.maxHp * VS.medHeal); u.hp = Math.min(u.maxHp, u.hp + heal);
-    if (u === player) updateHp();
-    burst(m.x, m.y, '#7dff9a', 12); floatText(u.x, u.y - 46, '+' + heal, '#7dff9a');
+    for (const g of group(u)) { if (g.hp >= g.maxHp) continue; const h = Math.min(VS.medHeal, g.maxHp - g.hp); g.hp += h; floatText(g.x, g.y - 46, '+' + Math.round(h), '#7dff9a'); burst(g.x, g.y, '#7dff9a', 6); }
+    if (u === player || u.clone) updateHp();
+    burst(m.x, m.y, '#7dff9a', 12);
   }
 }
 
@@ -2090,9 +2110,17 @@ function vsFighterTick(f, dt) {
     vsSteer(f, mv, spd * dt);
     const moved = Math.hypot(f.x - x0, f.y - y0);
     f.stuckT = moved < spd * dt * 0.25 ? f.stuckT + dt : 0;
-    if (f.stuckT > 0.8) { f.stuckT = 0; f.goal = { x: f.x + rand(-300, 300), y: f.y + rand(-300, 300) }; f.thinkT = 0.8; }
+    // 卡住（原地推牆，或在障礙物前左右來回）：每 1.5 秒檢查一次實際位移，太小就往旁邊繞一段
+    f.chkT = (f.chkT || 0) + dt;
+    if (f.chkT >= 1.5) { const net = Math.hypot(f.x - (f.chkX ?? f.x), f.y - (f.chkY ?? f.y)); f.chkT = 0; f.chkX = f.x; f.chkY = f.y; if (net < 45) f.stuckT = 1; }
+    if (f.stuckT > 0.8) {
+      f.stuckT = 0; f.huntPt = null;
+      const a = mv + (Math.random() < 0.5 ? 1 : -1) * rand(1.2, 2);
+      f.detour = { x: clamp(f.x + Math.cos(a) * 280, -MAPGEN.hw + 80, MAPGEN.hw - 80), y: clamp(f.y + Math.sin(a) * 280, -MAPGEN.hh + 80, MAPGEN.hh - 80) }; f.detourUntil = gameTime + 1.2; f.goal = f.detour;
+    }
   }
   f.rest = !f.moving && !tgt;
+  f.idleT = (!f.moving && !f.firing && f.reloadT <= 0) ? (f.idleT || 0) + dt : 0;   // 發呆計時（防掛機）
   // 瞄準與開火
   if (tgt) {
     const da = Math.atan2(Math.sin(aimA - f.angle), Math.cos(aimA - f.angle));
@@ -2130,6 +2158,7 @@ function vsThink(f) {
   if (E && E.lowHpFirst) for (const u of vis) { const d = Math.hypot(u.x - f.x, u.y - f.y); if (d <= range * 1.25 && u.hp < best) { best = u.hp; tgt = u; } }
   if (!tgt) { best = Infinity; for (const u of vis) { const d = Math.hypot(u.x - f.x, u.y - f.y) - (u.isClone || u.clone ? 0 : 40); if (d < best) { best = d; tgt = u; } } }
   f.target = tgt;
+  if (vis.length) { const u = vis[0]; (vs.intel || (vs.intel = {}))[f.vsTeam] = { x: u.x, y: u.y, t: gameTime }; }   // 隊伍情報：最後看到敵人的位置
   if (f.parts >= PARTS.cost && f.clones.length < CLONE.maxCount) vsExpand(f);
   // 角色定位
   const friends = vsFriendsOf(f).filter((u) => u !== f && !u.isClone && !u.clone && Math.hypot(u.x - f.x, u.y - f.y) < 700);
@@ -2142,14 +2171,17 @@ function vsThink(f) {
   f.role = role;
   const dirX = f.vsTeam === 'blue' ? 1 : -1;
   const nearestItem = (list, maxD) => { let it = null, bd = maxD; for (const p of list) { const d = Math.hypot(p.x - f.x, p.y - f.y); if (d < bd) { bd = d; it = p; } } return it; };
-  const part = nearestItem(parts, role === 'collect' ? 3000 : 900), med = f.hp < f.maxHp * 0.6 ? nearestItem(medkits, 1200) : null;
+  const part = nearestItem(parts, role === 'collect' ? 3000 : 900), hurt = [f, ...f.clones].reduce((a, u) => a + u.maxHp - u.hp, 0), med = (f.hp < f.maxHp * 0.6 || hurt >= 80) ? nearestItem(medkits, 1200) : null;
   let goal = null;
   if (role === 'collect' && part && !(tgt && Math.hypot(tgt.x - f.x, tgt.y - f.y) < range * 0.5)) goal = { x: part.x, y: part.y, item: true };
   else if (!tgt) {
     if (med) goal = { x: med.x, y: med.y, item: true };
     else if (part) goal = { x: part.x, y: part.y, item: true };
-    else if (role === 'front' || !fronts.length) goal = { x: dirX * MAPGEN.hw * (role === 'front' ? 0.55 : 0.25), y: Math.sin(f.seed) * MAPGEN.hh * 0.6 };   // 往敵方推進
-    else { const a = fronts[0]; goal = { x: a.x - dirX * 160, y: a.y + Math.sin(f.seed) * 120 }; }                      // 跟在前排後面
+    else if (role !== 'front' && fronts.length) { const a = fronts[0]; goal = { x: a.x - dirX * 160, y: a.y + Math.sin(f.seed) * 120 }; }   // 跟在前排後面
+    else goal = vsHuntGoal(f, dirX);   // 往敵方推進（有情報就往敵人最後出現的地方）
+    // 防掛機：超過 5 秒沒有任何動作 → 6 秒內主動出擊（情報 → 最遠的隊友 → 往敵方搜索）
+    if ((f.idleT || 0) > 5) { f.huntUntil = gameTime + 6; f.idleT = 0; f.huntPt = null; }
+    if (gameTime < (f.huntUntil || 0)) goal = vsHuntGoal(f, dirX, true);
   } else {
     const d = Math.hypot(tgt.x - f.x, tgt.y - f.y) || 1, ux = (f.x - tgt.x) / d, uy = (f.y - tgt.y) / d;
     const keep = role === 'front' ? range * (D.weapon.class === 'SG' ? 0.45 : 0.6) : role === 'support' ? range * 0.75 : range * 0.92;
@@ -2185,13 +2217,29 @@ function vsThink(f) {
     }
     if (!elite && part && Math.hypot(part.x - f.x, part.y - f.y) < 300 && !vis.some((u) => Math.hypot(u.x - f.x, u.y - f.y) < 350)) goal = { x: part.x, y: part.y, item: true };
     if (med && f.hp < f.maxHp * 0.35) goal = { x: med.x, y: med.y, item: true };
+    // 有目標卻打不到（被岩石擋住等）而發呆超過 3 秒：繞到另一個角度
+    if ((f.idleT || 0) > 3) { f.idleT = 0; f.flankSide = -f.flankSide; f.flankT = 3; }
+    if (!(E && E.flank) && f.flankT > 0) { f.flankT = Math.max(0, f.flankT - 0.2); const a = Math.atan2(uy, ux) + f.flankSide * 1.1; goal = { x: tgt.x + Math.cos(a) * keep, y: tgt.y + Math.sin(a) * keep }; }
   }
+  if (gameTime < (f.detourUntil || 0)) goal = f.detour;   // 卡住時的繞路點
   if (goal) { goal.x = clamp(goal.x, -MAPGEN.hw + 60, MAPGEN.hw - 60); goal.y = clamp(goal.y, -MAPGEN.hh + 60, MAPGEN.hh - 60); }
   f.goal = goal;
   if (!tgt && f.ammo < D.weapon.magazine) vsReload(f);   // 沒有敵人時先把彈匣補滿
   vsMaybeSkill(f, tgt, vis);
 }
 // 躲子彈：算出會打中自己的子彈
+// 搜敵的目的地：隊伍情報（12 秒內）→ 離自己遠的隊友 → 敵方半場的搜索點
+function vsHuntGoal(f, dirX, idle) {
+  const it = vs.intel && vs.intel[f.vsTeam];
+  if (it && gameTime - it.t < 12) return { x: it.x, y: it.y };
+  if (idle) {
+    const mates = vsFriendsOf(f).filter((u) => u !== f && !u.isClone && !u.clone);
+    let m = null, bd = 350; for (const u of mates) { const d = Math.hypot(u.x - f.x, u.y - f.y); if (d > bd) { bd = d; m = u; } }
+    if (m) return { x: m.x, y: m.y };
+  }
+  if (!f.huntPt || Math.hypot(f.huntPt.x - f.x, f.huntPt.y - f.y) < 120) for (let n = 0; n < 10; n++) { f.huntPt = { x: dirX * MAPGEN.hw * rand(0.15, 0.7), y: rand(-1, 1) * MAPGEN.hh * 0.75 }; if (!mapSolidAt(f.huntPt.x, f.huntPt.y, 40)) break; }
+  return f.huntPt;
+}
 function vsDodgeCheck(f) {
   if (f.dodgeT > 0 || f.evadeT > 0.05 || f.rollT > 0) return;
   const D = f.def, foeTeam = f.vsTeam === vs.myTeam ? 'e' : 'p';
@@ -2847,7 +2895,10 @@ const hud = $('hud'), touchui = $('touchui'), menu = $('menu'), pauseEl = $('pau
 const stickRing = $('stickRing'), stickKnob = $('stickKnob');
 
 /* ───────── 狀態 ───────── */
-let W = 800, H = 500, DPR = 1, zoom = 1, userZoom = 1;
+let W = 800, H = 500, DPR = 1, zoom = 1, userZoom = clamp(Number(store.get('rxxlc-zoom')) || 1, 0.4, 1.4);
+let aimMode = store.get('rxxlc-aim') === 'manual' ? 'manual' : 'auto';   // 手機版的瞄準方式：auto＝自動鎖定｜manual＝按住開火鍵拖曳瞄準
+const manualAim = () => aimMode === 'manual' && document.body.classList.contains('touch');
+let touchAim = null;   // 手動瞄準：開火鍵拖曳出來的方向（世界角度）
 let state = 'menu';                       // menu | play | pause | over
 let cfg = CHARACTERS.triple_crown, selectedId = cfg.id;
 let subId = 'hk433';                      // 戰事的副角色（不能和主要角色相同）
@@ -3778,7 +3829,7 @@ canvas.addEventListener('wheel', (e) => { if (state === 'play') { e.preventDefau
 
 // 玩家可調整的視野倍率：0.4～1.4（初始 1）
 const ZOOM_MIN = 0.4, ZOOM_MAX = 1.4;
-function setZoom(v) { userZoom = clamp(v, ZOOM_MIN, ZOOM_MAX); computeZoom(); stream(); }
+function setZoom(v) { userZoom = clamp(v, ZOOM_MIN, ZOOM_MAX); store.set('rxxlc-zoom', String(userZoom)); computeZoom(); stream(); }
 
 function endStick() {
   stick.id = null; stick.x = stick.y = 0; stickRing.classList.remove('on');
@@ -3819,6 +3870,13 @@ const upHandler = (e) => { if (e.pointerType === 'mouse') mouseDown = false; els
 
 const tFire = $('tFire'), tReload = $('tReload');
 tFire.addEventListener('pointerdown', (e) => { e.preventDefault(); try { tFire.setPointerCapture(e.pointerId); } catch (_) {} fireHeld = true; tFire.classList.add('held'); });
+tFire.addEventListener('pointermove', (e) => {
+  if (!fireHeld || !manualAim() || !player) return;
+  const r = tFire.getBoundingClientRect(), dx = e.clientX - (r.left + r.width / 2), dy = e.clientY - (r.top + r.height / 2);
+  if (Math.hypot(dx, dy) < 10) return;   // 只是按著：沿用上一次的方向
+  const q = proj(player.x, player.y), w = unproj(q.x + dx * 4, q.y + dy * 4);
+  touchAim = Math.atan2(w.y - player.y, w.x - player.x);
+});
 const fireUp = () => { fireHeld = false; tFire.classList.remove('held'); };
 ['pointerup', 'pointercancel', 'lostpointercapture'].forEach((t) => tFire.addEventListener(t, fireUp));
 tReload.addEventListener('pointerdown', (e) => { e.preventDefault(); if (state === 'play') reload(); });
@@ -3835,7 +3893,22 @@ $('resumeBtn').addEventListener('click', resumeGame);
 $('quitBtn').addEventListener('click', backToMenu);
 $('pauseBtn').addEventListener('click', pauseGame);
 $('zoomRange').addEventListener('input', (e) => setZoom(Number(e.target.value)));
-$('muteBtn').addEventListener('click', () => { muted = !muted; store.set('rxxlc-muted', muted ? '1' : '0'); syncMute(); audio(); });
+// 首頁設定：視野、音效、瞄準方式（手機）
+function syncSettings() {
+  $('setZoom').value = userZoom;
+  $('setSndOn').classList.toggle('on', !muted); $('setSndOff').classList.toggle('on', muted);
+  $('setAimAuto').classList.toggle('on', aimMode === 'auto'); $('setAimManual').classList.toggle('on', aimMode === 'manual');
+  $('aimNote').textContent = aimMode === 'manual' ? '手動瞄準：按住開火鍵往想射的方向拖曳，放開手指才停火；射程改用電腦版（比自動瞄準遠）。' : '自動瞄準：範圍內自動鎖定最近的敵人，按住開火鍵就會射擊。';
+}
+const setMuted = (v) => { muted = v; store.set('rxxlc-muted', muted ? '1' : '0'); syncMute(); syncSettings(); };
+$('settingsBtn').addEventListener('click', () => { syncSettings(); $('settings').hidden = false; });
+$('settingsClose').addEventListener('click', () => { $('settings').hidden = true; });
+$('setZoom').addEventListener('input', (e) => setZoom(Number(e.target.value)));
+$('setSndOn').addEventListener('click', () => { setMuted(false); audio(); });
+$('setSndOff').addEventListener('click', () => setMuted(true));
+$('setAimAuto').addEventListener('click', () => { aimMode = 'auto'; store.set('rxxlc-aim', aimMode); syncSettings(); });
+$('setAimManual').addEventListener('click', () => { aimMode = 'manual'; store.set('rxxlc-aim', aimMode); syncSettings(); });
+$('muteBtn').addEventListener('click', () => { setMuted(!muted); audio(); });
 
 /* ───────── 戰鬥 ───────── */
 function burst(x, y, color, n = 8) {
@@ -3845,7 +3918,7 @@ function burst(x, y, color, n = 8) {
   }
 }
 function floatText(x, y, text, color) { floaters.push({ x, y, text, color, life: 0.7, max: 0.7 }); }
-const bulletRange = (D, desktop = !isTouch()) => D.lockRange * (desktop ? D.rangeScaleDesktop : D.rangeScale) + D.rangeAdd;
+const bulletRange = (D, desktop = !isTouch() || manualAim()) => D.lockRange * (desktop ? D.rangeScaleDesktop : D.rangeScale) + D.rangeAdd;
 /* 閃避值換算（範圍 9～128，越高越好、效益遞減）
    冷卻時間 = 10 × 15 ÷ (15 + 閃避值)
      9：6.3 秒｜14：5.2 秒｜30：3.3 秒｜45：2.5 秒｜80：1.6 秒｜128：1.05 秒
@@ -6425,6 +6498,19 @@ function update(dt) {
     }
     if (snap) { a = Math.atan2(snap.y - player.y, snap.x - player.x); target = snap; } else target = null;
     player.angle = a;
+  } else if (manualAim()) {
+    // 手機手動瞄準：開火鍵拖曳的方向（還沒拖過就朝移動方向）；準星很接近敵人時輕微吸附
+    let a = touchAim != null ? touchAim : player.angle;
+    if (!wantsFire && touchAim == null && player.moving) a = player.moveAngle;
+    let snap = null, bd = 0.12;
+    if (wantsFire) for (const e of enemies) {
+      const d = Math.hypot(e.x - player.x, e.y - player.y); if (d > bulletRange(cfg)) continue;
+      let diff = Math.atan2(e.y - player.y, e.x - player.x) - a; diff = Math.atan2(Math.sin(diff), Math.cos(diff));
+      if (Math.abs(diff) < bd) { bd = Math.abs(diff); snap = e; }
+    }
+    if (snap) a = Math.atan2(snap.y - player.y, snap.x - player.x);
+    target = snap; player.angle = a;
+    if (!wantsFire) touchAim = null;
   } else {
     if (target && (wantsFire || player.shot > 0 || !player.moving)) player.angle = Math.atan2(target.y - player.y, target.x - player.x);
     else if (player.moving) player.angle = player.moveAngle;
@@ -6436,7 +6522,7 @@ function update(dt) {
   player.aiming = (!player.moving || player.shot > 0 || player.aimT > 0) && player.dodgeT <= 0;
   // 手機版：停下來、沒有鎖定敵人、也沒在開火 → 播原本的待機動畫（不瞄準）
   // 電腦版永遠跟著滑鼠準星瞄準，所以不套用
-  player.rest = isTouch() && !player.moving && !lockedTarget && player.shot <= 0 && player.aimT <= 0 && player.dodgeT <= 0;
+  player.rest = isTouch() && !player.moving && !lockedTarget && player.shot <= 0 && player.aimT <= 0 && player.dodgeT <= 0 && !(manualAim() && fireHeld);
   if (player.dodgeT <= 0 && player.moving && Math.abs(Math.cos(player.moveAngle)) > 0.2) player.faceLeft = Math.cos(player.moveAngle) < 0;
   // 瞄準中且移動方向與面向相反＝後退
   player.backward = player.aiming && player.moving && Math.cos(player.moveAngle) * (Math.cos(player.angle) < 0 ? -1 : 1) < -0.3;
@@ -7138,6 +7224,13 @@ function draw(t) {
       const g = ctx.createRadialGradient(W / 2, H / 2, Math.min(W, H) * 0.35, W / 2, H / 2, Math.hypot(W, H) / 2);
       g.addColorStop(0, 'rgba(255,60,60,0)'); g.addColorStop(1, 'rgba(255,60,60,' + (hurtT / 0.35 * 0.45) + ')');
       ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
+    }
+    if (manualAim() && fireHeld && state === 'play' && !vsDead()) {
+      // 手機手動瞄準：從人形往瞄準方向畫一條虛線到射程盡頭
+      const q0 = proj(player.x, player.y), R = bulletRange(cfg), q1 = proj(player.x + Math.cos(player.angle) * R, player.y + Math.sin(player.angle) * R);
+      ctx.setTransform(DPR, 0, 0, DPR, 0, 0); ctx.strokeStyle = 'rgba(249,207,112,0.75)'; ctx.lineWidth = 2; ctx.setLineDash([8, 6]);
+      ctx.beginPath(); ctx.moveTo(q0.x, q0.y - 10); ctx.lineTo(q1.x, q1.y - 10); ctx.stroke(); ctx.setLineDash([]);
+      ctx.beginPath(); ctx.arc(q1.x, q1.y - 10, 7, 0, Math.PI * 2); ctx.stroke();
     }
     if (!isTouch() && mouse.seen) {
       ctx.strokeStyle = '#f9cf70'; ctx.lineWidth = 2; ctx.beginPath();
