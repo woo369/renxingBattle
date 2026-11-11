@@ -3079,7 +3079,7 @@ function netGuestUpdate(dt) {
   // 瞄準：電腦用滑鼠；手機手動用開火搖桿；手機自動鎖定範圍內最近的敵人
   let a = player.angle || 0;
   if (!isTouch() && mouse.seen) { const m = mouseWorld(); a = Math.atan2(m.y - player.y, m.x - player.x); }
-  else if (manualAim()) { if (touchAim != null) a = touchAim; else if (Math.hypot(dx, dy) > 0.08) a = Math.atan2(dy, dx); }
+  else if (manualAim()) { if (fireHeld && touchLockOk()) a = Math.atan2(touchLock.y - player.y, touchLock.x - player.x) + touchOff; else if (touchAim != null) a = touchAim; else if (Math.hypot(dx, dy) > 0.08) a = Math.atan2(dy, dx); }
   else {
     let best = Infinity, tg = null;
     for (const e of enemies) { const d = Math.hypot(e.x - player.x, e.y - player.y); if (d <= cfg.lockRange && d < best) { best = d; tg = e; } }
@@ -4492,20 +4492,39 @@ const upHandler = (e) => { if (e.pointerType === 'mouse') mouseDown = false; els
 ['pointerup', 'pointercancel'].forEach((t) => canvas.addEventListener(t, upHandler));
 
 const tFire = $('tFire'), tReload = $('tReload');
-tFire.addEventListener('pointerdown', (e) => { e.preventDefault(); try { tFire.setPointerCapture(e.pointerId); } catch (_) {} fireHeld = true; tFire.classList.add('held'); });
+tFire.addEventListener('pointerdown', (e) => {
+  e.preventDefault(); try { tFire.setPointerCapture(e.pointerId); } catch (_) {} fireHeld = true; tFire.classList.add('held');
+  // 手動瞄準：按下時先鎖定射程內最近的敵人，之後拖曳只是在這個方向上微調
+  if (manualAim() && player) { touchLock = touchNearest(); touchOff = 0; if (touchLock) touchAim = null; }
+});
+let touchLock = null, touchOff = 0;
+const AIM_FINE = 0.5;   // 微調範圍：搖桿推到底約 ±0.5 弧度（再乘靈敏度 0.8，約 ±23°）
+function touchNearest() {
+  let best = Infinity, t = null;
+  for (const e of enemies) { if (e.dead) continue; const d = Math.hypot(e.x - player.x, e.y - player.y); if (d <= bulletRange(cfg) && d < best) { best = d; t = e; } }
+  return t;
+}
+const touchLockOk = () => touchLock && !touchLock.dead && enemies.includes(touchLock) && Math.hypot(touchLock.x - player.x, touchLock.y - player.y) <= bulletRange(cfg) * 1.25;
 tFire.addEventListener('pointermove', (e) => {
   if (!fireHeld || !manualAim() || !player) return;
   const r = tFire.getBoundingClientRect(), dx = e.clientX - (r.left + r.width / 2), dy = e.clientY - (r.top + r.height / 2);
   // 搖桿頭跟著手指移動（限制在按鈕範圍內）
   const lim = r.width * 0.3, dd = Math.hypot(dx, dy), kx = dd > lim ? dx / dd * lim : dx, ky = dd > lim ? dy / dd * lim : dy;
   $('fireKnob').style.transform = 'translate(' + kx + 'px,' + ky + 'px)';
+  if (touchLockOk()) {
+    // 有鎖定目標：只取「垂直於目標方向」的拖曳量當微調角度
+    const base = Math.atan2(touchLock.y - player.y, touchLock.x - player.x), q0 = proj(player.x, player.y), q1 = proj(player.x + Math.cos(base) * 100, player.y + Math.sin(base) * 100);
+    const ul = Math.hypot(q1.x - q0.x, q1.y - q0.y) || 1, ux = (q1.x - q0.x) / ul, uy = (q1.y - q0.y) / ul;
+    touchOff = clamp((ux * dy - uy * dx) / lim, -1, 1) * AIM_FINE * AIM_SENS;
+    return;
+  }
   if (dd < 10) return;   // 只是按著：沿用上一次的方向
   const q = proj(player.x, player.y), w = unproj(q.x + dx * 4, q.y + dy * 4), want = Math.atan2(w.y - player.y, w.x - player.x);
   // 靈敏度 0.8：每次只轉到目標方向的 80%（連續拖曳時會平順地跟上）
   touchAim = touchAim == null ? want : touchAim + Math.atan2(Math.sin(want - touchAim), Math.cos(want - touchAim)) * AIM_SENS;
 });
 const AIM_SENS = 0.8;
-const fireUp = () => { fireHeld = false; tFire.classList.remove('held'); $('fireKnob').style.transform = ''; };
+const fireUp = () => { fireHeld = false; tFire.classList.remove('held'); $('fireKnob').style.transform = ''; touchLock = null; touchOff = 0; };
 ['pointerup', 'pointercancel', 'lostpointercapture'].forEach((t) => tFire.addEventListener(t, fireUp));
 tReload.addEventListener('pointerdown', (e) => { e.preventDefault(); if (state === 'play') reload(); });
 $('tDodge').addEventListener('pointerdown', (e) => { e.preventDefault(); startDodge(); });
@@ -4527,7 +4546,7 @@ function syncSettings() {
   $('setSndOn').classList.toggle('on', !muted); $('setSndOff').classList.toggle('on', muted);
   $('setAimAuto').classList.toggle('on', aimMode === 'auto'); $('setAimManual').classList.toggle('on', aimMode === 'manual');
   $('tFire').classList.toggle('stick', manualAim());
-  $('aimNote').textContent = aimMode === 'manual' ? '手動瞄準：開火鍵變成搖桿，按住往想射的方向拖曳，放開手指才停火；射程改用電腦版（比自動瞄準遠）。' : '自動瞄準：範圍內自動鎖定最近的敵人，按住開火鍵就會射擊。';
+  $('aimNote').textContent = aimMode === 'manual' ? '手動瞄準：開火鍵變成搖桿。按下時先自動瞄向射程內最近的敵人，拖曳搖桿可以左右微調（約 ±23°）；射程內沒有敵人時，往哪拖就往哪射。放開手指才停火；射程改用電腦版（比自動瞄準遠）。' : '自動瞄準：範圍內自動鎖定最近的敵人，按住開火鍵就會射擊。';
 }
 const setMuted = (v) => { muted = v; store.set('rxxlc-muted', muted ? '1' : '0'); syncMute(); syncSettings(); };
 $('settingsBtn').addEventListener('click', () => { syncSettings(); $('settings').hidden = false; });
@@ -7181,13 +7200,15 @@ function update(dt) {
     let a = touchAim != null ? touchAim : player.angle;
     if (!wantsFire && touchAim == null && player.moving) a = player.moveAngle;
     let snap = null, bd = 0.12;
-    if (wantsFire) for (const e of enemies) {
+    if (fireHeld && touchLockOk()) { a = Math.atan2(touchLock.y - player.y, touchLock.x - player.x) + touchOff; bd = -1; }   // 鎖定的敵人方向＋微調（持續跟著目標）
+    else if (fireHeld && touchLock) { touchAim = a; touchLock = null; }   // 目標倒下／跑出射程：停在目前方向，改回自由拖曳
+    if (wantsFire && bd > 0) for (const e of enemies) {
       const d = Math.hypot(e.x - player.x, e.y - player.y); if (d > bulletRange(cfg)) continue;
       let diff = Math.atan2(e.y - player.y, e.x - player.x) - a; diff = Math.atan2(Math.sin(diff), Math.cos(diff));
       if (Math.abs(diff) < bd) { bd = Math.abs(diff); snap = e; }
     }
     if (snap) a = Math.atan2(snap.y - player.y, snap.x - player.x);
-    target = snap; player.angle = a;
+    target = snap || (fireHeld && touchLockOk() ? touchLock : null); player.angle = a;
     if (!wantsFire) touchAim = null;
   } else {
     if (target && (wantsFire || player.shot > 0 || !player.moving)) player.angle = Math.atan2(target.y - player.y, target.x - player.x);
