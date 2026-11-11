@@ -1489,7 +1489,10 @@ const MAPGEN = (() => {
       const [bx0, by0] = at(0, 0), [lx0] = at(480, 0);
       for (const v of [-310, 310]) {
         const [cx, cy] = at(480, v), W = 300, side = cx > lx0 ? 1 : -1;   // side：全磚在哪一側（半磚朝向路）
-        solids.push({ kind: 'rock', x: cx + side * W * 0.225, y: cy, r: W * 0.275, cx, cy, W, side, seed: rnd() }, { kind: 'lowrock', x: cx - side * W * 0.275, y: cy, r: W * 0.225 });
+        // 碰撞貼著畫出來的岩石：全磚一個圓；半磚是一排小圓（只有岩台那麼薄，從後面也能貼近）
+        const base = cy + W * 0.24;
+        solids.push({ kind: 'rock', x: cx + side * W * 0.235, y: base - W * 0.25, r: W * 0.25, cx, cy, W, side, seed: rnd() });
+        for (const u of [0.08, 0.2, 0.32, 0.43]) solids.push({ kind: 'lowrock', x: cx + (u - 0.5) * W * side, y: base - W * 0.1, r: W * 0.1 });
       }
     };
     for (const p of all) {
@@ -1498,7 +1501,7 @@ const MAPGEN = (() => {
     }
     flush();
     // C 點外圍的營地：帳篷、彈藥箱、汽油桶（不放進佔領圈、不擋路）
-    const hit = (x, y, r) => solids.some((o) => o.w ? Math.abs(x - o.x) < o.w / 2 + r + 30 && Math.abs(y - o.y) < o.h / 2 + r + 30 : Math.hypot(x - o.x, y - o.y) < o.r + r + 30);
+    const hit = (x, y, r) => solids.some((o) => o.w ? Math.abs(x - o.x) < o.w / 2 + r + 30 && Math.abs(y - o.y) < o.h / 2 + r + 30 : Math.hypot(x - o.x, y - o.y) < o.r + r + (o.kind === 'rock' || o.kind === 'lowrock' ? 260 : 30));   // 橋口岩石周圍留空間（要能從各方向貼近掩體）
     const campOK = (x, y, r) => {
       const dx = x - C.x, dy = y - C.y, t = dx * dU[0] + dy * dU[1], sv = dx * nU[0] + dy * nU[1], m = R - RW - 70 - r;
       return Math.hypot(dx, dy) > CAPTURE.r + 110 + r && Math.abs(sv) < m && (t > 0 || Math.hypot(t, sv) < m) && Math.abs(x) < H - 80 - r && Math.abs(y) < H - 80 - r && laneDist(x, y) > 240 + r && !hit(x, y, r);
@@ -2967,7 +2970,7 @@ function beginGame() {
   enemies = []; bullets = []; particles = []; floaters = []; grenades = []; blasts = []; runFx = []; rings = [];
   // 依關卡決定敵人數值
   phase = levelPhases() ? levelPhases()[0] : null; phaseIdx = 0; phaseStart = 0; spawnIdx = 0;
-  $('phaseBlock').hidden = !phase;
+  $('phaseBlock').hidden = !phase || !!phase.bigmap;   // 戰局：時間照算但不顯示
   const testing = !!(phase && phase.test);
   $('testPanel').hidden = !testing; if (testing) buildTestPanel();
   $('hudScore').hidden = testing;
