@@ -167,6 +167,24 @@ body:not(.touch) #touchui{display:none}
 .picks .pick[data-slot="sub"]::before{background:#9cc6ff}
 .picks .pick:not([data-tag])::before{display:none}
 .team-note{max-width:520px;margin:0 auto 10px;font-size:12px;line-height:1.5;color:#9fb8bf}
+/* 對戰模式的大廳 */
+.vs-lobby{max-width:520px;margin:0 auto 12px}
+.vs-teams{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.vs-team{border:1px solid var(--line);border-radius:14px;padding:8px 10px;background:#102a35;text-align:left;min-width:0}
+.vs-team.blue{border-color:rgba(74,168,255,.55)}.vs-team.red{border-color:rgba(255,90,80,.55)}
+.vs-head{display:flex;align-items:center;justify-content:space-between;gap:6px;margin-bottom:4px}
+.vs-team.blue .vs-head b{color:#7cc4ff}.vs-team.red .vs-head b{color:#ff8a80}
+.vs-join{border:1px solid var(--line);background:#16343f;color:#dfeef2;border-radius:8px;font-size:11px;padding:3px 7px;cursor:pointer}
+.vs-row{display:flex;align-items:center;gap:6px;font-size:12px;padding:4px 0;border-bottom:1px solid rgba(255,255,255,.06)}
+.vs-row b{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:600}
+.vs-tag{flex:none;font-size:10px;padding:1px 6px;border-radius:6px;background:#24414c;color:#cfeef2}
+.vs-tag.me{background:#1f5a4f;color:#9ff0de}.vs-tag.elite{background:#5a4210;color:#ffd77a}
+.vs-x{flex:none;border:0;background:none;color:#9fb8bf;cursor:pointer;font-size:13px;padding:0 2px}
+.vs-add{display:flex;gap:4px;margin-top:6px}.vs-add .btn{flex:1;padding:6px 2px;font-size:12px;min-width:0}
+.vs-net{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin-top:8px;font-size:12px;color:#9fb8bf;text-align:left}
+.vs-net input{flex:1;min-width:110px;padding:6px 8px;border-radius:8px;border:1px solid var(--line);background:#0c222b;color:#dfeef2}
+.vs-net .btn{padding:6px 10px;font-size:12px}.vs-net small{width:100%}
+@media (max-width:420px){.vs-teams{grid-template-columns:1fr}}
 .char .slot-tag{position:absolute;right:6px;top:6px;padding:1px 6px;border-radius:7px;font-size:10.5px;font-weight:800;background:var(--aqua);color:#062028}
 .char .slot-tag.sub{background:#9cc6ff}
 .char{position:relative}
@@ -357,7 +375,7 @@ body.touch #testPanel{max-height:38vh}   /* 手機：不要擋到左下的移動
     <p class="eyebrow">SOLO ARCADE · 2D 平面對戰</p>
     <h1>人形訓練場</h1>
     <p class="lede">在無限延伸的戰場上移動、瞄準，擊碎金色方塊，迎戰影子敵人。選一名人形出擊，每個角色的武器與數值都不同。</p>
-    <p class="step-h"><span>1</span>選擇關卡</p>
+    <p class="step-h"><span>1</span>選擇模式</p>
     <div class="level-grid home-levels" id="levelGrid"></div>
     <p class="level-desc" id="levelDesc"></p>
     <p class="step-h"><span>2</span>選擇角色</p>
@@ -372,6 +390,10 @@ body.touch #testPanel{max-height:38vh}   /* 手機：不要擋到左下的移動
         <div class="pick-info"><small></small><b></b><span></span></div>
         <button class="btn" type="button">更換</button>
       </div>
+    </div>
+    <div class="vs-lobby" id="vsLobby" hidden>
+      <div class="vs-teams" id="vsTeams"></div>
+      <div class="vs-net"><b>代碼連線</b><input id="vsCode" type="text" placeholder="輸入房間代碼" disabled><button class="btn" type="button" disabled>加入</button><button class="btn" type="button" disabled>建立房間</button><small>連線對戰開發中，目前先和 AI 對戰。</small></div>
     </div>
     <p class="team-note" id="teamNote" hidden>戰事可以帶兩名人形，遊戲中按「切換」換人，各自的生命、彈藥、技能冷卻分開保存。只有主人形擁有擴編能力，擴編出來的分身切換時也會留在場上；主人形倒下後，擴編能力會轉交給副人形。任何一名倒下後就不能再切換。</p>
     <div class="menu-row">
@@ -1073,6 +1095,7 @@ const LEVELS = [
   { id: 'duel', name: '菁英對決', open: true, desc: '入場 5 秒後出現一名隨機精英敵人，擊敗它即可過關。精英以三階的強度為基準，一階、二階精英會依類型強化到相同水準。場上會定時出現零件與醫療箱。' },
   { id: 'test', name: '測試模式', open: true, desc: '不會自動出怪，可以自選召喚任何敵人或精英，零件無限。' },
   { id: 'battle', name: '戰局', open: true, desc: '（開發中）100×100 格的大地圖，之後會做成 7 打 7 的戰局。地圖上有三個佔領點，站在點上就能佔領；山、房屋、樹木會擋路與子彈，樹林會遮擋視線。左上角是小地圖，按 M 或點小地圖可以打開全圖（單位會變成點）。' },
+  { id: 'versus', name: '對戰', open: true, desc: '（開發中）5 打 5 的團隊對戰，60×30 格的長條地圖，藍隊、紅隊的大本營在左右兩側。擊倒敵方人形本體得 1 分，先到 30 分獲勝；初始零件 10，地圖中間會出現零件和醫療包，擊倒敵人可拿走對方 50% 的零件。可以加入普通或精銳 AI，倒下 5 秒後重生。' },
   { id: 'locked1', name: '尚未解鎖', open: false, desc: '敬請期待' },
 ];
 let selectedLevel = 'training';
@@ -1429,7 +1452,8 @@ const DUEL_PHASES = [
 // 測試模式：不自動出怪、不會結束；零件無限，畫面左側有召喚面板
 const TEST_PHASES = [{ name: '測試模式', end: Infinity, spawnTable: [], initial: 0, packs: [], test: true, infiniteParts: true }];
 const BATTLE_PHASES = [{ name: '戰局', end: Infinity, spawnTable: [], initial: 0, packs: [], bigmap: true, noParts: true }];   // 戰局：沒有零件（也不能擴編）
-const LEVEL_PHASES = { war: WAR_PHASES, duel: DUEL_PHASES, test: TEST_PHASES, battle: BATTLE_PHASES };   // 有分階段的關卡
+const VERSUS_PHASES = [{ name: '對戰', end: Infinity, spawnTable: [], initial: 0, packs: [], bigmap: true, versus: true, startParts: 10 }];   // 對戰：零件由對戰模式自己生成
+const LEVEL_PHASES = { war: WAR_PHASES, duel: DUEL_PHASES, test: TEST_PHASES, battle: BATTLE_PHASES, versus: VERSUS_PHASES };   // 有分階段的關卡
 const levelPhases = () => LEVEL_PHASES[selectedLevel] || null;
 let phase = null, phaseIdx = 0, phaseStart = 0, spawnIdx = 0;   // 目前階段、階段開始時間、輪到第幾種敵人
 const phaseClock = () => gameTime - phaseStart;
@@ -1442,10 +1466,11 @@ const BIGMAP = { cells: 100, cell: 110 };
 BIGMAP.half = BIGMAP.cells * BIGMAP.cell / 2;
 const bigMap = () => !!(phase && phase.bigmap);
 const CAPTURE = { r: 320, rate: 10, flagH: 150 };   // 佔領點：半徑、每秒佔領點數（100 點約 10 秒）、旗桿高度
-const MAPGEN = (() => {
+const BATTLE_MAP = (() => {
   let seed = 20261111; const rnd = () => { seed = (seed * 1664525 + 1013904223) >>> 0; return seed / 4294967296; };
   const H = BIGMAP.half, M = H - 1600, BASE = 1100;   // BASE：基地範圍（半邊）
   const bases = [{ x: -M, y: M, team: 'blue' }, { x: M, y: -M, team: 'red' }];
+  for (const b of bases) Object.assign(b, { x0: b.x - BASE, y0: b.y - BASE, x1: b.x + BASE, y1: b.y + BASE });
   const points = [{ id: 'A', x: -0.6 * H, y: -0.6 * H }, { id: 'B', x: 0, y: 0 }, { id: 'C', x: 0.6 * H, y: 0.6 * H }];   // C 點在右下角的對角線上（離雙方基地一樣遠）
   // 三條路：中路（對角線）、上路（經過 A）、下路（經過 C）
   const [PA, , PC] = points;
@@ -1551,8 +1576,9 @@ const MAPGEN = (() => {
   for (const t of trees) { t.kind = 'tree'; t.r = 16 * t.sz; put(t, t.x - 50, t.y - 50, t.x + 50, t.y + 50); }
   for (const f of forests) { f.kind = 'forest'; put(f, f.x - f.r, f.y - f.r, f.x + f.r, f.y + f.r); }
   const near = (x, y) => grid.get(Math.floor(x / G) + ',' + Math.floor(y / G)) || [];
-  return { bases, points, lanes, blobs, solids, trees, forests, rivers, bridges, near, G, grid };
+  return { hw: H, hh: H, cellsX: BIGMAP.cells, cellsY: BIGMAP.cells, gridStep: 50, label: '戰局地圖　100 × 100 格', bases, points, lanes, blobs, solids, trees, forests, rivers, bridges, near, G, grid };
 })();
+let MAPGEN = BATTLE_MAP, VERSUS_MAP = null;   // 目前使用的地圖（對戰模式開局時換成對戰地圖）
 // 某個位置（半徑 r）有沒有撞到地形。bullet＝子彈：湖擋不住子彈
 function mapSolidAt(x, y, r, bullet) {
   for (const o of MAPGEN.near(x, y)) {
@@ -1579,7 +1605,7 @@ function losBlocked(ax, ay, bx, by) {
 function lowCoverAt(x, y) { for (const o of MAPGEN.near(x, y)) if (o.kind === 'lowrock' && (x - o.x) ** 2 + (y - o.y) ** 2 < (o.r + 6) ** 2) return o; return null; }
 // 趴下的人形躲在半磚後面：剛飛過半磚的子彈會從頭頂飛過去（趴下的人形自己開火不受影響）
 const overProne = (b, u) => b.overX != null && (u.prone || 0) >= 0.6 && Math.hypot(b.x - b.overX, b.y - b.overY) < 200;
-function keepInMap(u) { if (!bigMap()) return; const m = BIGMAP.half - 40; u.x = clamp(u.x, -m, m); u.y = clamp(u.y, -m, m); }
+function keepInMap(u) { if (!bigMap()) return; u.x = clamp(u.x, -MAPGEN.hw + 40, MAPGEN.hw - 40); u.y = clamp(u.y, -MAPGEN.hh + 40, MAPGEN.hh - 40); }
 // 佔領點：中立時 v＝中立點數（100 → 0，白旗下降）；被佔領後 v 從 0 升到 100（己方顏色的旗子升到頂）
 let capPoints = [];
 const TEAMCOL = { blue: '#4aa8ff', red: '#ff5a50', neutral: '#ffffff' };
@@ -1641,10 +1667,10 @@ function drawBigMapGround(x0, x1, y0, y1) {
     if (fill) { ctx.fillStyle = fill; ctx.fill(); }
     if (stroke) { ctx.strokeStyle = stroke; ctx.lineWidth = lw; ctx.stroke(); }
   };
-  for (const b of MAPGEN.bases) poly(b.x - 1100, b.y - 1100, b.x + 1100, b.y + 1100, b.team === 'blue' ? 'rgba(90,170,255,0.12)' : 'rgba(255,110,100,0.12)', b.team === 'blue' ? 'rgba(120,190,255,0.6)' : 'rgba(255,130,120,0.6)', 3);
-  const H = BIGMAP.half, F = 1e5;
-  poly(-F, -F, F, -H, 'rgba(2,8,12,0.75)'); poly(-F, H, F, F, 'rgba(2,8,12,0.75)'); poly(-F, -H, -H, H, 'rgba(2,8,12,0.75)'); poly(H, -H, F, H, 'rgba(2,8,12,0.75)');
-  poly(-H, -H, H, H, null, 'rgba(255,214,120,0.7)', 3);
+  for (const b of MAPGEN.bases) poly(b.x0, b.y0, b.x1, b.y1, b.team === 'blue' ? 'rgba(90,170,255,0.12)' : 'rgba(255,110,100,0.12)', b.team === 'blue' ? 'rgba(120,190,255,0.6)' : 'rgba(255,130,120,0.6)', 3);
+  const HX = MAPGEN.hw, HY = MAPGEN.hh, F = 1e5;
+  poly(-F, -F, F, -HY, 'rgba(2,8,12,0.75)'); poly(-F, HY, F, F, 'rgba(2,8,12,0.75)'); poly(-F, -HY, -HX, HY, 'rgba(2,8,12,0.75)'); poly(HX, -HY, F, HY, 'rgba(2,8,12,0.75)');
+  poly(-HX, -HY, HX, HY, null, 'rgba(255,214,120,0.7)', 3);
 }
 // 立體物件（跟角色一起依前後排序）：樹、平房、佔領點旗桿
 const ACTOR_KIND = { tree: 't', house: 'h', rock: 'r', tent: 'k', crate: 'k', drum: 'k' };   // 半磚（lowrock）跟全磚畫成同一塊岩石
@@ -1750,32 +1776,33 @@ function drawFlag(p) {
 // 小地圖（左上，原本零件那格）與全圖：視野拉遠時單位直接變成點
 let mapOpen = false, miniCanvas = null;
 function miniBase(size) {
-  const c = document.createElement('canvas'); c.width = c.height = size; const g = c.getContext('2d'), k = size / (BIGMAP.half * 2), X = (v) => (v + BIGMAP.half) * k;
-  g.fillStyle = '#16343c'; g.fillRect(0, 0, size, size);
-  g.fillStyle = '#7d765c'; for (const d of MAPGEN.blobs) { g.beginPath(); g.arc(X(d.x), X(d.y), Math.max(0.7, d.r * k), 0, Math.PI * 2); g.fill(); }
-  g.fillStyle = '#285c3c'; for (const f of MAPGEN.forests) { g.beginPath(); g.arc(X(f.x), X(f.y), f.r * k, 0, Math.PI * 2); g.fill(); }
-  g.fillStyle = '#2f7a4c'; for (const t of MAPGEN.trees) g.fillRect(X(t.x) - 0.5, X(t.y) - 0.5, 1, 1);
+  const c = document.createElement('canvas'), sh = Math.round(size * MAPGEN.hh / MAPGEN.hw); c.width = size; c.height = sh;
+  const g = c.getContext('2d'), k = size / (MAPGEN.hw * 2), X = (v) => (v + MAPGEN.hw) * k, Y = (v) => (v + MAPGEN.hh) * k;
+  g.fillStyle = '#16343c'; g.fillRect(0, 0, size, sh);
+  g.fillStyle = '#7d765c'; for (const d of MAPGEN.blobs) { g.beginPath(); g.arc(X(d.x), Y(d.y), Math.max(0.7, d.r * k), 0, Math.PI * 2); g.fill(); }
+  g.fillStyle = '#285c3c'; for (const f of MAPGEN.forests) { g.beginPath(); g.arc(X(f.x), Y(f.y), f.r * k, 0, Math.PI * 2); g.fill(); }
+  g.fillStyle = '#2f7a4c'; for (const t of MAPGEN.trees) g.fillRect(X(t.x) - 0.5, Y(t.y) - 0.5, 1, 1);
   for (const o of MAPGEN.solids) {
     if (o.kind === 'crate' || o.kind === 'drum') continue;
-    if (o.w) { g.fillStyle = o.kind === 'tent' ? '#7d8a5a' : '#c9c2b0'; g.fillRect(X(o.x - o.w / 2), X(o.y - o.h / 2), Math.max(1.5, o.w * k), Math.max(1.5, o.h * k)); continue; }
-    g.fillStyle = o.kind === 'lake' || o.kind === 'river' ? '#3a86c4' : o.kind === 'rock' || o.kind === 'lowrock' ? '#9a948a' : '#6e6253'; g.beginPath(); g.arc(X(o.x), X(o.y), o.r * k, 0, Math.PI * 2); g.fill();
+    if (o.w) { g.fillStyle = o.kind === 'tent' ? '#7d8a5a' : '#c9c2b0'; g.fillRect(X(o.x - o.w / 2), Y(o.y - o.h / 2), Math.max(1.5, o.w * k), Math.max(1.5, o.h * k)); continue; }
+    g.fillStyle = o.kind === 'lake' || o.kind === 'river' ? '#3a86c4' : o.kind === 'rock' || o.kind === 'lowrock' ? '#9a948a' : '#6e6253'; g.beginPath(); g.arc(X(o.x), Y(o.y), Math.max(0.8, o.r * k), 0, Math.PI * 2); g.fill();
   }
-  g.fillStyle = '#a07a50'; for (const b of MAPGEN.bridges) { g.beginPath(); g.arc(X(b.x), X(b.y), Math.max(1.5, 230 * k), 0, Math.PI * 2); g.fill(); }
-  for (const b of MAPGEN.bases) { g.fillStyle = b.team === 'blue' ? '#5aaaff' : '#ff6e64'; const w = 2200 * k; g.fillRect(X(b.x) - w / 2, X(b.y) - w / 2, w, w); }
+  g.fillStyle = '#a07a50'; for (const b of MAPGEN.bridges) { g.beginPath(); g.arc(X(b.x), Y(b.y), Math.max(1.5, 230 * k), 0, Math.PI * 2); g.fill(); }
+  for (const b of MAPGEN.bases) { g.fillStyle = b.team === 'blue' ? '#5aaaff' : '#ff6e64'; g.globalAlpha = 0.75; g.fillRect(X(b.x0), Y(b.y0), (b.x1 - b.x0) * k, (b.y1 - b.y0) * k); g.globalAlpha = 1; }
   return c;
 }
 function drawMapView(x, y, size, full) {
   const key = 'm' + Math.round(size * DPR);
   if (!miniCanvas || miniCanvas.key !== key) { miniCanvas = miniBase(Math.round(size * DPR)); miniCanvas.key = key; }
-  const k = size / (BIGMAP.half * 2), P = (wx, wy) => [x + (wx + BIGMAP.half) * k, y + (wy + BIGMAP.half) * k];
+  const k = size / (MAPGEN.hw * 2), sh = size * MAPGEN.hh / MAPGEN.hw, P = (wx, wy) => [x + (wx + MAPGEN.hw) * k, y + (wy + MAPGEN.hh) * k];
   ctx.save();
-  ctx.globalAlpha = full ? 0.97 : 0.9; ctx.drawImage(miniCanvas, x, y, size, size); ctx.globalAlpha = 1;
-  ctx.strokeStyle = 'rgba(255,214,120,0.8)'; ctx.lineWidth = 1.5; ctx.strokeRect(x, y, size, size);
+  ctx.globalAlpha = full ? 0.97 : 0.9; ctx.drawImage(miniCanvas, x, y, size, sh); ctx.globalAlpha = 1;
+  ctx.strokeStyle = 'rgba(255,214,120,0.8)'; ctx.lineWidth = 1.5; ctx.strokeRect(x, y, size, sh);
   if (full) {
     ctx.strokeStyle = 'rgba(255,255,255,0.08)'; ctx.lineWidth = 1; ctx.beginPath();
-    for (let i = 50; i < BIGMAP.cells; i += 50) { const p = x + i / BIGMAP.cells * size, q = y + i / BIGMAP.cells * size; ctx.moveTo(p, y); ctx.lineTo(p, y + size); ctx.moveTo(x, q); ctx.lineTo(x + size, q); }
+    const gs = MAPGEN.gridStep; for (let i = gs; i < MAPGEN.cellsX; i += gs) { const p = x + i / MAPGEN.cellsX * size; ctx.moveTo(p, y); ctx.lineTo(p, y + sh); } for (let i = gs; i < MAPGEN.cellsY; i += gs) { const q = y + i / MAPGEN.cellsY * sh; ctx.moveTo(x, q); ctx.lineTo(x + size, q); }
     ctx.stroke();
-    ctx.fillStyle = '#ffe6a8'; ctx.font = '600 13px system-ui, sans-serif'; ctx.textAlign = 'center'; ctx.fillText('戰局地圖　100 × 100 格（按 M 或點地圖關閉）', x + size / 2, y - 8); ctx.textAlign = 'left';
+    ctx.fillStyle = '#ffe6a8'; ctx.font = '600 13px system-ui, sans-serif'; ctx.textAlign = 'center'; ctx.fillText(MAPGEN.label + '（按 M 或點地圖關閉）', x + size / 2, y - 8); ctx.textAlign = 'left';
   }
   // 佔領點
   for (const p of capPoints) {
@@ -1787,9 +1814,18 @@ function drawMapView(x, y, size, full) {
   const vb = viewBounds(), [vx0, vy0] = P(cam.x - vb.hw, cam.y + vb.t), [vx1, vy1] = P(cam.x + vb.hw, cam.y + vb.b);
   ctx.strokeStyle = 'rgba(255,255,255,0.7)'; ctx.lineWidth = 1; ctx.strokeRect(vx0, vy0, Math.max(2, vx1 - vx0), Math.max(2, vy1 - vy0));
   const dot = (u, col, r) => { const [px, py] = P(u.x, u.y); ctx.fillStyle = col; ctx.beginPath(); ctx.arc(px, py, r, 0, Math.PI * 2); ctx.fill(); };
+  if (vs) {
+    // 對戰：用隊伍顏色；敵人只有被我方看見（附近有我方人形）時才顯示
+    const mine = [...(vsDead() ? [] : [player]), ...aiAllies.filter((u) => !u.isClone)];
+    for (const u of aiAllies) dot(u, VS_TEAMCOL[u.vsTeam], full ? (u.isClone ? 2.2 : 3.2) : (u.isClone ? 1.4 : 2.2));
+    for (const e of enemies) if (mine.some((m) => Math.hypot(m.x - e.x, m.y - e.y) < VS.view)) dot(e, VS_TEAMCOL[e.vsTeam], full ? (e.isClone ? 2.2 : 3.2) : (e.isClone ? 1.4 : 2.2));
+    for (const c of clones) dot(c, VS_TEAMCOL[vs.myTeam], full ? 2.2 : 1.4);
+    if (!vsDead()) { dot(player, '#ffffff', full ? 4.5 : 3); dot(player, VS_TEAMCOL[vs.myTeam], full ? 3 : 2); }
+  } else {
   for (const e of enemies) dot(e, '#ff6e64', full ? 3 : 2);
   for (const c of clones) dot(c, '#9fd8ff', full ? 3 : 2);
   dot(player, '#ffffff', full ? 4.5 : 3); dot(player, '#36c2ff', full ? 3 : 2);
+  }
   ctx.restore();
 }
 let hudCheck = 0, slotRect = null;
@@ -1798,15 +1834,660 @@ const miniRect = () => {
   if (performance.now() - hudCheck > 500) {
     hudCheck = performance.now(); const sl = $('miniSlot'); sl.style.setProperty('--mini', miniSize() + 'px');
     const r = sl.getBoundingClientRect(), c = canvas.getBoundingClientRect(); slotRect = r.width ? { x: r.left - c.left, y: r.top - c.top } : null;
+    vsHudY = $('hud').getBoundingClientRect().bottom - c.top;
   }
   const size = miniSize(); return slotRect ? { x: slotRect.x, y: slotRect.y, size } : { x: 12, y: 64, size };
 };
-const fullRect = () => { const top = Math.min(84, H * 0.2), size = Math.round(Math.min(W - 40, H - top - 60)); return { x: (W - size) / 2, y: top, size }; };
+const fullRect = () => { const top = Math.min(84, H * 0.2), size = Math.round(Math.min(W - 40, (H - top - 60) * MAPGEN.hw / MAPGEN.hh)); return { x: (W - size) / 2, y: top, size }; };
 function drawBigMapHud() {
   if (!bigMap() || !player) return;
   ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
   if (mapOpen) { ctx.fillStyle = 'rgba(2,10,14,0.72)'; ctx.fillRect(0, 0, W, H); const f = fullRect(); drawMapView(f.x, f.y, f.size, true); }
   else { const m = miniRect(); drawMapView(m.x, m.y, m.size, false); }
+  if (vs) drawVsHud();
+}
+
+/* ───────── 對戰模式（5 打 5）─────────
+   ・藍隊／紅隊各 5 名人形（玩家＋AI），大本營在地圖左右兩側；擊倒敵方「本體」（不含擴編人形）隊伍得 1 分，先到 30 分獲勝
+   ・初始零件 10，地圖中間區域會隨機出現零件與醫療包；擊倒敵人可拿走對方身上 50% 的零件（無條件捨去）
+   ・倒下後 5 秒在自己的大本營重生（擴編人形一起消失）
+   ・之後的代碼連線：大廳已預留（vsLobby），目前只能加入 AI
+   AI 分成「普通」與「精銳」：
+   ・普通：看到子彈有 60% 機率移動躲開、20% 機率用閃避；會用技能、會撿零件、零件夠就擴編
+     突擊步槍／步槍／機槍＝輸出：待在衝鋒槍、霰彈槍隊友後方，用最大射程和敵人保持距離
+     霰彈槍／衝鋒槍＝前排：站在隊友前面，主動找敵人牽制；身邊沒有隊友時改當輸出
+     手槍＝輔助：幫輸出護航；身邊沒有前排時改當前排
+   ・精銳：每個角色各自的行為邏輯（VS_ELITE）。還沒寫專屬邏輯的角色先用普通邏輯，只加上預判瞄準與精銳的躲子彈方式 */
+const VS = { win: 30, startParts: 10, respawn: 5, view: 1000, partEvery: 2.5, partMax: 8, medEvery: 9, medMax: 2, medHeal: 0.4, pickR: 22, steal: 0.5, spawnInv: 2 };
+const VS_ELITE = {
+  // HK433：彈匣滿了才開技能（不滿先換彈）、優先移動躲子彈、必中才閃避並保留 1 次（生命 ≤ 25% 才無限制）、預判瞄準、找掩體、輸出太多時換位置夾擊
+  hk433: { dodgeFree: 0.25, fullMagSkill: true, cover: true, flank: true },
+  // 沙漠之鷹：擴編不到 2 次先撿零件，之後當輸出；彈匣滿了才開技能；優先打血少的敵人（含擴編人形）；閃避保留 1 次（生命 ≤ 50% 才無限制）
+  deagle: { dodgeFree: 0.5, fullMagSkill: true, lowHpFirst: true, collectUntil: 2 },
+};
+const VS_ELITE_DEFAULT = { dodgeFree: 0.3 };
+const ROLE_OF = { AR: 'dps', RF: 'dps', MG: 'dps', SG: 'front', SMG: 'front', HG: 'support' };
+const VS_TEAMCOL = { blue: '#4aa8ff', red: '#ff5a50' };
+const VS_TEAMNAME = { blue: '藍隊', red: '紅隊' };
+let vs = null, vsHitBy = null, vsLobby = null;
+const vsDead = () => !!(vs && player && player.deadT > 0);
+const vsRange = (D) => bulletRange(D, false);
+const vsRandId = () => { const ids = Object.keys(CHARACTERS); return ids[Math.floor(Math.random() * ids.length)]; };
+function vsDefaultLobby() {
+  return { team: 'blue', blue: Array.from({ length: 4 }, () => ({ id: vsRandId(), level: 'normal' })), red: Array.from({ length: 5 }, () => ({ id: vsRandId(), level: 'normal' })) };
+}
+// 大廳：選隊伍、加入／移除 AI；代碼連線先預留介面
+function buildLobby() {
+  const L = vsLobby || (vsLobby = vsDefaultLobby()), box = $('vsTeams'); box.textContent = '';
+  for (const t of ['blue', 'red']) {
+    const mine = L.team === t, cap = mine ? 4 : 5, col = document.createElement('div');
+    col.className = 'vs-team ' + t;
+    const h = document.createElement('div'); h.className = 'vs-head';
+    const nm = document.createElement('b'); nm.textContent = VS_TEAMNAME[t] + '（' + (L[t].length + (mine ? 1 : 0)) + '/5）'; h.appendChild(nm);
+    if (!mine) { const j = document.createElement('button'); j.type = 'button'; j.className = 'vs-join'; j.textContent = '加入這隊'; j.addEventListener('click', () => { L.team = t; if (L[t].length > 4) L[t].length = 4; buildLobby(); prefetch(); }); h.appendChild(j); }
+    col.appendChild(h);
+    const row = (tag, cls, name, onX) => {
+      const r = document.createElement('div'); r.className = 'vs-row';
+      const g = document.createElement('span'); g.className = 'vs-tag ' + cls; g.textContent = tag;
+      const b = document.createElement('b'); b.textContent = name; r.append(g, b);
+      if (onX) { const x = document.createElement('button'); x.type = 'button'; x.className = 'vs-x'; x.textContent = '✕'; x.setAttribute('aria-label', '移除'); x.addEventListener('click', onX); r.appendChild(x); }
+      col.appendChild(r);
+    };
+    if (mine) row('你', 'me', CHARACTERS[selectedId].name);
+    L[t].forEach((s, i) => row(s.level === 'elite' ? '精銳' : '普通', s.level, CHARACTERS[s.id].name, () => { L[t].splice(i, 1); buildLobby(); }));
+    const add = document.createElement('div'); add.className = 'vs-add';
+    for (const [lv, label] of [['normal', '＋普通 AI'], ['elite', '＋精銳 AI']]) {
+      const b = document.createElement('button'); b.type = 'button'; b.className = 'btn'; b.textContent = label; b.disabled = L[t].length >= cap;
+      b.addEventListener('click', () => { if (L[t].length < cap) { L[t].push({ id: vsRandId(), level: lv }); buildLobby(); prefetch(); } });
+      add.appendChild(b);
+    }
+    col.appendChild(add); box.appendChild(col);
+  }
+}
+const vsLobbyPacks = () => { const L = vsLobby || (vsLobby = vsDefaultLobby()); return [...L.blue, ...L.red].map((s) => packOf(CHARACTERS[s.id].assets)); };
+
+/* 對戰地圖：60 × 30 格（6600 × 3300），對中心點對稱；兩側是大本營，中間散布岩石（全磚＋半磚）、稀疏的樹林、彈藥箱 */
+function makeRock(solids, cx, cy, W, side, seed) {
+  const base = cy + W * 0.24;
+  solids.push({ kind: 'rock', x: cx + side * W * 0.235, y: base - W * 0.25, r: W * 0.25, cx, cy, W, side, seed });
+  for (const u of [0.08, 0.2, 0.32, 0.43]) solids.push({ kind: 'lowrock', x: cx + (u - 0.5) * W * side, y: base - W * 0.1, r: W * 0.1 });
+}
+function genVersusMap() {
+  let seed = 20261111; const rnd = () => { seed = (seed * 1664525 + 1013904223) >>> 0; return seed / 4294967296; };
+  const CX = 60, CY = 30, HW = CX * 110 / 2, HH = CY * 110 / 2, BW = 900;
+  const bases = [{ team: 'blue', x: -HW + BW / 2, y: 0, x0: -HW, x1: -HW + BW, y0: -HH * 0.6, y1: HH * 0.6 }, { team: 'red', x: HW - BW / 2, y: 0, x0: HW - BW, x1: HW, y0: -HH * 0.6, y1: HH * 0.6 }];
+  const solids = [], trees = [], forests = [], blobs = [];
+  for (let x = -HW + BW; x <= HW - BW; x += 150) blobs.push({ x, y: Math.sin(x / 700) * 260, r: 170, kind: 'road' });   // 中間一條蜿蜒的土路
+  const hit = (x, y, r) => solids.some((o) => Math.hypot(x - o.x, y - o.y) < o.r + r + 70) || trees.some((t) => Math.hypot(x - t.x, y - t.y) < r + 60);
+  const free = (x, y, r) => Math.abs(x) < HW - BW - 150 - r && Math.abs(y) < HH - 120 - r && !hit(x, y, r) && !hit(-x, -y, r) && Math.hypot(x, y) > r + 30;
+  // 岩石：一塊＝全磚岩塊＋半磚岩台，成對擺放（點對稱）
+  for (let n = 0, tries = 0; n < 7 && tries < 500; tries++) {
+    const W = 230 + rnd() * 90, x = (rnd() * 2 - 1) * (HW - BW - 300), y = (rnd() * 2 - 1) * (HH - 300), side = rnd() < 0.5 ? 1 : -1;
+    if (!free(x, y, W * 0.6)) continue;
+    const s = rnd(); makeRock(solids, x, y, W, side, s); makeRock(solids, -x, -y, W, -side, s); n++;
+  }
+  // 稀疏樹林：幾棵樹一叢，樹和樹之間留得出走道
+  for (let n = 0, tries = 0; n < 5 && tries < 400; tries++) {
+    const x = (rnd() * 2 - 1) * (HW - BW - 300), y = (rnd() * 2 - 1) * (HH - 250), R = 220 + rnd() * 160;
+    if (!free(x, y, R * 0.5)) continue;
+    const k = 4 + Math.floor(rnd() * 4);
+    for (let i = 0, t2 = 0; i < k && t2 < 60; t2++) {
+      const a = rnd() * Math.PI * 2, d = Math.sqrt(rnd()) * R, tx = x + Math.cos(a) * d, ty = y + Math.sin(a) * d;
+      if (Math.abs(ty) > HH - 100 || trees.some((t) => Math.hypot(t.x - tx, t.y - ty) < 120) || solids.some((o) => Math.hypot(o.x - tx, o.y - ty) < o.r + 70)) continue;
+      const sz = 0.85 + rnd() * 0.35; trees.push({ x: tx, y: ty, sz }, { x: -tx, y: -ty, sz }); i++;
+    }
+    n++;
+  }
+  for (let i = 0, tries = 0; i < 8 && tries < 400; tries++) { const x = (rnd() * 2 - 1) * (HW - BW - 200), y = (rnd() * 2 - 1) * (HH - 150); if (!free(x, y, 40)) continue; const sz = 0.9 + rnd() * 0.3; trees.push({ x, y, sz }, { x: -x, y: -y, sz }); i++; }
+  // 彈藥箱：零星的小掩體
+  for (let i = 0, tries = 0; i < 4 && tries < 300; tries++) { const x = (rnd() * 2 - 1) * (HW - BW - 400), y = (rnd() * 2 - 1) * (HH - 250); if (!free(x, y, 50)) continue; const n = 1 + Math.floor(rnd() * 3), s = rnd(); solids.push({ kind: 'crate', x, y, r: 36, n, seed: s }, { kind: 'crate', x: -x, y: -y, r: 36, n, seed: s }); i++; }
+  const G = 600, grid = new Map(), put = (o, x0, y0, x1, y1) => { for (let gx = Math.floor(x0 / G); gx <= Math.floor(x1 / G); gx++) for (let gy = Math.floor(y0 / G); gy <= Math.floor(y1 / G); gy++) { const k = gx + ',' + gy; (grid.get(k) || grid.set(k, []).get(k)).push(o); } };
+  for (const o of solids) put(o, o.x - o.r, o.y - o.r, o.x + o.r, o.y + o.r);
+  for (const t of trees) { t.kind = 'tree'; t.r = 16 * t.sz; put(t, t.x - 50, t.y - 50, t.x + 50, t.y + 50); }
+  const near = (x, y) => grid.get(Math.floor(x / G) + ',' + Math.floor(y / G)) || [];
+  return { hw: HW, hh: HH, cellsX: CX, cellsY: CY, gridStep: 10, label: '對戰地圖　60 × 30 格', bases, points: [], lanes: [], blobs, solids, trees, forests, rivers: [], bridges: [], near, G, grid };
+}
+
+/* ── 開局、隊伍、重生 ── */
+function vsBegin() {
+  const L = vsLobby || (vsLobby = vsDefaultLobby());
+  const v = { myTeam: L.team, score: { blue: 0, red: 0 }, fighters: [], feed: [], partT: 0, medT: 0, endT: 0, over: false };
+  vs = v; player.vsTeam = L.team; player.deadT = 0;
+  for (const t of ['blue', 'red']) L[t].forEach((s, i) => v.fighters.push(vsMakeFighter(s.id, s.level, t, i + (t === L.team ? 1 : 0))));
+  const p = vsSpawnPos(L.team, 0); player.x = p.x; player.y = p.y; cam = { x: p.x, y: p.y };
+  vsSync();
+  return v;
+}
+const vsBase = (t) => MAPGEN.bases.find((b) => b.team === t);
+function vsSpawnPos(t, i) {
+  const b = vsBase(t);
+  for (let n = 0; n < 20; n++) { const x = b.x + rand(-250, 250), y = clamp(b.y + (i - 2) * 230 + rand(-60, 60), b.y0 + 60, b.y1 - 60); if (!mapSolidAt(x, y, 30)) return { x, y }; }
+  return { x: b.x, y: b.y };
+}
+function vsMakeFighter(id, level, team, i) {
+  const def = CHARACTERS[id], p = vsSpawnPos(team, i);
+  return { fighter: true, vsTeam: team, def, level, idx: i, name: def.name, x: p.x, y: p.y, r: def.radius, hp: def.maxHp, maxHp: def.maxHp,
+    T: { hp: def.maxHp, evade: evadeRate(def), armor: def.armor ? def.armor.value : 0, ai: 'fighter' },
+    ammo: def.weapon.magazine, reloadT: 0, cool: 0, angle: team === 'blue' ? 0 : Math.PI, moveAngle: 0, moving: false, aiming: false, faceLeft: team === 'red', shot: 0, shotMax: def.weapon.anim, rest: true,
+    invT: VS.spawnInv, dodgeT: 0, dodgeDir: 0, charges: dodgeCharges(def.dodge), chargeT: 0, skillCd: 1 + Math.random() * 3, buffT: 0, effects: [], shield: 0, gold: [],
+    parts: VS.startParts, clones: [], dead: false, respawnT: 0, prone: 0, mode: 'pierce', birds: 0, birdT: 4, stacks: 0, armed: false, killStacks: 0, lockStacks: 0,
+    seed: Math.random() * 100, thinkT: Math.random() * 0.2, goal: null, target: null, evadeT: 0, evadeDir: 0, rollT: 0, stuckT: 0, flankSide: Math.random() < 0.5 ? 1 : -1, flankT: 0, trail: [] };
+}
+function vsRespawn(f) {
+  const p = vsSpawnPos(f.vsTeam, f.idx), D = f.def;
+  Object.assign(f, { x: p.x, y: p.y, hp: D.maxHp, ammo: D.weapon.magazine, reloadT: 0, cool: 0, invT: VS.spawnInv, dodgeT: 0, charges: dodgeCharges(D.dodge), chargeT: 0, buffT: 0,
+    effects: [], shield: 0, gold: [], dead: false, prone: 0, target: null, goal: null, evadeT: 0, armed: false, killStacks: 0, lockStacks: 0, atkDownT: 0, marked: false, debuffT: 0 });
+  burst(f.x, f.y, VS_TEAMCOL[f.vsTeam], 14);
+}
+function vsHumanRespawn() {
+  const p = vsSpawnPos(vs.myTeam, 0);
+  Object.assign(player, { x: p.x, y: p.y, hp: player.maxHp, ammo: cfg.weapon.magazine, reload: 0, shield: 0, gold: [], effects: [], invT: VS.spawnInv, deadT: 0, dodgeT: 0, buffT: 0, prone: 0, skillArmed: false });
+  cam = { x: p.x, y: p.y }; renderEffects(true); updateHp(); updateAmmo(); updateSkill(); burst(p.x, p.y, VS_TEAMCOL[vs.myTeam], 16); floatText(p.x, p.y - 56, '重生', VS_TEAMCOL[vs.myTeam]);
+}
+// 目前場上的單位：敵隊放進 enemies（玩家的子彈、技能都能直接作用），友隊放進 aiAllies（算進「友方」）
+function vsSync() {
+  const al = [], en = [];
+  for (const f of vs.fighters) { if (f.dead) continue; for (const u of [f, ...f.clones]) (u.vsTeam === vs.myTeam ? al : en).push(u); }
+  aiAllies = al; enemies = en;
+}
+const vsFoesOf = (f) => f.vsTeam === vs.myTeam ? enemies : [...(vsDead() ? [] : [player]), ...clones, ...aiAllies];
+const vsFriendsOf = (f) => f.vsTeam === vs.myTeam ? [...(vsDead() ? [] : [player]), ...clones, ...aiAllies] : enemies;
+const vsAlive = (u) => !!u && (u === player ? !vsDead() : u.clone ? clones.includes(u) : u.fighter ? (u.isClone ? !u.lead.dead && u.lead.clones.includes(u) : !u.dead) : false);
+const vsUnitDef = (u) => u.def || cfg;
+const vsLineClear = (ax, ay, bx, by) => { const d = Math.hypot(bx - ax, by - ay), n = Math.ceil(d / 40); for (let i = 1; i < n; i++) if (mapSolidAt(ax + (bx - ax) * i / n, ay + (by - ay) * i / n, 3, true)) return false; return true; };
+
+/* ── 每幀更新 ── */
+function vsUpdate(dt) {
+  vsSync();
+  for (const u of [player, ...clones, ...aiAllies, ...enemies]) { u.vx = (u.x - (u._px ?? u.x)) / dt; u.vy = (u.y - (u._py ?? u.y)) / dt; u._px = u.x; u._py = u.y; }   // 速度（精銳預判瞄準用）
+  vs.partT += dt; if (vs.partT >= VS.partEvery) { vs.partT = 0; if (parts.length < VS.partMax) vsSpawnItem(parts); }
+  vs.medT += dt; if (vs.medT >= VS.medEvery) { vs.medT = 0; if (medkits.length < VS.medMax) vsSpawnItem(medkits); }
+  vsPickups();
+  for (const f of vs.fighters) vsFighterTick(f, dt);
+  vsUpdateNades(dt);
+  vsSync();
+  { const e0 = enemies; enemies = aiAllies; separateEnemies(); enemies = e0; }   // 友隊之間也互相推開
+  if (player.deadT > 0) { player.deadT -= dt; player.invT = 999; if (player.deadT <= 0) vsHumanRespawn(); }
+  for (const k of vs.feed) k.t -= dt; vs.feed = vs.feed.filter((k) => k.t > 0);
+  if (vs.over) { vs.endT -= dt; if (vs.endT <= 0 && state === 'play') endGame(true); }
+}
+function vsSpawnItem(arr) {
+  for (let n = 0; n < 30; n++) {
+    const x = rand(-1, 1) * MAPGEN.hw * 0.3, y = rand(-1, 1) * (MAPGEN.hh - 200);   // 中間區域
+    if (Math.abs(x) > MAPGEN.hw * 0.32 || mapSolidAt(x, y, 34) || [...parts, ...medkits].some((p) => Math.hypot(p.x - x, p.y - y) < 120)) continue;
+    arr.push({ x, y, ph: rand(0, 6) }); return;
+  }
+}
+function vsPickups() {
+  const units = [];
+  if (!vsDead()) units.push(player, ...clones);
+  for (const f of vs.fighters) if (!f.dead) units.push(f, ...f.clones);
+  const near = (it) => units.find((u) => Math.hypot(it.x - u.x, it.y - u.y) < u.r + VS.pickR);
+  for (let i = parts.length - 1; i >= 0; i--) {
+    const u = near(parts[i]); if (!u) continue;
+    const pt = parts.splice(i, 1)[0];
+    if (u === player || u.clone) { partCount++; updateParts(); floatText(pt.x, pt.y - 20, '零件 +1', '#f9cf70'); sfx.reload(); }
+    else (u.lead || u).parts++;
+    burst(pt.x, pt.y, '#f9cf70', 8);
+  }
+  for (let i = medkits.length - 1; i >= 0; i--) {
+    const m = medkits[i], u = units.find((v) => v.hp < v.maxHp && Math.hypot(m.x - v.x, m.y - v.y) < v.r + VS.pickR); if (!u) continue;
+    medkits.splice(i, 1);
+    const heal = Math.round(u.maxHp * VS.medHeal); u.hp = Math.min(u.maxHp, u.hp + heal);
+    if (u === player) updateHp();
+    burst(m.x, m.y, '#7dff9a', 12); floatText(u.x, u.y - 46, '+' + heal, '#7dff9a');
+  }
+}
+
+/* ── 單一 AI 人形 ── */
+function vsFighterTick(f, dt) {
+  if (f.dead) { f.respawnT -= dt; if (f.respawnT <= 0) vsRespawn(f); return; }
+  const D = f.def, wp = D.weapon, sk = D.skill;
+  f.invT = Math.max(0, f.invT - dt); f.cool = Math.max(0, f.cool - dt); f.shot = Math.max(0, f.shot - dt); f.rollT = Math.max(0, f.rollT - dt);
+  if (f.atkDownT > 0) f.atkDownT = Math.max(0, f.atkDownT - dt);
+  if (f.debuffT > 0) f.debuffT = Math.max(0, f.debuffT - dt);
+  tickEffects(f, dt); for (const c of f.clones) tickEffects(c, dt);
+  if (f.vsTeam !== vs.myTeam) for (const u of [f, ...f.clones]) if (u.gold && u.gold.length) { for (const g of u.gold) g.t -= dt; u.gold = u.gold.filter((g) => g.t > 0); }   // 敵隊的金盾（友隊由 tickGold 處理）
+  if (f.reloadT > 0) { f.reloadT -= dt; if (f.reloadT <= 0) f.ammo = wp.magazine; }
+  const maxC = dodgeCharges(D.dodge);
+  if (f.charges < maxC) { f.chargeT -= dt; if (f.chargeT <= 0) { f.charges++; f.chargeT = f.charges < maxC ? dodgeCooldown(D) : 0; } }
+  if (f.buffT > 0) { f.buffT -= dt; if (f.buffT <= 0) vsSkillEnd(f); } else f.skillCd = Math.max(0, f.skillCd - dt);
+  if (sk && sk.id === 'resonance' && f.birds < sk.maxBirds) { f.birdT -= dt; if (f.birdT <= 0) { f.birds++; f.birdT = sk.birdEvery; } }
+  if (f.dodgeT > 0) {
+    const dm = D.dodgeMove, v = dm.distance / dm.time * 2 * (f.dodgeT / dm.time);
+    moveWithCover(f, Math.cos(f.dodgeDir) * v * dt, Math.sin(f.dodgeDir) * v * dt); keepInMap(f);
+    f.dodgeT = Math.max(0, f.dodgeT - dt); f.moving = true; f.aiming = false;
+    vsClonesTick(f, dt); return;
+  }
+  f.thinkT -= dt; if (f.thinkT <= 0) { f.thinkT = 0.15 + Math.random() * 0.1; vsThink(f); }
+  if (f.target && !vsAlive(f.target)) f.target = null;
+  vsDodgeCheck(f);
+  // 開火判定
+  const tgt = f.target, range = vsRange(D);
+  let aimA = f.angle, canShoot = false;
+  if (tgt) {
+    const d = Math.hypot(tgt.x - f.x, tgt.y - f.y);
+    let ax = tgt.x, ay = tgt.y;
+    { const bs = (wp.speed[0] + wp.speed[1]) / 2, t = d / bs, k = f.level === 'elite' ? 1 : 0.5; ax += (tgt.vx || 0) * t * k; ay += (tgt.vy || 0) * t * k; }   // 預判：精銳完整預判敵人的移動，普通只預判一半
+    aimA = Math.atan2(ay - f.y, ax - f.x);
+    canShoot = d <= range * 1.02 && f.reloadT <= 0 && vsLineClear(f.x, f.y, tgt.x, tgt.y);
+  }
+  // 機槍：要開火就停下趴好；要移動就先起身
+  let wantMove = true;
+  if (D.mg) {
+    if (canShoot && f.evadeT <= 0) { wantMove = false; f.prone = Math.min(1, f.prone + dt / D.mg.downStill); }
+    else if (f.prone > 0) { wantMove = false; f.prone = Math.max(0, f.prone - dt / D.mg.upStill); }
+  }
+  // 移動
+  let mv = null;
+  if (f.evadeT > 0) { f.evadeT -= dt; mv = f.evadeDir; }
+  else if (f.goal) { const gx = f.goal.x - f.x, gy = f.goal.y - f.y; if (gx * gx + gy * gy > 30 * 30) mv = Math.atan2(gy, gx); }
+  f.moving = false;
+  if (mv != null && wantMove) {
+    const spd = D.speed * speedMul(f) * (sk && sk.id === 'lockon' && f.buffT > 0 ? 1 - sk.lockSlow : 1);
+    const x0 = f.x, y0 = f.y;
+    vsSteer(f, mv, spd * dt);
+    const moved = Math.hypot(f.x - x0, f.y - y0);
+    f.stuckT = moved < spd * dt * 0.25 ? f.stuckT + dt : 0;
+    if (f.stuckT > 0.8) { f.stuckT = 0; f.goal = { x: f.x + rand(-300, 300), y: f.y + rand(-300, 300) }; f.thinkT = 0.8; }
+  }
+  f.rest = !f.moving && !tgt;
+  // 瞄準與開火
+  if (tgt) {
+    const da = Math.atan2(Math.sin(aimA - f.angle), Math.cos(aimA - f.angle));
+    f.angle += clamp(da, -10 * dt, 10 * dt); f.aiming = true; f.faceLeft = Math.cos(f.angle) < 0;
+    const free = sk && sk.id === 'lockon' && f.buffT > 0;
+    f.firing = canShoot && Math.abs(da) < 0.25 && !(D.mg && f.prone < 1);
+    if (f.firing && f.cool <= 0) { if (f.ammo > 0 || free) vsShoot(f, f, f.angle); else vsReload(f); }
+    else if (!free && f.ammo <= 0) vsReload(f);
+  } else { f.aiming = false; f.firing = false; if (f.moving) f.faceLeft = Math.cos(f.moveAngle) < 0; }
+  vsClonesTick(f, dt);
+}
+// 往某個方向走：前方被擋住就往左右試著繞開
+function vsSteer(f, ang, step) {
+  let best = null;
+  for (const da of [0, 0.5, -0.5, 1, -1, 1.5, -1.5, 2.2, -2.2]) {
+    const a = ang + da * (f.seed > 50 ? 1 : -1);
+    if (!mapSolidAt(f.x + Math.cos(a) * (f.r + 14), f.y + Math.sin(a) * (f.r + 14), f.r * 0.55)) { best = a; break; }
+  }
+  if (best == null) return;
+  moveWithCover(f, Math.cos(best) * step, Math.sin(best) * step); keepInMap(f);
+  f.moveAngle = best; f.moving = true;
+}
+function vsReload(f) {
+  const wp = f.def.weapon;
+  if (f.reloadT > 0 || f.ammo >= wp.magazine) return;
+  f.reloadT = wp.reloadMode === 'shell' ? wp.reload * (wp.magazine - f.ammo) : wp.reload;
+}
+// 思考（每 0.15～0.25 秒一次）：選目標、決定要站的位置、技能、擴編
+function vsThink(f) {
+  const D = f.def, elite = f.level === 'elite', E = elite ? (VS_ELITE[D.id] || VS_ELITE_DEFAULT) : null, range = vsRange(D);
+  const foes = vsFoesOf(f);
+  const vis = foes.filter((u) => Math.hypot(u.x - f.x, u.y - f.y) < VS.view && !losBlocked(f.x, f.y, u.x, u.y));
+  // 目標：最近的敵人；沙漠之鷹精銳優先打血少的（含擴編人形）
+  let tgt = null, best = Infinity;
+  if (E && E.lowHpFirst) for (const u of vis) { const d = Math.hypot(u.x - f.x, u.y - f.y); if (d <= range * 1.25 && u.hp < best) { best = u.hp; tgt = u; } }
+  if (!tgt) { best = Infinity; for (const u of vis) { const d = Math.hypot(u.x - f.x, u.y - f.y) - (u.isClone || u.clone ? 0 : 40); if (d < best) { best = d; tgt = u; } } }
+  f.target = tgt;
+  if (f.parts >= PARTS.cost && f.clones.length < CLONE.maxCount) vsExpand(f);
+  // 角色定位
+  const friends = vsFriendsOf(f).filter((u) => u !== f && !u.isClone && !u.clone && Math.hypot(u.x - f.x, u.y - f.y) < 700);
+  const roleOf = (u) => ROLE_OF[vsUnitDef(u).weapon.class];
+  const fronts = friends.filter((u) => roleOf(u) === 'front'), dpsF = friends.filter((u) => roleOf(u) === 'dps');
+  let role = ROLE_OF[D.weapon.class];
+  if (role === 'front' && !friends.length) role = 'dps';
+  if (role === 'support' && !fronts.length) role = 'front';
+  if (E && E.collectUntil != null) role = f.clones.length < E.collectUntil ? 'collect' : 'dps';
+  f.role = role;
+  const dirX = f.vsTeam === 'blue' ? 1 : -1;
+  const nearestItem = (list, maxD) => { let it = null, bd = maxD; for (const p of list) { const d = Math.hypot(p.x - f.x, p.y - f.y); if (d < bd) { bd = d; it = p; } } return it; };
+  const part = nearestItem(parts, role === 'collect' ? 3000 : 900), med = f.hp < f.maxHp * 0.6 ? nearestItem(medkits, 1200) : null;
+  let goal = null;
+  if (role === 'collect' && part && !(tgt && Math.hypot(tgt.x - f.x, tgt.y - f.y) < range * 0.5)) goal = { x: part.x, y: part.y };
+  else if (!tgt) {
+    if (med) goal = { x: med.x, y: med.y };
+    else if (part) goal = { x: part.x, y: part.y };
+    else if (role === 'front' || !fronts.length) goal = { x: dirX * MAPGEN.hw * (role === 'front' ? 0.55 : 0.25), y: Math.sin(f.seed) * MAPGEN.hh * 0.6 };   // 往敵方推進
+    else { const a = fronts[0]; goal = { x: a.x - dirX * 160, y: a.y + Math.sin(f.seed) * 120 }; }                      // 跟在前排後面
+  } else {
+    const d = Math.hypot(tgt.x - f.x, tgt.y - f.y) || 1, ux = (f.x - tgt.x) / d, uy = (f.y - tgt.y) / d;
+    const keep = role === 'front' ? range * (D.weapon.class === 'SG' ? 0.45 : 0.6) : role === 'support' ? range * 0.75 : range * 0.92;
+    const st = Math.sin(gameTime * 0.9 + f.seed) * 70;   // 左右遊走
+    goal = { x: tgt.x + ux * keep - uy * st, y: tgt.y + uy * keep + ux * st };
+    if (role === 'dps' && fronts.length) {
+      const fx = Math.max(...fronts.map((u) => u.x * dirX));
+      if (goal.x * dirX > fx - 120) goal.x = (fx - 120) * dirX;   // 輸出：待在前排後面
+    }
+    if (role === 'front' && friends.length) {
+      const fx = Math.max(...friends.map((u) => u.x * dirX));
+      if (goal.x * dirX < fx + 60 && d > keep) goal.x = (fx + 60) * dirX;   // 前排：站在隊友前面
+    }
+    if (role === 'support') {
+      let ally = null, bd = Infinity; for (const u of dpsF) { const dd = Math.hypot(u.x - f.x, u.y - f.y); if (dd < bd) { bd = dd; ally = u; } }
+      if (ally) { const ad = Math.hypot(tgt.x - ally.x, tgt.y - ally.y) || 1; goal = { x: ally.x + (tgt.x - ally.x) / ad * 110 - uy * st * 0.5, y: ally.y + (tgt.y - ally.y) / ad * 110 + ux * st * 0.5 }; }   // 護航：站在輸出和敵人之間
+    }
+    if (E && E.flank) {
+      // 輸出太多擠在一起：換到另一個角度夾擊
+      f.flankT = Math.max(0, f.flankT - 0.2);
+      const crowd = dpsF.filter((u) => Math.hypot(u.x - f.x, u.y - f.y) < 280).length;
+      if (crowd >= 2 && f.flankT <= 0) { f.flankSide = -f.flankSide; f.flankT = 4; }
+      if (f.flankT > 0) { const a = Math.atan2(uy, ux) + f.flankSide * 1.1; goal = { x: tgt.x + Math.cos(a) * keep, y: tgt.y + Math.sin(a) * keep }; }
+    }
+    if (E && E.cover) {
+      // 找附近的岩石，躲在敵人看不到的那一側（還在射程內才去）
+      let cv = null, bd = 600;
+      for (const o of MAPGEN.solids) { if (o.kind !== 'rock') continue; const dd = Math.hypot(o.x - f.x, o.y - f.y); if (dd < bd) { bd = dd; cv = o; } }
+      if (cv) {
+        const cd = Math.hypot(cv.x - tgt.x, cv.y - tgt.y) || 1, px = cv.x + (cv.x - tgt.x) / cd * (cv.r + f.r + 16), py = cv.y + (cv.y - tgt.y) / cd * (cv.r + f.r + 16);
+        if (Math.hypot(px - tgt.x, py - tgt.y) < range * 0.98 && f.flankT <= 0) goal = { x: px, y: py };
+      }
+    }
+    if (!elite && part && Math.hypot(part.x - f.x, part.y - f.y) < 300 && !vis.some((u) => Math.hypot(u.x - f.x, u.y - f.y) < 350)) goal = { x: part.x, y: part.y };
+    if (med && f.hp < f.maxHp * 0.35) goal = { x: med.x, y: med.y };
+  }
+  if (goal) { goal.x = clamp(goal.x, -MAPGEN.hw + 60, MAPGEN.hw - 60); goal.y = clamp(goal.y, -MAPGEN.hh + 60, MAPGEN.hh - 60); }
+  f.goal = goal;
+  if (!tgt && f.ammo < D.weapon.magazine) vsReload(f);   // 沒有敵人時先把彈匣補滿
+  vsMaybeSkill(f, tgt, vis);
+}
+// 躲子彈：算出會打中自己的子彈
+function vsDodgeCheck(f) {
+  if (f.dodgeT > 0 || f.evadeT > 0.05 || f.rollT > 0) return;
+  const D = f.def, foeTeam = f.vsTeam === vs.myTeam ? 'e' : 'p';
+  let th = null;
+  for (const b of bullets) {
+    if (b.team !== foeTeam) continue;
+    const px = f.x - b.x, py = f.y - b.y; if (px * px + py * py > 380 * 380) continue;
+    const vv = b.vx * b.vx + b.vy * b.vy, t = (px * b.vx + py * b.vy) / vv; if (t <= 0 || t > 0.5) continue;
+    const mx = px - b.vx * t, my = py - b.vy * t, miss = Math.hypot(mx, my);
+    if (miss < f.r + b.r + 4 && (!th || t < th.t)) th = { b, t, miss, mx, my };
+  }
+  if (!th) return;
+  f.rollT = f.level === 'elite' ? 0.35 : 0.7;   // 同一波子彈只判定一次（普通 AI 反應比較慢）
+  const b = th.b, side = (th.mx * -b.vy + th.my * b.vx) >= 0 ? 1 : -1, perp = Math.atan2(b.vy, b.vx) + side * Math.PI / 2;
+  const step = (t) => { f.evadeT = t; f.evadeDir = perp; };
+  if (f.level === 'elite') {
+    // 精銳：先算移動躲不躲得掉，躲不掉才閃避；保留 1 次閃避，生命低於門檻才無限制使用
+    const E = VS_ELITE[D.id] || VS_ELITE_DEFAULT, spd = D.speed * speedMul(f) * (D.mg && f.prone > 0 ? 0 : 1);
+    const need = f.r + b.r + 6 - th.miss, can = spd * th.t * 0.9, free = f.hp <= f.maxHp * E.dodgeFree;
+    if (can >= need) step(need / Math.max(1, spd) + 0.12);
+    else if (f.charges > (free ? 0 : 1)) vsDodge(f, perp);
+    else step(0.3);
+  } else {
+    const r = Math.random();
+    if (r < 0.6) step(0.35); else if (r < 0.8 && f.charges > 0) vsDodge(f, perp);
+  }
+}
+function vsDodge(f, dir) {
+  const D = f.def, dm = D.dodgeMove;
+  f.dodgeDir = dir; f.dodgeT = dm.time; f.invT = dm.time + dm.afterInvuln; f.charges--; if (f.chargeT <= 0) f.chargeT = dodgeCooldown(D); f.prone = 0; f.evadeT = 0;
+  if (Math.abs(Math.cos(dir)) > 0.2) f.faceLeft = Math.cos(dir) < 0;
+}
+// 開火：shooter＝實際開槍的人（本體或擴編人形），f＝本體（數值、技能狀態）
+function vsShoot(f, shooter, ang) {
+  const D = f.def, wp = D.weapon, sk = D.skill, mid = (wp.pellets - 1) / 2, mz = muzzleWorld(shooter);
+  const md = sk && sk.modes ? sk.modes[f.mode] : null, isMain = shooter === f;
+  const free = sk && sk.id === 'lockon' && f.buffT > 0;
+  if (isMain && !free) f.ammo--;
+  let buff = 1 + effSum(f, 'dmg') + ((md && md.dmg) || 0);
+  if (f.buffT > 0 && sk.dmgMult) buff *= sk.dmgMult;                                   // 榮光延續
+  if (f.buffT > 0 && sk.id === 'sixkill') buff *= 1 + sk.extraHits * sk.extraPct;       // 糜麗六殺（追加打擊合併計算）
+  if (sk && sk.id === 'deter' && f.killStacks) buff *= Math.pow(sk.killDmg, f.killStacks);
+  if (sk && sk.id === 'lockon' && f.buffT > 0) buff *= 1 + f.lockStacks * sk.critStack;
+  if (f.armed) { buff *= sk.purpleMult || 1.6; if (isMain) { f.armed = false; f.skillCd = sk.cooldown; } }   // 裂傷紀錄
+  if (f.atkDownT > 0) buff *= 1 - (f.atkDownPct || 0.5);                                // 被埃癸斯之盾削弱
+  const crit = critRate(D) + effSum(f, 'crit') + effSum(shooter, 'crit') * (isMain ? 0 : 1);
+  const segs = splitFor(D, f), jm = ((md && md.jitterMul) || 1) * (f.level === 'elite' ? 0.85 : 1.15);
+  const ally = f.vsTeam === vs.myTeam;
+  for (let i = 0; i < wp.pellets; i++) {
+    const a = ang + (i - mid) * wp.spread + rand(-wp.jitter, wp.jitter) * jm, sp = rand(wp.speed[0], wp.speed[1]), life = vsRange(D) / sp;
+    const b = { x: mz.x, y: mz.y, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp, age: 0, life, maxLife: life, r: wp.radius, pellet: wp.pellets > 1, dist: 0, src: shooter, vsShot: true };
+    if (ally) Object.assign(b, { team: 'p', def: D, buff, res: buff, crit, segs, ap: !!(md && md.ap), fromClone: true });
+    else {
+      const hitCrit = Math.random() < clamp(crit, 0, 1);
+      Object.assign(b, { team: 'e', dmg: wp.damage * buff * (segs ? segs.n * segs.pct : 1) * (hitCrit ? 2 : 1), pierce: !!(md && md.ap), vsCrit: hitCrit });
+    }
+    bullets.push(b);
+  }
+  if (sk && sk.id === 'lockon' && f.buffT > 0 && Math.random() < crit) f.lockStacks++;
+  shooter.cool = wp.cooldown / Math.max(0.2, 1 + effSum(f, 'rate') + ((md && md.rate) || 0));
+  shooter.shot = shooter.shotMax = wp.anim;
+  burst(mz.x, mz.y, '#f6cb76', 4);
+  const dd = Math.hypot(shooter.x - player.x, shooter.y - player.y), vol = 0.45 * (1 - dd / 1300);
+  if (isMain && vol > 0.04) playShot(wp.class, vol);
+  if (isMain && !free && f.ammo <= 0) vsReload(f);
+}
+function vsExpand(f) {
+  f.parts -= PARTS.cost;
+  const D = f.def, hp = D.weapon.class === 'MG' ? D.maxHp : Math.round(D.maxHp * CLONE.hpRatio);
+  const c = { fighter: true, isClone: true, lead: f, vsTeam: f.vsTeam, def: D, slot: CLONE_SLOTS[f.clones.length], x: f.x, y: f.y, r: D.radius, hp, maxHp: hp,
+    T: { hp, evade: evadeRate(D), armor: f.T.armor, ai: 'fighter' }, cool: 0, angle: f.angle, moveAngle: 0, moving: false, aiming: false, shot: 0, shotMax: D.weapon.anim,
+    faceLeft: f.faceLeft, invT: 0.6, dodgeT: 0, dodgeDir: 0, effects: [], shield: 0, gold: [], prone: 0, trail: [] };
+  f.clones.push(c);
+  burst(c.x, c.y, VS_TEAMCOL[f.vsTeam], 16); floatText(f.x, f.y - 56, '擴編！', VS_TEAMCOL[f.vsTeam]);
+}
+function vsClonesTick(f, dt) {
+  for (const c of f.clones) {
+    const [sa, sd] = c.slot, tx = f.x + Math.cos(sa) * (f.r + sd), ty = f.y + Math.sin(sa) * (f.r + sd) * 0.8;
+    const dx = tx - c.x, dy = ty - c.y, d = Math.hypot(dx, dy);
+    const sp = f.dodgeT > 0 ? f.def.dodgeMove.distance / f.def.dodgeMove.time * 2 : f.def.speed * 1.25;
+    if (d > 2) moveWithCover(c, dx / d * Math.min(d, sp * dt), dy / d * Math.min(d, sp * dt));
+    if (d > 400) { c.x = tx; c.y = ty; }
+    keepInMap(c);
+    c.invT = Math.max(0, c.invT - dt); c.cool = Math.max(0, c.cool - dt); c.shot = Math.max(0, c.shot - dt);
+    c.prone = f.prone; c.moving = f.moving || d > 6; c.moveAngle = f.moveAngle; c.dodgeT = f.dodgeT; c.dodgeDir = f.dodgeDir; c.rest = f.rest;
+    const tgt = f.target;
+    if (tgt && f.aiming) { c.angle = Math.atan2(tgt.y - c.y, tgt.x - c.x); c.aiming = true; c.faceLeft = Math.cos(c.angle) < 0; }
+    else { c.angle = f.angle; c.aiming = f.aiming; c.faceLeft = f.faceLeft; }
+    if (f.firing && tgt && c.cool <= 0 && !(f.def.mg && c.prone < 1) && vsLineClear(c.x, c.y, tgt.x, tgt.y)) vsShoot(f, c, c.angle);
+  }
+}
+
+/* ── 技能（AI 版）── */
+function vsMaybeSkill(f, tgt, vis) {
+  const D = f.def, sk = D.skill;
+  if (!sk || f.buffT > 0 || f.skillCd > 0 || f.armed) return;
+  const E = f.level === 'elite' ? (VS_ELITE[D.id] || VS_ELITE_DEFAULT) : null, mag = D.weapon.magazine;
+  const dist = tgt ? Math.hypot(tgt.x - f.x, tgt.y - f.y) : Infinity, inRange = dist <= vsRange(D);
+  // 精銳（例如 HK433、沙漠之鷹）：彈匣不是滿的就先換彈，滿了才開技能
+  const magReady = () => { if (E && (E.fullMagSkill || f.level === 'elite') && f.ammo < mag) { vsReload(f); return false; } return true; };
+  const friends = vsFriendsOf(f), foes = vsFoesOf(f);
+  switch (sk.id) {
+    case 'glory': case 'sixkill': case 'waltz': case 'deter': case 'lockon':
+      if (!inRange || !magReady()) return;
+      f.buffT = sk.duration;
+      if (sk.id === 'waltz') addEffect(f, { id: 'waltz', name: '射速 140%', mark: '速', color: '#c9a7ff', rate: sk.rate, time: sk.duration }, f);
+      if (sk.id === 'deter') { addEffect(f, { id: 'deter_rate', name: '射速提升', mark: '速', color: '#cfd8dc', rate: sk.rate, time: sk.duration }, f); f.killStacks = 0; }
+      if (sk.id === 'lockon') f.lockStacks = 0;
+      break;
+    case 'deconstruct': {
+      if (!inRange || !magReady()) return;
+      const n = Math.min(sk.maxCount, foes.filter((u) => Math.hypot(u.x - f.x, u.y - f.y) <= sk.radius).length);
+      f.buffT = sk.duration;
+      if (n) addEffect(f, { id: 'deconstruct', name: '解構入侵 ×' + n, mark: '構' + n, color: '#3fc4ff', dmg: sk.perEnemy.dmg * n, rate: sk.perEnemy.rate * n, evade: sk.perEnemy.evade * n, time: sk.duration }, f);
+      rings.push({ x: f.x, y: f.y, r: sk.radius, life: sk.radius / sk.waveSpeed, max: sk.radius / sk.waveSpeed, color: '#3fc4ff', linear: true });
+      break;
+    }
+    case 'laceration': if (inRange && dist > 120 && magReady()) f.armed = true; return;
+    case 'ironWall': {
+      const near = friends.filter((u) => Math.hypot(u.x - f.x, u.y - f.y) <= sk.radius);
+      if (!tgt || (near.length < 1 && f.hp > f.maxHp * 0.7)) return;
+      for (const u of [f, ...f.clones, ...near]) addGold(u, sk.gold, sk.goldTime);
+      rings.push({ x: f.x, y: f.y, r: sk.radius, life: 0.7, max: 0.7, color: '#ffd34d' });
+      f.skillCd = sk.cooldown; break;
+    }
+    case 'aegisShield': {
+      const hit = foes.filter((u) => Math.hypot(u.x - f.x, u.y - f.y) <= D.lockRange); if (!hit.length) return;
+      for (const u of hit) {
+        if (u === player || u.clone) addAtkDown(u, { pct: sk.atkDown, time: sk.atkDownTime });
+        else { u.atkDownT = sk.atkDownTime; u.atkDownPct = sk.atkDown; }
+      }
+      rings.push({ x: f.x, y: f.y, r: D.lockRange, life: D.lockRange / sk.waveSpeed, max: D.lockRange / sk.waveSpeed, color: '#9aa3aa', inner: '#e4e8ea', linear: true });
+      f.skillCd = sk.cooldown; break;
+    }
+    case 'grenade': {
+      if (!tgt || dist > sk.throwRange + 60) return;
+      const k = Math.min(1, sk.throwRange / dist), lv = sk.levels[f.stacks];
+      vsNades.push({ sx: f.x, sy: f.y, tx: f.x + (tgt.x - f.x) * k, ty: f.y + (tgt.y - f.y) * k, t: 0, T: sk.flight, lv, f });
+      f.stacks = Math.min(3, f.stacks + 1); f.skillCd = sk.cooldown; break;
+    }
+    case 'resonance': {
+      if (f.birds < sk.maxBirds || !tgt) return;
+      const eff = sk.effects[f.birds];
+      for (const u of [f, ...friends]) if (Math.hypot(u.x - f.x, u.y - f.y) <= sk.radius) addEffect(u, eff, f);
+      rings.push({ x: f.x, y: f.y, r: sk.radius, life: 0.7, max: 0.7, color: eff.color });
+      f.birds = 0; f.birdT = sk.birdEvery; break;
+    }
+    case 'highPressure': {
+      if (!tgt) return;
+      const want = (tgt.T ? tgt.T.armor : vsUnitDef(tgt).armor.value) > 0 ? 'pierce' : 'strike';   // 打有護甲的敵人用貫穿，其餘用強擊
+      if (f.mode !== want) { f.mode = want; f.skillCd = sk.cooldown; }
+      return;
+    }
+    default: return;
+  }
+  if (Math.hypot(f.x - player.x, f.y - player.y) < 900) floatText(f.x, f.y - 52, sk.name, VS_TEAMCOL[f.vsTeam]);
+}
+function vsSkillEnd(f) {
+  const sk = f.def.skill; f.skillCd = sk.cooldown; f.buffT = 0;
+  if (sk.id === 'deter') f.killStacks = 0;
+  if (sk.id === 'lockon') { f.lockStacks = 0; f.effects = f.effects.filter((x) => !((x.dmg || 0) > 0)); }
+}
+let vsNades = [];
+function vsUpdateNades(dt) {
+  for (let i = vsNades.length - 1; i >= 0; i--) {
+    const g = vsNades[i]; g.t += dt; if (g.t < g.T) continue;
+    vsNades.splice(i, 1);
+    blasts.push({ x: g.tx, y: g.ty, r: g.lv.radius, life: 0.4, max: 0.4, level: 0 });
+    for (const u of vsFoesOf(g.f).slice()) if (Math.hypot(u.x - g.tx, u.y - g.ty) <= g.lv.radius + u.r) vsHurt(u, g.lv.damage, g.f, false);   // 爆炸：不可迴避
+  }
+}
+// 對任何單位造成傷害（不經過子彈）：attacker＝出手的 AI 本體
+function vsHurt(u, amount, attacker, pierce) {
+  if (u === player) { player.lastHitBy = attacker; damage(amount, pierce); return; }
+  if (u.clone) { damageClone(u, amount, pierce); return; }
+  if (!u.fighter) return;
+  if (u.vsTeam === vs.myTeam) { vsDamageRaw(u, amount, pierce, attacker); return; }
+  vsHitBy = attacker; hitEnemy(u, amount, '#ffb347', false, 0); if (u.hp <= 0) killEnemy(u); vsHitBy = null;
+}
+// 友隊 AI 被敵隊子彈打中：迴避 → 金盾 → 護甲 → 護盾 → 生命
+function vsDamageFighter(f, b) {
+  const D = f.def;
+  if (!b.elec && Math.random() < evadeRate(D) + effSum(f, 'evade') + (f.isClone ? effSum(f.lead, 'evade') : 0)) { (b.missedC || (b.missedC = new Set())).add(f); floatText(f.x, f.y - 36, 'MISS', '#bfefff'); return false; }
+  vsDamageRaw(f, b.dmg || ENEMY.bulletDmg, !!b.pierce, b.src);
+  if (b.vsCrit) floatText(f.x + rand(-10, 10), f.y - 30, '暴擊', '#ff4d4d');
+  return true;
+}
+function vsDamageRaw(f, amount, pierce, src) {
+  if (f.invT > 0 || f.dead) return;
+  amount = absorbGold(f, amount); if (amount <= 0) return;
+  const ar = f.def.armor, blocked = !pierce && ar.value > 0 && (amount <= ar.value ? Math.random() < ar.blockLow : Math.random() < ar.blockHigh);
+  let rest = blocked ? Math.max(1, amount - ar.value) : amount;
+  if (f.shield > 0) { const use = Math.min(f.shield, rest); f.shield -= use; rest -= use; }
+  f.hp -= rest; f.hitT = 2; f.stacks = 0;
+  burst(f.x, f.y, '#53dfcb', 4);
+  if (f.hp <= 0) vsFighterDown(f, src ? (src.fighter ? (src.lead || src) : player) : null);
+}
+// 倒下：擴編人形直接消失；本體倒下 → 對方得分、拿走 50% 零件，5 秒後重生
+function vsFighterDown(f, killer) {
+  if (f.dead) return;
+  if (f.isClone) {
+    const L = f.lead, i = L.clones.indexOf(f); if (i >= 0) L.clones.splice(i, 1);
+    L.clones.forEach((k, n) => { k.slot = CLONE_SLOTS[n]; });
+    burst(f.x, f.y, '#ff8f83', 12); vsSync(); return;
+  }
+  f.dead = true; f.respawnT = VS.respawn; f.hp = 0; f.target = null;
+  for (const c of f.clones) burst(c.x, c.y, '#ff8f83', 10);
+  f.clones = [];
+  burst(f.x, f.y, '#ff8f83', 22); burst(f.x, f.y, VS_TEAMCOL[f.vsTeam], 12);
+  if (killer && killer.clone) killer = player;
+  const kTeam = killer === player ? vs.myTeam : killer ? killer.vsTeam : null;
+  if (kTeam && kTeam !== f.vsTeam) {
+    vs.score[kTeam]++;
+    const g = Math.floor(f.parts * VS.steal); f.parts -= g;
+    if (killer === player) { partCount += g; updateParts(); score += 100; } else killer.parts += g;
+    if (killer !== player && killer.def.skill.id === 'deter' && killer.buffT > 0) killer.killStacks = Math.min(killer.def.skill.maxStacks, killer.killStacks + 1);
+  }
+  vsFeed(killer, f); vsCheckWin(); vsSync();
+}
+function vsHumanDown() {
+  const k = player.lastHitBy, killer = k ? (k.lead || k) : null;
+  player.hp = 0; player.deadT = VS.respawn; player.invT = 999; player.dodgeT = 0; player.buffT = 0;
+  for (const c of clones) burst(c.x, c.y, '#ff8f83', 10);
+  clones = []; burst(player.x, player.y, '#ff8f83', 24);
+  if (killer && killer.fighter && killer.vsTeam !== vs.myTeam) {
+    vs.score[killer.vsTeam]++;
+    const g = Math.floor(partCount * VS.steal); partCount -= g; killer.parts += g;
+  }
+  updateParts(); vsFeed(killer, player); vsCheckWin();
+}
+function vsFeed(killer, victim) {
+  const nm = (u) => u === player ? '你' : u ? u.name : '？';
+  const kt = killer === player ? vs.myTeam : killer ? killer.vsTeam : null, vt = victim === player ? vs.myTeam : victim.vsTeam;
+  vs.feed.unshift({ k: nm(killer), kc: kt ? VS_TEAMCOL[kt] : '#cfd8dc', v: nm(victim), vc: VS_TEAMCOL[vt], t: 5 });
+  vs.feed.length = Math.min(vs.feed.length, 5);
+}
+function vsCheckWin() {
+  if (vs.over) return;
+  for (const t of ['blue', 'red']) if (vs.score[t] >= VS.win) { vs.over = true; vs.winner = t; vs.endT = 1.5; floatText(player.x, player.y - 80, VS_TEAMNAME[t] + '獲勝！', VS_TEAMCOL[t]); }
+}
+
+/* ── 繪圖 ── */
+function drawFighter(f) {
+  ctx.save(); drawCharacter(f, false); ctx.restore();
+  const q = proj(f.x, f.y); upright(q, f.x, f.y);
+  const col = VS_TEAMCOL[f.vsTeam], w = f.isClone ? 28 : 38, y = f.y - (f.isClone ? 44 : 48);
+  ctx.fillStyle = '#26343b'; ctx.fillRect(f.x - w / 2, y, w, 4);
+  ctx.fillStyle = col; ctx.fillRect(f.x - w / 2, y, w * Math.max(0, f.hp) / f.maxHp, 4);
+  if (f.shield > 0) { ctx.fillStyle = '#9cc6ff'; ctx.fillRect(f.x - w / 2, y - 4, w * Math.min(1, f.shield / f.maxHp), 3); }
+  const gs = goldSum(f); if (gs > 0) { ctx.fillStyle = '#ffd34d'; ctx.fillRect(f.x - w / 2, y - (f.shield > 0 ? 8 : 4), w * Math.min(1, gs / f.maxHp), 3); }
+  if (!f.isClone) {
+    ctx.font = '700 10px system-ui, sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'bottom';
+    const label = (f.level === 'elite' ? '★' : '') + f.name;
+    ctx.strokeStyle = 'rgba(0,0,0,0.6)'; ctx.lineWidth = 3; ctx.strokeText(label, f.x, y - 3); ctx.fillStyle = col; ctx.fillText(label, f.x, y - 3);
+    ctx.textAlign = 'left'; ctx.textBaseline = 'alphabetic';
+  }
+}
+function drawVsNades() {
+  for (const g of vsNades) {
+    const k = Math.min(1, g.t / g.T), x = g.sx + (g.tx - g.sx) * k, y = g.sy + (g.ty - g.sy) * k, z = Math.sin(k * Math.PI) * 60;
+    const q = proj(x, y); upright(q, x, y);
+    ctx.fillStyle = '#4b5a3a'; ctx.beginPath(); ctx.arc(x, y - z, 5, 0, Math.PI * 2); ctx.fill();
+  }
+}
+let vsHudY = 60;
+function drawVsHud() {
+  ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+  const cx = W / 2, y = vsHudY + 6;
+  const bw = 150, bh = 30;
+  ctx.textBaseline = 'middle';
+  if (!mapOpen) {
+  ctx.font = '800 20px system-ui, sans-serif';
+  ctx.fillStyle = 'rgba(4,14,20,0.72)'; ctx.beginPath(); ctx.roundRect ? ctx.roundRect(cx - bw / 2, y, bw, bh, 15) : ctx.rect(cx - bw / 2, y, bw, bh); ctx.fill();
+  ctx.textAlign = 'right'; ctx.fillStyle = VS_TEAMCOL.blue; ctx.fillText(String(vs.score.blue), cx - 12, y + bh / 2 + 1);
+  ctx.textAlign = 'center'; ctx.fillStyle = '#cfd8dc'; ctx.fillText(':', cx, y + bh / 2);
+  ctx.textAlign = 'left'; ctx.fillStyle = VS_TEAMCOL.red; ctx.fillText(String(vs.score.red), cx + 12, y + bh / 2 + 1);
+  ctx.font = '700 10px system-ui, sans-serif'; ctx.fillStyle = VS_TEAMCOL.blue; ctx.textAlign = 'left'; ctx.fillText('藍', cx - bw / 2 + 10, y + bh / 2);
+  ctx.fillStyle = VS_TEAMCOL.red; ctx.textAlign = 'right'; ctx.fillText('紅', cx + bw / 2 - 10, y + bh / 2);
+  ctx.fillStyle = 'rgba(207,216,220,0.75)'; ctx.textAlign = 'center'; ctx.fillText('先拿到 ' + VS.win + ' 分獲勝', cx, y + bh + 10);
+  }
+  // 擊倒紀錄
+  ctx.font = '700 12px system-ui, sans-serif'; ctx.textAlign = 'right';
+  vs.feed.forEach((k, i) => {
+    const yy = y + bh + 30 + i * 17, a = Math.min(1, k.t);
+    ctx.globalAlpha = a;
+    const vw = ctx.measureText(k.v).width, mid = '  擊倒  ', mw = ctx.measureText(mid).width;
+    ctx.fillStyle = k.vc; ctx.fillText(k.v, W - 14, yy);
+    ctx.fillStyle = '#9fb8bf'; ctx.fillText(mid, W - 14 - vw, yy);
+    ctx.fillStyle = k.kc; ctx.fillText(k.k, W - 14 - vw - mw, yy);
+    ctx.globalAlpha = 1;
+  });
+  if (vsDead()) {
+    ctx.fillStyle = 'rgba(4,10,14,0.35)'; ctx.fillRect(0, 0, W, H);
+    ctx.textAlign = 'center'; ctx.font = '800 26px system-ui, sans-serif'; ctx.fillStyle = '#ff8f83'; ctx.fillText('你被擊倒了', W / 2, H / 2 - 16);
+    ctx.font = '700 15px system-ui, sans-serif'; ctx.fillStyle = '#e8eef0'; ctx.fillText(Math.ceil(player.deadT) + ' 秒後在大本營重生', W / 2, H / 2 + 16);
+  }
+  ctx.textAlign = 'left'; ctx.textBaseline = 'alphabetic';
 }
 
 /* ───────── 零件與擴編（戰事關卡） ─────────
@@ -2228,13 +2909,15 @@ function phasePacks(i) {
 function packsFor(charId, level) {
   const list = teamIds().map((id) => packOf(CHARACTERS[id].assets));
   if (LEVEL_PHASES[level]) list.push(...phasePacks(0));
-  return list;
+  if (level === 'versus') list.push(...vsLobbyPacks());   // 對戰：大廳裡所有 AI 的角色
+  return [...new Set(list)];
 }
 // 在選單停留時先在背景下載：目前的人形；選了戰事再加第一階段的敵人（Boss 要等開局抽了才知道）
 function prefetch() {
   const list = teamIds().map((id) => packOf(CHARACTERS[id].assets));
   if (levelPhases()) list.push(...levelPhases()[0].packs);
-  for (const pid of list) ensurePack(pid).catch(() => {});
+  if (selectedLevel === 'versus') list.push(...vsLobbyPacks());
+  for (const pid of new Set(list)) ensurePack(pid).catch(() => {});
 }
 function silhouette(im) {
   let c = sil.get(im);
@@ -2460,6 +3143,7 @@ function updatePick() {
     ensureClass(w.class).then(() => { if ((slot === 'main' ? selectedId : subId) === def.id) im.src = previewOf(def); }).catch(() => {});
   }
   $('teamNote').hidden = !team_;
+  $('vsLobby').hidden = selectedLevel !== 'versus'; if (selectedLevel === 'versus') buildLobby();
   const lv = LEVELS.find((l) => l.id === selectedLevel); $('levelDesc').textContent = lv ? lv.desc : '';
 }
 // 槍種分頁按鈕（選角、人形圖鑑共用）
@@ -2971,6 +3655,8 @@ function beginGame() {
   // 依關卡決定敵人數值
   phase = levelPhases() ? levelPhases()[0] : null; phaseIdx = 0; phaseStart = 0; spawnIdx = 0;
   $('phaseBlock').hidden = !phase || !!phase.bigmap;   // 戰局：時間照算但不顯示
+  MAPGEN = phase && phase.versus ? (VERSUS_MAP || (VERSUS_MAP = genVersusMap())) : BATTLE_MAP; miniCanvas = null;   // 依模式換地圖
+  vs = null; aiAllies = []; vsNades = [];
   const testing = !!(phase && phase.test);
   $('testPanel').hidden = !testing; if (testing) buildTestPanel();
   $('hudScore').hidden = testing;
@@ -2982,6 +3668,7 @@ function beginGame() {
   for (let i = 0; i < (phase ? phase.initial : ENEMY.initial); i++) addEnemy();
   mapOpen = false;
   if (bigMap()) { const b = MAPGEN.bases[0]; player.x = b.x; player.y = b.y; cam = { x: b.x, y: b.y }; parts = []; chunks.clear(); coverCache = null; stream(); resetCapture(); }   // 戰局：從藍方基地出發
+  if (phase && phase.versus) vsBegin();   // 對戰：建立雙方隊伍（玩家在自己隊伍的大本營出發）
   $('score').textContent = '0'; refreshCharHud();
   setState('play'); last = performance.now();
 }
@@ -3023,6 +3710,15 @@ function updateSwap() {
 $('swapBtn').addEventListener('click', () => swapChar(false));
 function endGame(cleared) {
   setTimeout(() => { if (state === 'play' || gameLoading) return; releaseUnused(openingPacks()); prefetch(); }, 300);   // 清掉上一局的素材，先在背景準備下一場
+  if (vs) {
+    // 對戰：顯示勝負與比分（不計入最高分）
+    const win = vs.winner === vs.myTeam, m = Math.floor(gameTime / 60), s = Math.floor(gameTime % 60);
+    $('overTitle').textContent = !vs.winner ? '對戰結束' : win ? '勝利！' : '落敗';
+    $('clearBanner').hidden = !vs.winner; $('clearBanner').textContent = vs.winner ? VS_TEAMNAME[vs.winner] + '獲勝' : '';
+    $('scoreLabel').textContent = '比分（藍隊 : 紅隊）'; $('finalScore').textContent = vs.score.blue + ' : ' + vs.score.red;
+    $('clearTime').hidden = true; $('finalStats').textContent = '你在' + VS_TEAMNAME[vs.myTeam] + ' · 對戰時間 ' + m + ':' + String(s).padStart(2, '0');
+    $('bossBar').hidden = true; setState('over'); return;
+  }
   const warClear = cleared && selectedLevel === 'war';   // 戰事通關：恭喜通關＋通關時間與分數
   $('overTitle').textContent = warClear ? '恭喜通關！' : cleared ? (phase ? phase.name : '') + '完成！' : '本回合結束';
   $('clearBanner').hidden = !warClear; $('clearBanner').textContent = '戰事 全三階段完成';
@@ -3290,6 +3986,7 @@ function onReloadDone() {
   }
 }
 function useSkill() {
+  if (vsDead()) return;
   const sk = cfg.skill;
   if (state !== 'play' || !player || !sk || sk.pending || player.skillCd > 0 || player.skillArmed || player.buffT > 0) return;
   minoNoticeSkill();   // 彌諾陶洛斯的被動：附近有人用技能就舉盾
@@ -3483,6 +4180,7 @@ function updateSkill() {
   }
 }
 function startDodge() {
+  if (vsDead()) return;
   if (state !== 'play' || !player || player.dodgeT > 0 || player.charges <= 0) return;
   const dm = cfg.dodgeMove;
   // 有移動輸入就往移動方向撲，沒有就往面向（準星）方向撲
@@ -3499,6 +4197,7 @@ function updateDodge() {
   [...box.children].forEach((d, i) => d.classList.toggle('on', i < player.charges));
 }
 function reload() {
+  if (vsDead()) return;
   if (state !== 'play' || player.ammo >= cfg.weapon.magazine || player.reload > 0) return;
   player.reload = cfg.weapon.reload;
 }
@@ -3650,10 +4349,20 @@ function hitEnemy(e, dmg, color, small, atkCrit) {
   hitEnemy.lastCrit = crit;
   if (crit) dmg *= 2;
   // 敵人護甲：格擋機率見 ENEMY_BLOCK
-  const ar = e.boss ? e.B.armor : e.T.armor;
-  if (ar && !hitEnemy.pierceArmor && (dmg <= ar ? Math.random() < ENEMY_BLOCK.low : Math.random() < ENEMY_BLOCK.high)) {   // 穿甲子彈不會被格擋
+  const ar = e.boss ? e.B.armor : e.T.armor, blk = e.fighter ? e.def.armor : null;   // 對戰的人形：用自己的格擋機率
+  if (ar && !hitEnemy.pierceArmor && (dmg <= ar ? Math.random() < (blk ? blk.blockLow : ENEMY_BLOCK.low) : Math.random() < (blk ? blk.blockHigh : ENEMY_BLOCK.high))) {   // 穿甲子彈不會被格擋
     dmg = Math.max(1, dmg - ar);       // 格擋：傷害 − 護甲值，最低剩 1
     if (!small) floatText(e.x + rand(-10, 10), e.y - 34, '格擋', '#cfd8dc');
+  }
+  if (e.fighter) {
+    // 對戰的敵方人形：金盾 → 護盾 → 生命（沙漠之鷹的子彈無視護盾）
+    dmg = absorbGold(e, dmg); let rest = dmg;
+    if (e.shield > 0) { if (hitEnemy.pierceShield) e.shield = Math.max(0, e.shield - rest); else { const use = Math.min(e.shield, rest); e.shield -= use; rest -= use; } }
+    e.hp -= rest; e.hitT = 2; e.stacks = 0;
+    const v = Math.round(dmg * 10) / 10;
+    if (crit) floatText(e.x + rand(-12, 12), e.y - 26 - rand(0, 10), '暴擊 ' + v, '#ff4d4d');
+    else if (color) floatText(e.x + rand(-12, 12), e.y - (small ? 14 + rand(0, 16) : 20), String(v), color);
+    return dmg;
   }
   // 舉盾（彌諾陶洛斯）：受到的傷害減少 90%
   if (e.boss && e.guardT > 0 && e.B.guard) { dmg *= 1 - e.B.guard.resist; if (!small && Math.random() < 0.3) floatText(e.x + rand(-10, 10), e.y - 70, '抗性', '#b6e08a'); }
@@ -3693,6 +4402,7 @@ function updateParts() {
   $('expandBtn').hidden = !can;
 }
 function expandEchelon() {
+  if (vsDead()) return;
   if (state !== 'play' || partCount < PARTS.cost || clones.length >= CLONE.maxCount) return;
   partCount -= PARTS.cost;
   const slot = CLONE_SLOTS[clones.length];
@@ -5553,6 +6263,7 @@ function drawBoss(e) {
   }
 }
 function killEnemy(e) {
+  if (e.fighter) { vsFighterDown(e, vsHitBy && vsHitBy.fighter ? (vsHitBy.lead || vsHitBy) : player); return; }
   const i = enemies.indexOf(e); if (i < 0) return;
   if (e.boss) {
     enemies.splice(i, 1); score += 2000; boss = null; $('bossBar').hidden = true;
@@ -5581,6 +6292,7 @@ function update(dt) {
   let dx = Number(keys.has('KeyD') || keys.has('ArrowRight')) - Number(keys.has('KeyA') || keys.has('ArrowLeft'));
   let dy = Number(keys.has('KeyS') || keys.has('ArrowDown')) - Number(keys.has('KeyW') || keys.has('ArrowUp'));
   dx += stick.x; dy += stick.y;
+  if (vsDead()) { dx = 0; dy = 0; }   // 對戰：倒下等待重生
   const len = Math.hypot(dx, dy), mag = Math.min(1, len);
   player.moving = len > 0.08;
   let spd = cfg.speed * speedMul(player);                // 減速效果會降低移動速度
@@ -5696,7 +6408,7 @@ function update(dt) {
   // 鎖定目標：範圍內最近的敵人
   let target = null, best = Infinity;
   for (const e of enemies) { const d = Math.hypot(e.x - player.x, e.y - player.y); if (d <= cfg.lockRange && d < best) { best = d; target = e; } }
-  const wantsFire = (mouseDown || fireHeld || keys.has('Space') || keys.has('KeyJ')) && player.dodgeT <= 0;
+  const wantsFire = (mouseDown || fireHeld || keys.has('Space') || keys.has('KeyJ')) && player.dodgeT <= 0 && !vsDead();
   player.wantsFire = wantsFire;   // 分身（不同人形）跟著開火用
 
   // 瞄準
@@ -5779,9 +6491,11 @@ function update(dt) {
     if (boss) { $('phaseTime').textContent = 'BOSS'; }
   }
 
-  const vb0 = viewBounds(), far = Math.max(vb0.hw, -vb0.t, vb0.b) * 1.8;
+  if (vs) vsUpdate(dt);
+  const vb0 = viewBounds(), far = vs ? 1e9 : Math.max(vb0.hw, -vb0.t, vb0.b) * 1.8;   // 對戰：遠處 AI 之間的子彈也要算
   for (let i = enemies.length - 1; i >= 0; i--) {
     const e = enemies[i], toward = Math.atan2(player.y - e.y, player.x - e.x), dist = Math.hypot(player.x - e.x, player.y - e.y);
+    if (e.fighter) continue;   // 對戰模式的人形 AI 另外更新（vsUpdate）
     const nb0 = bullets.length, nm0 = missiles.length, nh0 = homers.length, ns0 = shockWaves.length;   // 開火音效用：更新前的數量
     if (e.atkDownT > 0) e.atkDownT = Math.max(0, e.atkDownT - dt);
     atkMulNow = e.atkDownT > 0 ? 1 - e.atkDownPct : 1;   // 埃癸斯之盾：攻擊 −50%
@@ -5867,6 +6581,7 @@ function update(dt) {
   updateJamWaves(dt);
 
   const blocks = covers();
+  if (vs) atkMulNow = 1;   // 對戰：敵方 AI 的攻擊削弱已經算在子彈傷害裡
   for (let i = bullets.length - 1; i >= 0; i--) {
     const b = bullets[i]; b.age += dt; b.vy += 34 * dt; b.x += b.vx * dt; b.y += b.vy * dt; b.life -= dt;
     if (b.lacer) { b.dist += Math.hypot(b.vx, b.vy) * dt; if (!b.purple && b.dist >= cfg.skill.purpleAfter) { b.purple = true; burst(b.x, b.y, '#b06bff', 3); } }
@@ -5892,8 +6607,15 @@ function update(dt) {
         }
         else { damageClone(cHit, b.dmg || ENEMY.bulletDmg, !!b.pierce || !!b.elec); if (b.elec && b.slow && clones.includes(cHit)) addSlow(cHit, b.slow, b.slowTime); if (b.atkDown && clones.includes(cHit)) addAtkDown(cHit, b.atkDown); bullets.splice(i, 1); continue; }
       }
+      if (vs) {
+        // 對戰：敵隊子彈也會打到友隊 AI（含它們的擴編人形）
+        let fh = null;
+        for (const f of aiAllies) if (f.invT <= 0 && !(b.missedC && b.missedC.has(f)) && Math.hypot(b.x - f.x, b.y - f.y) < b.r + f.r && !overProne(b, f)) { fh = f; break; }
+        if (fh && vsDamageFighter(fh, b)) { bullets.splice(i, 1); continue; }
+      }
       if (player.invT > 0) continue;   // 無敵時子彈直接穿過
       if (!b.evaded && Math.hypot(b.x - player.x, b.y - player.y) < b.r + player.r && !overProne(b, player)) {
+        if (b.src) player.lastHitBy = b.src;   // 對戰：記下是誰打倒玩家
         if (!b.elec && Math.random() < evadeRate(cfg) + effSum(player, 'evade')) {
           // 迴避：子彈穿過、不扣血，也不會打斷霞光萍蹤的強化（電磁傷害不可迴避）
           b.evaded = true; floatText(player.x, player.y - 40, 'MISS', '#bfefff'); sfx.evade();
@@ -5906,8 +6628,10 @@ function update(dt) {
         } else { damage(b.dmg || ENEMY.bulletDmg, !!b.pierce); if (b.accDown) addAccDown(player, b.accDown); hit = true; }   // pierce：無視護甲
       }
     } else {
+      vsHitBy = b.src || player;   // 對戰：擊倒的功勞算給誰
       for (const e of enemies) {
         if (b.missed && b.missed.has(e)) continue;
+        if (e.fighter && e.invT > 0) continue;   // 對戰 AI 閃避無敵中
         if (e.invT > 0 && e.boss && e.B.ai === 'ti') continue;   // 緹閃避／衝刺中：子彈穿過
         if (e.jumpT > 0) continue;   // 偵查士跳躍中：子彈打不到
         if (Math.hypot(b.x - e.x, b.y - e.y) < b.r + e.r) {
@@ -5962,10 +6686,11 @@ function update(dt) {
     }
     if (hit) bullets.splice(i, 1);
   }
+  vsHitBy = null;
   // 零件、醫療箱：玩家或擴編人形碰到都算撿起（效果一樣歸給整個梯隊）
   const canPick = (it) => [player, ...clones].some((u) => Math.hypot(it.x - u.x, it.y - u.y) < u.r + PARTS.pickR);
   // 零件：定時散落；靠近就撿起
-  if (phase && !phase.noParts) {
+  if (phase && !phase.noParts && !phase.versus) {
     partClock += dt;
     if (partClock > (phase.partsEvery || PARTS.every) && parts.length < PARTS.maxOnField) { partClock = 0; spawnPart(); }
     for (let i = parts.length - 1; i >= 0; i--) {
@@ -6035,7 +6760,8 @@ function update(dt) {
   shake = Math.max(0, shake - dt * 14); hurtT = Math.max(0, hurtT - dt);
   stream();
   if (team && team.cd > 0) { team.cd = Math.max(0, team.cd - dt); updateSwap(); }
-  if (player.hp <= 0) {
+  if (player.hp <= 0 && vs) { if (!(player.deadT > 0)) vsHumanDown(); }   // 對戰：倒下 5 秒後重生
+  else if (player.hp <= 0) {
     // 戰事：出擊中的人形倒下 → 另一名還活著就自動換上
     if (team && !team.down[1 - team.active]) {
       const fallen = cfg.name; team.down[team.active] = true;
@@ -6114,7 +6840,8 @@ function drawCharacter(en, isEnemy, ghost) {
   // 碰撞半徑圈（視覺輔助）與朝向箭頭：貼地（殘影不畫）
   if (!ghost) {
   ground(q, en.x, en.y);
-  ctx.strokeStyle = en.clone ? 'rgba(140,210,255,0.7)' : 'rgba(202,160,255,0.55)'; ctx.lineWidth = 1.5;
+  const tcol = vs ? (en.vsTeam || (en.clone || en === player ? vs.myTeam : null)) : null;   // 對戰：腳下的圈用隊伍顏色
+  ctx.strokeStyle = tcol ? (tcol === 'blue' ? 'rgba(74,168,255,0.85)' : 'rgba(255,90,80,0.85)') : en.clone ? 'rgba(140,210,255,0.7)' : 'rgba(202,160,255,0.55)'; ctx.lineWidth = tcol ? 2 : 1.5;
   ctx.beginPath(); ctx.arc(en.x, en.y, en.r, 0, Math.PI * 2); ctx.stroke();
   ctx.save();
   ctx.translate(en.x + Math.cos(en.angle) * (en.r + 6), en.y + Math.sin(en.angle) * (en.r + 6)); ctx.rotate(en.angle + Math.PI);
@@ -6227,12 +6954,13 @@ function draw(t) {
   for (const pt of parts) drawPart(pt);
   for (const m of medkits) drawMedkit(m);
   if (boss && !boss.B.ai) drawBossTargets(boss);
-  const actors = [...mapActors(), ...covers().map((it) => ({ it, k: 'c' })), ...enemies.map((it) => ({ it, k: 'e' })), ...(player && state !== 'menu' ? [{ it: player, k: 'p' }, ...clones.map((it) => ({ it, k: 'm' }))] : [])].sort((a, b) => a.it.y - b.it.y);
+  const actors = [...mapActors(), ...covers().map((it) => ({ it, k: 'c' })), ...enemies.map((it) => ({ it, k: 'e' })), ...aiAllies.map((it) => ({ it, k: 'a' })), ...(player && state !== 'menu' && !vsDead() ? [{ it: player, k: 'p' }, ...clones.map((it) => ({ it, k: 'm' }))] : [])].sort((a, b) => a.it.y - b.it.y);
   drawLater = [];
   for (const { it, k } of actors) {
     const q = proj(it.x, it.y);
     if (!onScreen(q, 120 * q.k)) continue;
     if (k === 'e' && (it.marked || it.atkDownT > 0)) drawLater.push(it);
+    if (it.fighter) { drawFighter(it); continue; }
     if (k === 't') { drawTree(it); continue; }
     if (k === 'h') { drawHouse(it); continue; }
     if (k === 'r') { drawRock(it); continue; }
@@ -6329,6 +7057,7 @@ function draw(t) {
   ctx.globalAlpha = 1;
   drawMissiles(); drawHomers();
   drawJamWaves();
+  if (vs) drawVsNades();
   for (const g of grenades) {
     const k = g.t / g.T, x = g.sx + (g.tx - g.sx) * k, y = g.sy + (g.ty - g.sy) * k, h = Math.sin(k * Math.PI) * 60;
     const q = proj(x, y);
