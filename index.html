@@ -960,8 +960,8 @@ const CHARACTERS = {
       icon: 'skill_foxtrick',
       ar: { id: 'fox_ar', name: '突擊步槍模式：射速 −40%、傷害 −50%、移速 +30%', mark: 'AR', color: '#b9a6ff', rate: -0.4, dmg: -0.5, spd: 0.3 },
       mgBuff: { id: 'fox_mg', name: '機槍模式：傷害 +40%', mark: 'MG', color: '#ffb36b', dmg: 0.4, time: 5 },
-      cooldown: 0.5,
-      desc: '被動：彈藥耗盡或主動換彈時，切換成突擊步槍模式（已經是就維持）：可以邊跑邊射擊，射速降低 40%、傷害降低 50%、移動速度提升 30%。主動：切換回機槍模式，清除突擊步槍模式的數值調整，並讓自身傷害提升 40%，持續 5 秒（只有在突擊步槍模式時能用）。機槍模式跟 Kord 一樣要跪下才能開火。',
+      cooldown: 8,
+      desc: '被動：彈藥耗盡或主動換彈時，切換成突擊步槍模式（已經是就維持）：可以邊跑邊射擊，射速降低 40%、傷害降低 50%、移動速度提升 30%。主動：切換回機槍模式，清除突擊步槍模式的數值調整，立刻完成換彈（正在換彈則中斷並直接補滿彈藥），並讓自身傷害提升 40%，持續 5 秒。冷卻 8 秒。',
     },
     portrait: 'portrait_rpk',
     assets: ASSETS.rpk,
@@ -2560,8 +2560,8 @@ function vsMaybeSkill(f, tgt, vis, force) {
       f.skillCd = sk.cooldown; f.castT = D.anim.castTime; f.angle = a; break;
     }
     case 'foxtrick':
-      if (!f.arForm || (!force && (!inRange || f.reloadT > 0))) return;   // AI：換完彈、敵人在射程內就切回機槍模式
-      foxToMG(f); f.skillCd = sk.cooldown; break;
+      if (!force && (!inRange || !(f.arForm || f.ammo < D.weapon.magazine * 0.3))) return;   // AI：敵人在射程內、處於突擊步槍模式或彈藥快沒了就用
+      foxToMG(f); f.skillCd = sk.cooldown; f.reloadT = 0; f.ammo = D.weapon.magazine; break;
     case 'laceration': if (force || (inRange && dist > 120 && magReady())) f.armed = true; return;
     case 'ironWall': {
       const near = friends.filter((u) => Math.hypot(u.x - f.x, u.y - f.y) <= sk.radius);
@@ -4807,8 +4807,8 @@ function useSkill() {
   if (state !== 'play' || !player || !sk || sk.pending || player.skillCd > 0 || player.skillArmed || player.buffT > 0) return;
   minoNoticeSkill();   // 彌諾陶洛斯的被動：附近有人用技能就舉盾
   if (sk.id === 'foxtrick') {
-    if (!player.arForm) { floatText(player.x, player.y - 50, '已經是機槍模式', '#cfd8dc'); return; }
     foxToMG(player); player.skillCd = sk.cooldown;
+    player.reload = 0; player.ammo = cfg.weapon.magazine; updateAmmo();   // 立刻補滿彈藥（換彈中則中斷）
   } else if (sk.id === 'pain') {
     // 裂痛榴彈：先自傷 20，再往準星（觸控：鎖定目標／面向）發射榴彈
     if (player.hp <= sk.selfDmg) { floatText(player.x, player.y - 50, '生命不足', '#ff8f83'); return; }
