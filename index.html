@@ -190,7 +190,7 @@ body:not(.touch) #touchui{display:none}
 .vs-row{display:flex;align-items:center;gap:6px;font-size:12px;padding:4px 0;border-bottom:1px solid rgba(255,255,255,.06)}
 .vs-row b{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:600}
 .vs-tag{flex:none;font-size:10px;padding:1px 6px;border-radius:6px;background:#24414c;color:#cfeef2}
-.vs-tag.me{background:#1f5a4f;color:#9ff0de}.vs-tag.elite{background:#5a4210;color:#ffd77a}
+.vs-tag.me{background:#1f5a4f;color:#9ff0de}.vs-tag.human{background:#3a3f8a;color:#d6dbff}.vs-tag.elite{background:#5a4210;color:#ffd77a}
 .vs-x{flex:none;border:0;background:none;color:#9fb8bf;cursor:pointer;font-size:13px;padding:0 2px}
 .vs-add{display:flex;gap:4px;margin-top:6px}.vs-add .btn{flex:1;padding:6px 2px;font-size:12px;min-width:0}
 .vs-net{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin-top:8px;font-size:12px;color:#9fb8bf;text-align:left}
@@ -405,7 +405,7 @@ body.touch #testPanel{max-height:38vh}   /* 手機：不要擋到左下的移動
     </div>
     <div class="vs-lobby" id="vsLobby" hidden>
       <div class="vs-teams" id="vsTeams"></div>
-      <div class="vs-net"><b>代碼連線</b><input id="vsCode" type="text" placeholder="輸入房間代碼" disabled><button class="btn" type="button" disabled>加入</button><button class="btn" type="button" disabled>建立房間</button><small>連線對戰開發中，目前先和 AI 對戰。</small></div>
+      <div class="vs-net"><b>代碼連線</b><input id="vsCode" type="text" placeholder="輸入房間代碼" maxlength="8" autocomplete="off"><button class="btn" id="vsJoinBtn" type="button">加入</button><button class="btn" id="vsHostBtn" type="button">建立房間</button><button class="btn" id="vsLeaveBtn" type="button" hidden>離開房間</button><small id="vsNetStatus">建立房間會得到一組代碼，朋友輸入代碼就能加入（需要在網站版）。</small></div>
     </div>
     <p class="team-note" id="teamNote" hidden>戰事可以帶兩名人形，遊戲中按「切換」換人，各自的生命、彈藥、技能冷卻分開保存。只有主人形擁有擴編能力，擴編出來的分身切換時也會留在場上；主人形倒下後，擴編能力會轉交給副人形。任何一名倒下後就不能再切換。</p>
     <div class="menu-row">
@@ -1892,7 +1892,7 @@ const VS_ELITE = {
 const VS_ELITE_DEFAULT = { dodgeFree: 0.3 };
 // 大本營守衛：從精英敵人裡挑（目前只有巨劍士），一場抽一次，雙方一樣；只在自己的大本營裡活動，無限重生
 const VS_GUARD_POOL = ['greatsword'];
-const VS_GUARD = { count: 4, hpMul: 0.5, respawn: 15, alert: 260, wanderSpeed: 0.45 };   // 生命為原本的 50%；大本營外 260 內的敵人也會被攻擊
+const VS_GUARD = { count: 4, respawn: 15, alert: 260 };   // 數值全照原本的精英；大本營外 260 內的敵人也會被攻擊
 let vsGuardId = 'greatsword';
 const ROLE_OF = { AR: 'dps', RF: 'dps', MG: 'dps', SG: 'front', SMG: 'front', HG: 'support' };
 const VS_TEAMCOL = { blue: '#4aa8ff', red: '#ff5a50' };
@@ -1906,13 +1906,24 @@ function vsDefaultLobby() {
 }
 // 大廳：選隊伍、加入／移除 AI；代碼連線先預留介面
 function buildLobby() {
-  const L = vsLobby || (vsLobby = vsDefaultLobby()), box = $('vsTeams'); box.textContent = '';
+  const guest = netGuest(), myId = net && net.myId;
+  const L = guest ? (net.lobby || { team: 'blue', blue: [], red: [] }) : (vsLobby || (vsLobby = vsDefaultLobby()));
+  const box = $('vsTeams'); box.textContent = '';
+  const myTeam = guest ? netMyTeam() : L.team;
   for (const t of ['blue', 'red']) {
-    const mine = L.team === t, cap = mine ? 4 : 5, col = document.createElement('div');
+    const hostHere = L.team === t, cap = hostHere ? 4 : 5, col = document.createElement('div');
     col.className = 'vs-team ' + t;
     const h = document.createElement('div'); h.className = 'vs-head';
-    const nm = document.createElement('b'); nm.textContent = VS_TEAMNAME[t] + '（' + (L[t].length + (mine ? 1 : 0)) + '/5）'; h.appendChild(nm);
-    if (!mine) { const j = document.createElement('button'); j.type = 'button'; j.className = 'vs-join'; j.textContent = '加入這隊'; j.addEventListener('click', () => { L.team = t; if (L[t].length > 4) L[t].length = 4; buildLobby(); prefetch(); }); h.appendChild(j); }
+    const nm = document.createElement('b'); nm.textContent = VS_TEAMNAME[t] + '（' + (L[t].length + (hostHere ? 1 : 0)) + '/5）'; h.appendChild(nm);
+    if (t !== myTeam) {
+      const j = document.createElement('button'); j.type = 'button'; j.className = 'vs-join'; j.textContent = '加入這隊';
+      j.addEventListener('click', () => {
+        if (guest) { net.conn.send({ t: 'team', team: t }); return; }
+        if (L[t].length > 4) { const k = L[t].map((x) => x.level !== 'human').lastIndexOf(true); if (k < 0) return; L[t].splice(k, 1); }
+        L.team = t; netLobbyChanged(); prefetch();
+      });
+      h.appendChild(j);
+    }
     col.appendChild(h);
     const row = (tag, cls, name, onX) => {
       const r = document.createElement('div'); r.className = 'vs-row';
@@ -1921,18 +1932,28 @@ function buildLobby() {
       if (onX) { const x = document.createElement('button'); x.type = 'button'; x.className = 'vs-x'; x.textContent = '✕'; x.setAttribute('aria-label', '移除'); x.addEventListener('click', onX); r.appendChild(x); }
       col.appendChild(r);
     };
-    if (mine) row('你', 'me', CHARACTERS[selectedId].name);
-    L[t].forEach((s, i) => row(s.level === 'elite' ? '精銳' : '普通', s.level, CHARACTERS[s.id].name, () => { L[t].splice(i, 1); buildLobby(); }));
-    const add = document.createElement('div'); add.className = 'vs-add';
-    for (const [lv, label] of [['normal', '＋普通 AI'], ['elite', '＋精銳 AI']]) {
-      const b = document.createElement('button'); b.type = 'button'; b.className = 'btn'; b.textContent = label; b.disabled = L[t].length >= cap;
-      b.addEventListener('click', () => { if (L[t].length < cap) { L[t].push({ id: vsRandId(), level: lv }); buildLobby(); prefetch(); } });
-      add.appendChild(b);
+    if (hostHere) row(guest ? '房主' : '你', 'me', CHARACTERS[guest ? net.hostChar : selectedId]?.name || '');
+    L[t].forEach((sl, i) => {
+      if (sl.level === 'human') row(sl.peer === myId ? '你' : '玩家', 'human', sl.name + '・' + CHARACTERS[sl.id].name);
+      else row(sl.level === 'elite' ? '精銳' : '普通', sl.level, CHARACTERS[sl.id].name, guest ? null : () => { L[t].splice(i, 1); netLobbyChanged(); });
+    });
+    if (!guest) {
+      const add = document.createElement('div'); add.className = 'vs-add';
+      for (const [lv, label] of [['normal', '＋普通 AI'], ['elite', '＋精銳 AI']]) {
+        const b = document.createElement('button'); b.type = 'button'; b.className = 'btn'; b.textContent = label; b.disabled = L[t].length >= cap;
+        b.addEventListener('click', () => { if (L[t].length < cap) { L[t].push({ id: vsRandId(), level: lv }); netLobbyChanged(); prefetch(); } });
+        add.appendChild(b);
+      }
+      col.appendChild(add);
     }
-    col.appendChild(add); box.appendChild(col);
+    box.appendChild(col);
   }
 }
-const vsLobbyPacks = () => { const L = vsLobby || (vsLobby = vsDefaultLobby()); return [...L.blue, ...L.red].map((s) => packOf(CHARACTERS[s.id].assets)); };
+const vsLobbyPacks = () => {
+  const L = netGuest() && net.lobby ? net.lobby : (vsLobby || (vsLobby = vsDefaultLobby()));
+  const ids = [...L.blue, ...L.red].map((s) => s.id); if (netGuest() && net.hostChar) ids.push(net.hostChar);
+  return ids.map((id) => packOf(CHARACTERS[id].assets));
+};
 
 /* 對戰地圖：60 × 30 格（6600 × 3300），對中心點對稱；兩側是大本營，中間散布岩石（全磚＋半磚）、稀疏的樹林、彈藥箱 */
 function makeRock(solids, cx, cy, W, side, seed) {
@@ -1978,11 +1999,24 @@ function genVersusMap() {
 
 /* ── 開局、隊伍、重生 ── */
 function vsBegin() {
+  if (netGuest()) {
+    // 加入的玩家：不模擬，只顯示房主傳來的畫面
+    const t = netMyTeam();
+    vs = { myTeam: t, score: { blue: 0, red: 0 }, fighters: [], guards: [], feed: [], partT: 0, medT: 0, endT: 0, over: false, guest: true };
+    player.vsTeam = t; player.deadT = 0; player.maxHp = cfg.maxHp * VS.hpMul; player.hp = player.maxHp; updateHp();
+    const p = vsSpawnPos(t, 1); player.x = p.x; player.y = p.y; cam = { x: p.x, y: p.y };
+    aiAllies = []; enemies = []; return vs;
+  }
   const L = vsLobby || (vsLobby = vsDefaultLobby());
   const v = { myTeam: L.team, score: { blue: 0, red: 0 }, fighters: [], guards: [], feed: [], partT: 0, medT: 0, endT: 0, over: false };
   vs = v; player.vsTeam = L.team; player.deadT = 0;
   player.maxHp = cfg.maxHp * VS.hpMul; player.hp = player.maxHp; updateHp();   // 生命 3 倍
-  for (const t of ['blue', 'red']) L[t].forEach((s, i) => v.fighters.push(vsMakeFighter(s.id, s.level, t, i + (t === L.team ? 1 : 0))));
+  for (const t of ['blue', 'red']) L[t].forEach((s, i) => {
+    const f = vsMakeFighter(s.id, s.level === 'human' ? 'normal' : s.level, t, i + (t === L.team ? 1 : 0));
+    if (s.level === 'human') { f.remote = s.peer; f.name = s.name; f.level = 'human'; }   // 連線玩家：由對方的操作控制
+    v.fighters.push(f);
+  });
+  v.fighters.forEach((f, i) => { f.uid = 'f' + i; });
   for (const t of ['blue', 'red']) for (let i = 0; i < VS_GUARD.count; i++) v.guards.push(vsMakeGuard(t));
   const p = vsSpawnPos(L.team, 0); player.x = p.x; player.y = p.y; cam = { x: p.x, y: p.y };
   vsSync();
@@ -2037,12 +2071,14 @@ function vsUpdate(dt) {
   vsPickups();
   for (const f of vs.fighters) vsFighterTick(f, dt);
   for (const g of vs.guards) vsGuardTick(g, dt);
+  vsUpdateShells(dt);
   vsUpdateNades(dt);
   vsSync();
   { const e0 = enemies; enemies = aiAllies; separateEnemies(); enemies = e0; }   // 友隊之間也互相推開
   if (player.deadT > 0) { player.deadT -= dt; player.invT = 999; if (player.deadT <= 0) vsHumanRespawn(); }
   for (const k of vs.feed) k.t -= dt; vs.feed = vs.feed.filter((k) => k.t > 0);
   if (vs.over) { vs.endT -= dt; if (vs.endT <= 0 && state === 'play') endGame(true); }
+  if (netHosting()) netSnapshot(dt);
 }
 function vsSpawnItem(arr) {
   for (let n = 0; n < 30; n++) {
@@ -2094,6 +2130,7 @@ function vsFighterTick(f, dt) {
     f.dodgeT = Math.max(0, f.dodgeT - dt); f.moving = true; f.aiming = false;
     vsClonesTick(f, dt); return;
   }
+  if (f.remote) { netRemoteTick(f, dt); return; }   // 連線玩家操控的人形
   f.thinkT -= dt; if (f.thinkT <= 0) { f.thinkT = 0.15 + Math.random() * 0.1; vsThink(f); }
   if (f.target && !vsAlive(f.target)) f.target = null;
   vsDodgeCheck(f);
@@ -2303,7 +2340,7 @@ function vsShoot(f, shooter, ang) {
   const segs = (f.buffT > 0 && sk && sk.id === 'sixkill') ? { n: sk.extraHits, pct: sk.extraPct } : splitFor(D, f), jm = ((md && md.jitterMul) || 1) * (f.level === 'elite' ? 0.85 : 1.15);
   const ally = f.vsTeam === vs.myTeam;
   for (let i = 0; i < wp.pellets; i++) {
-    const a = ang + (i - mid) * wp.spread + rand(-wp.jitter, wp.jitter) * jm, sp = rand(wp.speed[0], wp.speed[1]), life = vsRange(D) / sp;
+    const a = ang + (i - mid) * wp.spread + rand(-wp.jitter, wp.jitter) * jm, sp = rand(wp.speed[0], wp.speed[1]), life = (f.remote ? bulletRange(D, !!f.wide) : vsRange(D)) / sp;   // 連線玩家：依對方的瞄準方式決定射程
     const b = { x: mz.x, y: mz.y, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp, age: 0, life, maxLife: life, r: wp.radius, pellet: wp.pellets > 1, dist: 0, src: shooter, vsShot: true };
     if (ally) Object.assign(b, { team: 'p', def: D, buff, res: buff, crit, segs, ap: !!(md && md.ap), fromClone: true });
     else {
@@ -2342,18 +2379,20 @@ function vsClonesTick(f, dt) {
     const tgt = f.target;
     if (tgt && f.aiming) { c.angle = Math.atan2(tgt.y - c.y, tgt.x - c.x); c.aiming = true; c.faceLeft = Math.cos(c.angle) < 0; }
     else { c.angle = f.angle; c.aiming = f.aiming; c.faceLeft = f.faceLeft; }
-    if (f.firing && tgt && c.cool <= 0 && !(f.def.mg && c.prone < 1) && vsLineClear(c.x, c.y, tgt.x, tgt.y)) vsShoot(f, c, c.angle);
+    if (f.remote) { c.angle = f.angle; c.aiming = f.aiming; c.faceLeft = f.faceLeft; }
+    if (f.firing && (tgt || f.remote) && c.cool <= 0 && !(f.def.mg && c.prone < 1) && (!tgt || vsLineClear(c.x, c.y, tgt.x, tgt.y))) vsShoot(f, c, c.angle);
   }
 }
 
 /* ── 技能（AI 版）── */
-function vsMaybeSkill(f, tgt, vis) {
+function vsMaybeSkill(f, tgt, vis, force) {
   const D = f.def, sk = D.skill;
   if (!sk || f.buffT > 0 || f.skillCd > 0 || f.armed) return;
+  if (force && !tgt) { const R = sk.throwRange || 200; tgt = { x: f.x + Math.cos(f.angle) * R, y: f.y + Math.sin(f.angle) * R, T: { armor: 0 } }; }   // 玩家操控：朝瞄準方向
   const E = f.level === 'elite' ? (VS_ELITE[D.id] || VS_ELITE_DEFAULT) : null, mag = D.weapon.magazine;
-  const dist = tgt ? Math.hypot(tgt.x - f.x, tgt.y - f.y) : Infinity, inRange = dist <= vsRange(D);
+  const dist = tgt ? Math.hypot(tgt.x - f.x, tgt.y - f.y) : Infinity, inRange = force || dist <= vsRange(D);
   // 精銳（例如 HK433、沙漠之鷹）：彈匣不是滿的就先換彈，滿了才開技能
-  const magReady = () => { if (E && (E.fullMagSkill || f.level === 'elite') && f.ammo < mag) { vsReload(f); return false; } return true; };
+  const magReady = () => { if (!force && E && (E.fullMagSkill || f.level === 'elite') && f.ammo < mag) { vsReload(f); return false; } return true; };
   const friends = vsFriendsOf(f), foes = vsFoesOf(f);
   switch (sk.id) {
     case 'glory': case 'sixkill': case 'waltz': case 'deter': case 'lockon':
@@ -2371,16 +2410,16 @@ function vsMaybeSkill(f, tgt, vis) {
       rings.push({ x: f.x, y: f.y, r: sk.radius, life: sk.radius / sk.waveSpeed, max: sk.radius / sk.waveSpeed, color: '#3fc4ff', linear: true });
       break;
     }
-    case 'laceration': if (inRange && dist > 120 && magReady()) f.armed = true; return;
+    case 'laceration': if (force || (inRange && dist > 120 && magReady())) f.armed = true; return;
     case 'ironWall': {
       const near = friends.filter((u) => Math.hypot(u.x - f.x, u.y - f.y) <= sk.radius);
-      if (!tgt || (near.length < 1 && f.hp > f.maxHp * 0.7)) return;
+      if (!force && (!tgt || (near.length < 1 && f.hp > f.maxHp * 0.7))) return;
       for (const u of [f, ...f.clones, ...near]) addGold(u, sk.gold, sk.goldTime);
       rings.push({ x: f.x, y: f.y, r: sk.radius, life: 0.7, max: 0.7, color: '#ffd34d' });
       f.skillCd = sk.cooldown; break;
     }
     case 'aegisShield': {
-      const hit = foes.filter((u) => Math.hypot(u.x - f.x, u.y - f.y) <= D.lockRange); if (!hit.length) return;
+      const hit = foes.filter((u) => Math.hypot(u.x - f.x, u.y - f.y) <= D.lockRange); if (!hit.length && !force) return;
       for (const u of hit) {
         if (u === player || u.clone) addAtkDown(u, { pct: sk.atkDown, time: sk.atkDownTime });
         else { u.atkDownT = sk.atkDownTime; u.atkDownPct = sk.atkDown; }
@@ -2389,13 +2428,13 @@ function vsMaybeSkill(f, tgt, vis) {
       f.skillCd = sk.cooldown; break;
     }
     case 'grenade': {
-      if (!tgt || dist > sk.throwRange + 60) return;
-      const k = Math.min(1, sk.throwRange / dist), lv = sk.levels[f.stacks];
+      if (!tgt || (!force && dist > sk.throwRange + 60)) return;
+      const k = Math.min(1, sk.throwRange / Math.max(1, dist)), lv = sk.levels[f.stacks];
       vsNades.push({ sx: f.x, sy: f.y, tx: f.x + (tgt.x - f.x) * k, ty: f.y + (tgt.y - f.y) * k, t: 0, T: sk.flight, lv, f });
       f.stacks = Math.min(3, f.stacks + 1); f.skillCd = sk.cooldown; break;
     }
     case 'resonance': {
-      if (f.birds < sk.maxBirds || !tgt) return;
+      if (force ? f.birds < 1 : (f.birds < sk.maxBirds || !tgt)) return;
       const eff = sk.effects[f.birds];
       for (const u of [f, ...friends]) if (Math.hypot(u.x - f.x, u.y - f.y) <= sk.radius) addEffect(u, eff, f);
       rings.push({ x: f.x, y: f.y, r: sk.radius, life: 0.7, max: 0.7, color: eff.color });
@@ -2403,7 +2442,7 @@ function vsMaybeSkill(f, tgt, vis) {
     }
     case 'highPressure': {
       if (!tgt) return;
-      const want = (tgt.T ? tgt.T.armor : vsUnitDef(tgt).armor.value) > 0 ? 'pierce' : 'strike';   // 打有護甲的敵人用貫穿，其餘用強擊
+      const want = force ? (f.mode === 'pierce' ? 'strike' : 'pierce') : (tgt.T ? tgt.T.armor : vsUnitDef(tgt).armor.value) > 0 ? 'pierce' : 'strike';   // 打有護甲的敵人用貫穿，其餘用強擊（玩家按下就切換）
       if (f.mode !== want) { f.mode = want; f.skillCd = sk.cooldown; }
       return;
     }
@@ -2487,52 +2526,139 @@ function vsHumanDown() {
   updateParts(); vsFeed(killer, player); vsCheckWin();
 }
 function vsMakeGuard(team) {
-  const B = BOSSES[vsGuardId], hp = Math.round(B.hp * VS_GUARD.hpMul), p = vsGuardPoint(team);
+  const B = BOSSES[vsGuardId], hp = B.hp, p = vsGuardPoint(team);
   return { guard: true, vsTeam: team, id: vsGuardId, B, name: B.name + '守衛', x: p.x, y: p.y, r: B.radius, hp, maxHp: hp,
     T: { hp, evade: B.evade || 0, armor: B.armor || 0, shield: B.shield || 0, shieldRegen: B.shieldRegen || 15, ai: 'guard' }, shield: B.shield || 0,
     ammo: B.magazine, reloadT: 0, cool: 0, aimT: 0, mode: 'stand', shiftT: 0, phase: Math.random() * 5, faceLeft: team === 'red', angle: 0, special: null,
-    dead: false, respawnT: 0, wander: null, wanderT: rand(1, 4), target: null };
+    dead: false, respawnT: 0, wander: null, wanderT: rand(1, 4), target: null, touchCd: 0, magsDone: 0 };
 }
 function vsGuardPoint(team) { const b = vsBase(team); for (let n = 0; n < 20; n++) { const x = rand(b.x0 + 90, b.x1 - 90), y = rand(b.y0 + 90, b.y1 - 90); if (!mapSolidAt(x, y, 50)) return { x, y }; } return { x: b.x, y: b.y }; }
-// 守衛：在大本營裡閒逛；大本營內（或外圍 260 內）有敵人就停下來用機砲射擊，但不會走出大本營
+// 守衛：巨劍士原汁原味（生命、護盾、笨重的停下／起步、停下後頓一下才開火、雙機砲、每兩輪彈匣一次榴彈齊射、碰撞傷害）
+// 只在自己的大本營裡活動：沒有敵人時閒逛；大本營內（或外圍 260 內）有敵人就追過去開火，但不會走出大本營
 function vsGuardTick(g, dt) {
   if (g.dead) { g.respawnT -= dt; if (g.respawnT <= 0) { Object.assign(g, vsMakeGuard(g.vsTeam)); burst(g.x, g.y, VS_TEAMCOL[g.vsTeam], 16); } return; }
-  const B = g.B, b = vsBase(g.vsTeam), A = VS_GUARD.alert; g.phase += dt;
-  if (g.shield <= 0 && g.shieldT > 0) { g.shieldT -= dt; if (g.shieldT <= 0) { g.shield = g.T.shield; burst(g.x, g.y - 30, '#8fd0ff', 10); } }
+  const B = g.B, sp = B.special, m = B.assets.meta, b = vsBase(g.vsTeam), A = VS_GUARD.alert; g.phase += dt;
+  g.kvx = g.kvy = 0;
+  if (g.shield <= 0 && g.shieldT > 0) { g.shieldT -= dt; if (g.shieldT <= 0) { g.shield = B.shield; floatText(g.x, g.y - 110, '護盾恢復', '#8fd0ff'); burst(g.x, g.y - 30, '#8fd0ff', 14); } }
   if (g.atkDownT > 0) g.atkDownT = Math.max(0, g.atkDownT - dt);
-  // 目標：大本營（含外圍）裡最近的敵人
+  if (g.debuffT > 0) g.debuffT = Math.max(0, g.debuffT - dt);
+  g.touchCd = Math.max(0, (g.touchCd || 0) - dt);
+  const foes = vsGuardFoes(g.vsTeam);
   let tgt = null, bd = Infinity;
-  for (const u of g.vsTeam === vs.myTeam ? enemies : [...(vsDead() ? [] : [player]), ...clones, ...aiAllies]) {
-    if (u.guard || u.x < b.x0 - A || u.x > b.x1 + A || u.y < b.y0 - A || u.y > b.y1 + A) continue;
+  for (const u of foes) {
+    if (u.x < b.x0 - A || u.x > b.x1 + A || u.y < b.y0 - A || u.y > b.y1 + A) continue;
     const d = Math.hypot(u.x - g.x, u.y - g.y); if (d < bd) { bd = d; tgt = u; }
   }
   g.target = tgt;
-  let goal = null;
-  if (tgt) { if (bd > B.lockRange * 0.85) goal = { x: tgt.x, y: tgt.y }; }
+  const atk = g.atkDownT > 0 ? 1 - (g.atkDownPct || 0.5) : 1;
+  // 榴彈齊射
+  if (g.special) {
+    const S = g.special; S.t += dt; g.moving = false;
+    const flatT = sp.charge + sp.flatAt, aim = tgt || S.last || { x: g.x + Math.cos(S.fa) * 200, y: g.y + Math.sin(S.fa) * 200 };
+    if (tgt) S.last = { x: tgt.x, y: tgt.y };
+    if (S.t < flatT - sp.lockLast) S.fa = Math.atan2(aim.y - g.y, aim.x - g.x);   // 平射方向跟著目標，最後 0.35 秒鎖定
+    while (S.arcs < sp.arcN && S.t >= sp.charge + S.arcs * sp.arcGap) {
+      const p = spritePoint(g, m, m.arcPts[S.arcs % 2]);
+      vsShells.push({ g, sx: g.x, sy: g.y, h0: g.y - p.y, hx: p.x - g.x, tx: aim.x, ty: aim.y, t: 0, T: sp.flight, r: sp.r, dmg: sp.dmg * atk, peak: sp.peak });
+      burst(p.x, p.y, '#ffb347', 6); S.arcs++;
+    }
+    if (!S.flat && S.t >= flatT) {
+      S.flat = true;
+      const dx = Math.cos(S.fa), dy = Math.sin(S.fa), px = -dy, py = dx, h = g.y - spritePoint(g, m, m.flatPts[0]).y;
+      for (let k = 0; k < sp.flatN; k++) {
+        const o = (k - (sp.flatN - 1) / 2) * sp.flatGap, sx = g.x + dx * 30 + px * o, sy = g.y + dy * 30 + py * o;
+        vsShells.push({ g, flat: true, sx, sy, x: sx, y: sy, dx, dy, v: sp.flatSpeed, range: sp.flatRange, h, t: 0, r: sp.r, dmg: sp.dmg * atk });
+      }
+      const fp = spritePoint(g, m, m.flatPts[0]); burst(fp.x, fp.y, '#ffb347', 12);
+    }
+    if (S.t >= m.special.dur) { g.special = null; g.reloadT = B.reload; g.aimT = 0; }
+    vsGuardTouch(g, foes); return;
+  }
+  // 目的地：有敵人就追（追到射程內停下）；沒有就在營地裡閒逛
+  let dest = null, wantStop;
+  if (tgt) { dest = tgt; wantStop = bd <= B.lockRange * 0.9; }
   else {
     g.wanderT -= dt;
-    if (!g.wander || g.wanderT <= 0) { g.wander = vsGuardPoint(g.vsTeam); g.wanderT = rand(3, 7); }
-    if (Math.hypot(g.wander.x - g.x, g.wander.y - g.y) > 30) goal = g.wander;
+    if (!g.wander || g.wanderT <= 0) { g.wander = vsGuardPoint(g.vsTeam); g.wanderT = rand(4, 8); }
+    dest = g.wander; wantStop = Math.hypot(dest.x - g.x, dest.y - g.y) < 40;
   }
-  g.moving = false; g.mode = 'stand';
-  if (goal) {
-    const a = Math.atan2(goal.y - g.y, goal.x - g.x), spd = B.speed * (tgt ? 1 : VS_GUARD.wanderSpeed);
-    moveWithCover(g, Math.cos(a) * spd * dt, Math.sin(a) * spd * dt);
+  const toward = Math.atan2(dest.y - g.y, dest.x - g.x);
+  g.angle = tgt ? Math.atan2(tgt.y - g.y, tgt.x - g.x) : toward;
+  g.faceLeft = Math.cos(g.angle) < 0;
+  g.mode = g.mode || 'stand'; g.shiftT = Math.max(0, (g.shiftT || 0) - dt); g.aimT = Math.max(0, (g.aimT || 0) - dt);
+  const recent = gameTime - (g.lastShot ?? -9) < 0.3;   // 剛開過火：打完這一輪才會起步
+  if (g.shiftT <= 0) {
+    if (g.mode === 'walk' && wantStop) { g.mode = 'stopping'; g.shiftT = B.shift; }
+    else if (g.mode === 'stopping') { g.mode = 'stand'; g.aimT = B.aimDelay; }
+    else if (g.mode === 'stand' && !wantStop && !recent && (!tgt || bd > B.lockRange * 1.15)) { g.mode = 'starting'; g.shiftT = B.shift; }
+    else if (g.mode === 'starting') g.mode = 'walk';
+  }
+  const k = g.mode === 'walk' ? 1 : g.mode === 'stopping' ? g.shiftT / B.shift : g.mode === 'starting' ? 1 - g.shiftT / B.shift : 0;
+  if (k > 0) {
+    moveWithCover(g, Math.cos(toward) * B.speed * k * dt, Math.sin(toward) * B.speed * k * dt);
     g.x = clamp(g.x, b.x0 + 50, b.x1 - 50); g.y = clamp(g.y, b.y0 + 50, b.y1 - 50);   // 不能離開大本營
-    g.moving = true; g.mode = 'walk'; if (!tgt) g.faceLeft = Math.cos(a) < 0;
   }
+  g.moving = k > 0.05;
   g.cool -= dt;
-  if (g.reloadT > 0) { g.reloadT -= dt; if (g.reloadT <= 0) g.ammo = B.magazine; }
-  else if (tgt && bd <= B.lockRange * 1.15 && g.cool <= 0 && !g.moving) {
-    const m = B.assets.meta; g.gun = (g.gun || 0) ^ 1;
-    const mz = spritePoint(g, m, m.muzzles[g.gun]), a = Math.atan2(tgt.y - mz.y, tgt.x - mz.x) + rand(-0.05, 0.05);
-    const life = B.bulletLife, bl = { x: mz.x, y: mz.y, vx: Math.cos(a) * B.bulletSpeed, vy: Math.sin(a) * B.bulletSpeed, age: 0, life, maxLife: life, r: 6, src: g, boss: true };
-    if (g.vsTeam === vs.myTeam) Object.assign(bl, { team: 'p', def: VS_GUARD_DEF(B), buff: g.atkDownT > 0 ? 0.5 : 1, crit: 0, fromClone: true });
-    else Object.assign(bl, { team: 'e', dmg: B.bulletDmg * (g.atkDownT > 0 ? 0.5 : 1) });
+  if (g.reloadT > 0) { g.reloadT -= dt; if (g.reloadT <= 0) { g.ammo = B.magazine; g.aimT = B.aimDelay; } }
+  else if (tgt && g.mode === 'stand' && g.aimT <= 0 && g.cool <= 0 && bd <= B.lockRange * 1.15) {
+    g.gun = (g.gun || 0) ^ 1;   // 兩門機砲輪流
+    const mz = spritePoint(g, m, m.muzzles[g.gun]), a = Math.atan2(tgt.y - mz.y, tgt.x - mz.x) + rand(-0.04, 0.04);
+    const bl = { x: mz.x, y: mz.y, vx: Math.cos(a) * B.bulletSpeed, vy: Math.sin(a) * B.bulletSpeed, age: 0, life: B.bulletLife, maxLife: B.bulletLife, r: 6, src: g, boss: true };
+    if (g.vsTeam === vs.myTeam) Object.assign(bl, { team: 'p', def: VS_GUARD_DEF(B), buff: atk, crit: 0, fromClone: true });
+    else Object.assign(bl, { team: 'e', dmg: B.bulletDmg * atk });
     bullets.push(bl); burst(mz.x, mz.y, '#ffd27a', 4); g.cool = B.fireCooldown; g.lastShot = gameTime;
-    if (--g.ammo <= 0) g.reloadT = B.reload;
+    const dd = Math.hypot(g.x - player.x, g.y - player.y), vol = 0.35 * (1 - dd / 1300); if (vol > 0.04) playShot('ACS', vol);
+    if (--g.ammo <= 0) {
+      g.magsDone = (g.magsDone || 0) + 1;
+      if (g.magsDone >= sp.afterMags) { g.magsDone = 0; g.special = { t: 0, arcs: 0, flat: false, fa: g.angle, last: { x: tgt.x, y: tgt.y } }; floatText(g.x, g.y - 120, '榴彈齊射', '#ffb347'); }
+      else g.reloadT = B.reload;
+    }
   }
-  if (tgt) g.faceLeft = Math.cos(Math.atan2(tgt.y - g.y, tgt.x - g.x)) < 0;
+  vsGuardTouch(g, foes);
+}
+const vsGuardFoes = (team) => (team === vs.myTeam ? enemies : [...(vsDead() ? [] : [player]), ...clones, ...aiAllies]).filter((u) => !u.guard);
+// 碰撞傷害：貼著巨劍士會被撞傷（跟原本的精英一樣）
+function vsGuardTouch(g, foes) {
+  if (g.touchCd > 0) return;
+  for (const u of foes) if (Math.hypot(u.x - g.x, u.y - g.y) < g.r + u.r && !(u.invT > 0)) { vsHurt(u, ENEMY.contactDmg, g, false); g.touchCd = ENEMY.contactEvery; return; }
+}
+// 守衛的榴彈：拋射（落地爆炸）＋平射（碰到人或飛完射程爆炸）；爆炸不可迴避
+let vsShells = [];
+function vsUpdateShells(dt) {
+  for (let i = vsShells.length - 1; i >= 0; i--) {
+    const s = vsShells[i]; s.t += dt;
+    const foes = vsGuardFoes(s.g.vsTeam);
+    if (s.flat) {
+      const d = Math.min(s.t * s.v, s.range); s.x = s.sx + s.dx * d; s.y = s.sy + s.dy * d;
+      const touch = foes.some((u) => !(u.invT > 0) && Math.hypot(u.x - s.x, u.y - s.y) < 10 + u.r);
+      if (!(d >= s.range || touch || mapSolidAt(s.x, s.y, 4, true))) continue;
+      s.tx = s.x; s.ty = s.y;
+    } else if (s.t < s.T) continue;
+    vsShells.splice(i, 1);
+    for (const u of foes.slice()) if (Math.hypot(u.x - s.tx, u.y - s.ty) <= s.r + u.r && !(u.invT > 0)) vsHurt(u, s.dmg, s.g, false);
+    blasts.push({ x: s.tx, y: s.ty, r: s.r, life: 0.4, max: 0.4, level: 0 });
+    burst(s.tx, s.ty, '#ff6b3d', 10); burst(s.tx, s.ty, '#ffb347', 8);
+    if (Math.hypot(s.tx - player.x, s.ty - player.y) < 700) { shake = Math.max(shake, 3); sfx.boom(); }
+  }
+}
+function drawVsShells() {
+  for (const s of vsShells) {
+    if (s.flat) {
+      const q = proj(s.x, s.y); upright(q, s.x, s.y);
+      ctx.fillStyle = '#ffb347'; ctx.beginPath(); ctx.arc(s.x, s.y - (s.h || 30), 5, 0, Math.PI * 2); ctx.fill();
+      continue;
+    }
+    const k = Math.min(1, s.t / s.T);
+    // 落點警示圈
+    const gq = proj(s.tx, s.ty); ground(gq, s.tx, s.ty);
+    ctx.strokeStyle = 'rgba(255,80,60,' + (0.4 + 0.5 * k) + ')'; ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(s.tx, s.ty, s.r || 35, 0, Math.PI * 2); ctx.stroke();
+    ctx.fillStyle = 'rgba(255,80,60,' + 0.15 * k + ')'; ctx.fill();
+    const x = s.sx + (s.tx - s.sx) * k, y = s.sy + (s.ty - s.sy) * k, z = (s.h0 || 40) * (1 - k) + (s.peak || 90) * 4 * k * (1 - k);
+    const q = proj(x, y); upright(q, x, y);
+    ctx.fillStyle = '#ffb347'; ctx.beginPath(); ctx.arc(x, y - z, 5, 0, Math.PI * 2); ctx.fill();
+  }
+  ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
 }
 const VS_GUARD_DEF = (B) => ({ weapon: { damage: B.bulletDmg }, skill: null });   // 友隊守衛的子彈走玩家方的命中判定，用這個當「人形數值」
 function vsDamageGuard(g, amount, pierce) {
@@ -2626,6 +2752,284 @@ function drawVsHud() {
     ctx.font = '700 15px system-ui, sans-serif'; ctx.fillStyle = '#e8eef0'; ctx.fillText(Math.ceil(player.deadT) + ' 秒後在大本營重生', W / 2, H / 2 + 16);
   }
   ctx.textAlign = 'left'; ctx.textBaseline = 'alphabetic';
+}
+
+/* ───────── 雲圖對戰：代碼連線 ─────────
+   用 WebRTC 點對點連線，開房、找房只借用 PeerJS 的免費信令伺服器（PeerJS：MIT 授權）。
+   ・建立房間的人是「房主」：整場對戰由房主的瀏覽器模擬（AI、守衛、命中判定都在房主這邊）
+   ・加入的玩家只把操作（移動、瞄準、開火、技能、閃避、換彈、擴編）送給房主，房主每秒回傳 15 次畫面快照
+   ・加入的玩家在房主那邊是一名「由玩家操控的人形」，技能用 AI 版的技能規則
+   ・有人斷線：大廳裡直接移除；對戰中改由 AI 接手 */
+const NET = { prefix: 'rxxlc-cloud-', lib: 'https://cdn.jsdelivr.net/npm/peerjs@1.5.4/dist/peerjs.min.js', snapEvery: 1 / 15, inputEvery: 1 / 30, view: 1700 };
+let net = null;
+const netGuest = () => !!(net && net.role === 'guest');
+const netHosting = () => !!(net && net.role === 'host');
+function netLoadLib() {
+  if (window.Peer) return Promise.resolve();
+  return new Promise((res, rej) => { const s = document.createElement('script'); s.src = NET.lib; s.onload = res; s.onerror = () => rej(new Error('lib')); document.head.appendChild(s); });
+}
+const netMakeCode = () => Array.from({ length: 5 }, () => 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'[Math.floor(Math.random() * 32)]).join('');
+function netStatus(t) { const el = $('vsNetStatus'); if (el) el.textContent = t; }
+function netSyncUi() {
+  const on = !!net;
+  $('vsHostBtn').hidden = on; $('vsJoinBtn').hidden = on; $('vsCode').hidden = on; $('vsLeaveBtn').hidden = !on;
+  $('startBtn').hidden = netGuest();
+}
+function netFail(msg) { netStatus(msg); netClose(true); }
+function netClose(keepMsg) {
+  if (net) { try { net.peer.destroy(); } catch (_) {} }
+  net = null; if (!keepMsg) netStatus('');
+  if (vsLobby) { vsLobby.blue = vsLobby.blue.filter((s) => s.level !== 'human'); vsLobby.red = vsLobby.red.filter((s) => s.level !== 'human'); }
+  netSyncUi(); if (selectedLevel === 'versus') buildLobby();
+}
+const netWebRtcOk = () => typeof RTCPeerConnection !== 'undefined';
+// 房主：建立房間
+async function netHost() {
+  if (net) return;
+  if (!netWebRtcOk()) { netStatus('這個頁面不支援連線（Claude 的預覽頁會擋掉），請到網站版開房。'); return; }
+  netStatus('建立房間中…');
+  try { await netLoadLib(); } catch (_) { netStatus('連線元件載入失敗，請確認網路後再試。'); return; }
+  const code = netMakeCode(), peer = new window.Peer(NET.prefix + code);
+  net = { role: 'host', peer, code, guests: new Map(), snapT: 0, n: 0 };
+  netSyncUi();
+  peer.on('open', () => { netStatus('房間代碼：' + code + '　把代碼給朋友，在「代碼連線」輸入後就能加入。'); buildLobby(); });
+  peer.on('error', (e) => { if (e.type === 'unavailable-id') { netClose(true); netHost(); } else if (e.type !== 'peer-unavailable') netFail('連線錯誤（' + e.type + '）'); });
+  peer.on('connection', (conn) => {
+    conn.on('data', (d) => netHostData(conn, d));
+    conn.on('close', () => netGuestLeft(conn.peer));
+  });
+}
+function netHostData(conn, d) {
+  if (!net || !d) return;
+  const g = net.guests.get(conn.peer);
+  if (d.t === 'hello') {
+    if (state === 'play' || state === 'pause') { conn.send({ t: 'deny', msg: '對戰進行中，等這場結束再加入。' }); return; }
+    net.n++;
+    const ng = { conn, id: conn.peer, name: '玩家' + net.n, charId: CHARACTERS[d.charId] ? d.charId : vsRandId(), wide: !!d.wide, input: {} };
+    if (!netPlace(ng, d.team === 'red' ? 'red' : 'blue') && !netPlace(ng, d.team === 'red' ? 'blue' : 'red')) { conn.send({ t: 'deny', msg: '房間已滿。' }); return; }
+    net.guests.set(conn.peer, ng); netLobbyChanged();
+  } else if (!g) return;
+  else if (d.t === 'char' && CHARACTERS[d.charId]) { g.charId = d.charId; const s = netSlot(g.id); if (s) s.id = d.charId; netLobbyChanged(); }
+  else if (d.t === 'team') { if (netPlace(g, d.team)) netLobbyChanged(); }
+  else if (d.t === 'wide') g.wide = !!d.wide;
+  else if (d.t === 'in') g.input = d;
+}
+const netSlot = (peerId) => [...vsLobby.blue, ...vsLobby.red].find((s) => s.peer === peerId);
+// 把加入的玩家放進某一隊：隊伍滿了就擠掉一名 AI；全是真人就失敗
+function netPlace(g, t) {
+  const L = vsLobby || (vsLobby = vsDefaultLobby()), cap = t === L.team ? 4 : 5;
+  const old = netSlot(g.id); if (old && L[t].includes(old)) return true;
+  const list = L[t];
+  if (list.length >= cap) { const i = list.map((s) => s.level !== 'human').lastIndexOf(true); if (i < 0) return false; list.splice(i, 1); }
+  if (old) { const o = L.blue.includes(old) ? L.blue : L.red; o.splice(o.indexOf(old), 1); }
+  list.push({ id: g.charId, level: 'human', peer: g.id, name: g.name });
+  return true;
+}
+function netLobbyChanged() {
+  if (selectedLevel === 'versus') buildLobby();
+  if (!netHosting()) return;
+  const msg = { t: 'lobby', lobby: vsLobby, hostChar: selectedId };
+  for (const g of net.guests.values()) { try { g.conn.send(msg); } catch (_) {} }
+}
+function netGuestLeft(id) {
+  if (!netHosting()) return;
+  const g = net.guests.get(id); if (!g) return;
+  net.guests.delete(id);
+  const s = netSlot(id);
+  if (s) { const o = vsLobby.blue.includes(s) ? vsLobby.blue : vsLobby.red; o.splice(o.indexOf(s), 1); }
+  if (vs) for (const f of vs.fighters) if (f.remote === id) { f.remote = null; f.level = 'normal'; floatText(f.x, f.y - 60, g.name + ' 離線，改由 AI 接手', '#cfd8dc'); }
+  netLobbyChanged();
+}
+// 加入的玩家：輸入代碼
+async function netJoin(code) {
+  if (net) return;
+  code = (code || '').trim().toUpperCase();
+  if (code.length < 4) { netStatus('請輸入房主給你的房間代碼。'); return; }
+  if (!netWebRtcOk()) { netStatus('這個頁面不支援連線（Claude 的預覽頁會擋掉），請到網站版加入。'); return; }
+  netStatus('連線中…');
+  try { await netLoadLib(); } catch (_) { netStatus('連線元件載入失敗，請確認網路後再試。'); return; }
+  const peer = new window.Peer();
+  net = { role: 'guest', peer, code, lobby: null, units: new Map(), snap: null, inT: 0, press: { sk: 0, dg: 0, rl: 0, ex: 0 } };
+  netSyncUi();
+  peer.on('open', (id) => {
+    net.myId = id;
+    const conn = peer.connect(NET.prefix + code, { reliable: true }); net.conn = conn;
+    conn.on('open', () => { conn.send({ t: 'hello', charId: selectedId, team: 'blue', wide: !isTouch() || manualAim() }); netStatus('已加入房間 ' + code + '，等房主開始。'); });
+    conn.on('data', netGuestData);
+    conn.on('close', () => netLost());
+  });
+  peer.on('error', (e) => netFail(e.type === 'peer-unavailable' ? '找不到這個房間代碼。' : '連線錯誤（' + e.type + '）'));
+}
+function netLost() {
+  if (!netGuest()) return;
+  const inGame = state === 'play' || state === 'pause';
+  netClose(true); netStatus('和房主的連線中斷了。');
+  if (inGame) backToMenu();
+}
+function netGuestData(d) {
+  if (!netGuest() || !d) return;
+  if (d.t === 'deny') { netFail(d.msg); return; }
+  if (d.t === 'lobby') { net.lobby = d.lobby; net.hostChar = d.hostChar; if (selectedLevel !== 'versus') { selectedLevel = 'versus'; buildLevels(); updatePick(); } else buildLobby(); return; }
+  if (d.t === 'start') {
+    net.lobby = d.lobby; net.hostChar = d.hostChar; vsGuardId = d.guardId; net.snap = null; net.units = new Map();
+    selectedLevel = 'versus';
+    if (state === 'play' || state === 'pause' || gameLoading) return;
+    net.go = true; startGame(); return;
+  }
+  if (d.t === 's') net.snap = d;
+}
+const netMyTeam = () => { const L = net.lobby; return L && L.red.some((s) => s.peer === net.myId) ? 'red' : 'blue'; };
+
+/* ── 房主：每幀處理加入玩家的操作、送出快照 ── */
+function netRemoteTick(f, dt) {
+  const D = f.def, sk = D.skill, g = net && net.guests.get(f.remote);
+  if (!g) { f.remote = null; f.level = 'normal'; return; }
+  const I = g.input || {}, seen = f.seen || (f.seen = {});
+  const press = (k) => { const v = I[k] || 0, o = seen[k] ?? v; seen[k] = v; return v > o; };
+  const mx = I.mx || 0, my = I.my || 0, mag = Math.min(1, Math.hypot(mx, my)), fire = !!I.f;
+  if (typeof I.a === 'number') f.angle = I.a;
+  f.wide = g.wide;
+  if (press('dg') && f.charges > 0) { vsDodge(f, mag > 0.08 ? Math.atan2(my, mx) : f.angle); return; }
+  if (press('rl')) vsReload(f);
+  if (press('ex') && f.parts >= PARTS.cost && f.clones.length < CLONE.maxCount) vsExpand(f);
+  if (press('sk')) vsMaybeSkill(f, null, [], true);
+  // 機槍：開火就趴下，要移動先起身
+  let canMove = true;
+  if (D.mg) {
+    if (fire && mag < 0.08) f.prone = Math.min(1, f.prone + dt / D.mg.downStill);
+    else if (f.prone > 0) { f.prone = Math.max(0, f.prone - dt / D.mg.upStill); canMove = false; }
+    if (fire && f.prone > 0) canMove = false;
+  }
+  f.moving = false;
+  if (mag > 0.08 && canMove) {
+    const spd = D.speed * speedMul(f) * (sk && sk.id === 'lockon' && f.buffT > 0 ? 1 - sk.lockSlow : 1) * mag;
+    moveWithCover(f, mx / Math.hypot(mx, my) * spd * dt, my / Math.hypot(mx, my) * spd * dt); keepInMap(f);
+    f.moveAngle = Math.atan2(my, mx); f.moving = true;
+  }
+  f.aiming = fire || !f.moving || f.shot > 0;
+  f.faceLeft = f.aiming ? Math.cos(f.angle) < 0 : Math.cos(f.moveAngle) < 0;
+  f.rest = !f.moving && !fire && f.shot <= 0;
+  const free = sk && sk.id === 'lockon' && f.buffT > 0;
+  f.firing = fire && f.reloadT <= 0 && !(D.mg && f.prone < 1);
+  f.target = null;
+  if (fire && f.reloadT > 0 && D.weapon.reloadMode !== 'magazine' && f.ammo > 0) f.reloadT = 0;   // 逐發裝填：開火會中斷
+  if (f.firing && f.cool <= 0) { if (f.ammo > 0 || free) vsShoot(f, f, f.angle); else vsReload(f); }
+  vsClonesTick(f, dt);
+}
+const netR = (v) => Math.round(v);
+function netUnitRow(uid, u, kind) {
+  const D = u.def || (u === player || u.clone ? cfg : null);
+  const flags = (u.moving ? 1 : 0) | (u.aiming ? 2 : 0) | (u.faceLeft ? 4 : 0) | (u.dead ? 8 : 0) | (u.isClone || u.clone ? 16 : 0) | (u.level === 'elite' ? 32 : 0) | (u.invT > 0 ? 64 : 0) | (u.remote || u === player ? 128 : 0) | (u.rest ? 256 : 0);
+  const team = u.vsTeam || vs.myTeam;
+  const row = [uid, kind, kind === 'g' ? u.id : D.id, team === 'blue' ? 0 : 1, netR(u.x), netR(u.y), netR((u.angle || 0) * 100), Math.ceil(Math.max(0, u.hp)), netR(u.maxHp), flags, netR((u.shot || 0) * 100), netR((u.dodgeT || 0) * 100), netR((u.prone || 0) * 100), netR(u.shield || 0), netR(goldSum(u))];
+  if (kind === 'g') { const S = u.special; row.push(u.mode === 'walk' ? 1 : u.mode === 'stopping' ? 2 : u.mode === 'starting' ? 3 : 0, netR((u.shiftT || 0) * 100), u.lastShot != null ? netR((gameTime - u.lastShot) * 100) : 999, S ? netR(S.t * 100) : -1, S && S.flat ? 1 : 0, S ? netR(S.fa * 100) : 0, netR((u.reloadT || 0) * 10)); }
+  else if (kind === 'f' || kind === 'p') row.push(u === player ? '房主' : u.name);
+  return row;
+}
+function netSnapshot(dt) {
+  net.snapT += dt; if (net.snapT < NET.snapEvery || !net.guests.size) return;
+  net.snapT = 0;
+  const units = [];
+  if (!vsDead()) units.push(netUnitRow('h', player, 'p'));
+  clones.forEach((c, i) => units.push(netUnitRow('hc' + i, c, 'c')));
+  vs.fighters.forEach((f) => { if (f.dead) return; units.push(netUnitRow(f.uid, f, 'f')); f.clones.forEach((c, i) => units.push(netUnitRow(f.uid + 'c' + i, c, 'c'))); });
+  vs.guards.forEach((g, i) => { if (!g.dead) units.push(netUnitRow('g' + i, g, 'g')); });
+  const items = [...parts.map((p) => [netR(p.x), netR(p.y), 0]), ...medkits.map((m) => [netR(m.x), netR(m.y), 1])];
+  const shells = vsShells.map((s) => s.flat ? [netR(s.x), netR(s.y), 1, netR(s.h || 30)] : [netR(s.tx), netR(s.ty), 0, netR((s.t / s.T) * 100), netR(s.sx), netR(s.sy)]);
+  const base = { t: 's', tm: gameTime, sc: [vs.score.blue, vs.score.red], ov: vs.over ? (vs.winner === 'blue' ? 1 : 2) : 0, fd: vs.feed.map((k) => [k.k, k.kc, k.v, k.vc, netR(k.t * 10)]), u: units, it: items, sh: shells };
+  for (const g of net.guests.values()) {
+    const f = vs.fighters.find((x) => x.remote === g.id);
+    const cx = f ? f.x : 0, cy = f ? f.y : 0;
+    const bl = [];
+    for (const b of bullets) if (Math.abs(b.x - cx) < NET.view && Math.abs(b.y - cy) < NET.view) bl.push([netR(b.x), netR(b.y), netR(b.vx), netR(b.vy), b.team === 'p' ? 0 : 1, b.r, b.pellet ? 1 : 0]);
+    const me = f ? { uid: f.uid, team: f.vsTeam, hp: Math.ceil(Math.max(0, f.hp)), mh: f.maxHp, am: f.ammo, rl: netR(f.reloadT * 10), cd: netR(f.skillCd * 10), bt: netR(f.buffT * 10), ch: f.charges, ct: netR(f.chargeT * 10), pa: f.parts, rs: f.dead ? netR(f.respawnT * 10) : 0, sh: netR(f.shield || 0), gd: netR(goldSum(f)), ar: f.armed ? 1 : 0, bd: f.birds || 0, bdT: netR((f.birdT || 0) * 10), st: f.stacks || 0 } : null;
+    try { g.conn.send({ ...base, b: bl, me }); } catch (_) {}
+  }
+}
+
+/* ── 加入的玩家：送出操作、套用快照、畫面 ── */
+function netGuestPress(k) { if (!netGuest()) return false; net.press[k]++; return true; }
+function netGuestUpdate(dt) {
+  gameTime += dt;
+  let dx = Number(keys.has('KeyD') || keys.has('ArrowRight')) - Number(keys.has('KeyA') || keys.has('ArrowLeft'));
+  let dy = Number(keys.has('KeyS') || keys.has('ArrowDown')) - Number(keys.has('KeyW') || keys.has('ArrowUp'));
+  dx += stick.x; dy += stick.y;
+  const fire = (mouseDown || fireHeld || keys.has('Space') || keys.has('KeyJ')) && !vsDead();
+  // 瞄準：電腦用滑鼠；手機手動用開火搖桿；手機自動鎖定範圍內最近的敵人
+  let a = player.angle || 0;
+  if (!isTouch() && mouse.seen) { const m = mouseWorld(); a = Math.atan2(m.y - player.y, m.x - player.x); }
+  else if (manualAim()) { if (touchAim != null) a = touchAim; else if (Math.hypot(dx, dy) > 0.08) a = Math.atan2(dy, dx); }
+  else {
+    let best = Infinity, tg = null;
+    for (const e of enemies) { const d = Math.hypot(e.x - player.x, e.y - player.y); if (d <= cfg.lockRange && d < best) { best = d; tg = e; } }
+    lockedTarget = tg;
+    if (tg) a = Math.atan2(tg.y - player.y, tg.x - player.x); else if (Math.hypot(dx, dy) > 0.08) a = Math.atan2(dy, dx);
+  }
+  if (!fire && manualAim()) touchAim = null;
+  player.angle = a;
+  net.inT += dt;
+  if (net.inT >= NET.inputEvery && net.conn && net.conn.open) { net.inT = 0; net.conn.send({ t: 'in', mx: Math.round(dx * 100) / 100, my: Math.round(dy * 100) / 100, a: Math.round(a * 1000) / 1000, f: fire ? 1 : 0, ...net.press }); }
+  netApply(dt);
+  // 子彈：在兩次快照之間自己往前飛
+  for (const b of bullets) { b.age += dt; b.vy += 34 * dt; b.x += b.vx * dt; b.y += b.vy * dt; }
+  for (let i = blasts.length - 1; i >= 0; i--) { blasts[i].life -= dt; if (blasts[i].life <= 0) blasts.splice(i, 1); }
+  for (let i = rings.length - 1; i >= 0; i--) { rings[i].life -= dt; if (rings[i].life <= 0) rings.splice(i, 1); }
+  for (let i = particles.length - 1; i >= 0; i--) { const p = particles[i]; p.x += p.vx * dt; p.y += p.vy * dt; p.life -= dt; if (p.life <= 0) particles.splice(i, 1); }
+  for (let i = floaters.length - 1; i >= 0; i--) { const f = floaters[i]; f.y -= 28 * dt; f.life -= dt; if (f.life <= 0) floaters.splice(i, 1); }
+  cam.x += (player.x - cam.x) * (1 - Math.exp(-dt * 12)); cam.y += (player.y - cam.y) * (1 - Math.exp(-dt * 12));
+  shake = Math.max(0, shake - dt * 14); hurtT = Math.max(0, hurtT - dt);
+  for (const s of vsShells) if (!s.flat) s.t += dt;
+  stream();
+}
+const netDefOf = (id) => CHARACTERS[id] || cfg;
+function netMakeUnit(r) {
+  const kind = r[1];
+  if (kind === 'g') { const B = BOSSES[r[2]]; return { guard: true, id: r[2], B, r: B.radius, T: { shield: B.shield || 0 }, phase: Math.random() * 5, special: null, mode: 'stand', shiftT: 0, x: r[4], y: r[5] }; }
+  const def = netDefOf(r[2]);
+  return { fighter: true, def, r: def.radius, x: r[4], y: r[5], angle: 0, effects: [], gold: [], trail: [], name: r[15] || def.name };
+}
+function netApply(dt) {
+  const S = net.snap; if (!S) return;
+  const k = 1 - Math.exp(-dt * 14), seen = new Set(), me = S.me;
+  if (S !== net.lastSnap) {
+    net.lastSnap = S;
+    for (const r of S.u) {
+      let o = net.units.get(r[0]); if (!o) { o = netMakeUnit(r); net.units.set(r[0], o); }
+      o.tx = r[4]; o.ty = r[5]; o.angle = r[6] / 100; o.hp = r[7]; o.maxHp = r[8];
+      const fl = r[9]; o.moving = !!(fl & 1); o.aiming = !!(fl & 2); o.faceLeft = !!(fl & 4); o.isClone = !!(fl & 16); o.level = fl & 32 ? 'elite' : fl & 128 ? 'human' : 'normal'; o.invT = fl & 64 ? 0.1 : 0; o.rest = !!(fl & 256);
+      const shot = r[10] / 100; if (shot > (o.shot || 0) + 0.02 && o.def) { const dd = Math.hypot(o.x - player.x, o.y - player.y), vol = 0.45 * (1 - dd / 1300); if (vol > 0.04 && !o.isClone) playShot(o.def.weapon.class, vol); }
+      o.shot = shot; o.shotMax = o.def ? o.def.weapon.anim : 0.3; o.dodgeT = r[11] / 100; o.prone = r[12] / 100; o.shield = r[13]; o.gold = r[14] ? [{ v: r[14], t: 1 }] : [];
+      o.vsTeam = r[3] ? 'red' : 'blue';
+      if (o.guard) { o.mode = ['stand', 'walk', 'stopping', 'starting'][r[15]] || 'stand'; o.shiftT = r[16] / 100; o.lastShot = r[17] >= 999 ? -9 : gameTime - r[17] / 100; o.special = r[18] >= 0 ? { t: r[18] / 100, flat: !!r[19], fa: r[20] / 100 } : null; o.reloadT = r[21] / 10; }
+      else if (r[15]) o.name = r[15];
+      seen.add(r[0]);
+    }
+    for (const id of [...net.units.keys()]) if (!seen.has(id)) { const o = net.units.get(id); if (o.hp <= 0 || true) burst(o.x, o.y, '#ff8f83', 10); net.units.delete(id); }
+    bullets = (S.b || []).map((b) => ({ x: b[0], y: b[1], vx: b[2], vy: b[3], team: b[4] ? 'e' : 'p', r: b[5], pellet: !!b[6], age: 0.05, life: 1, maxLife: 1 }));
+    parts = S.it.filter((i) => !i[2]).map((i) => ({ x: i[0], y: i[1], ph: 0 })); medkits = S.it.filter((i) => i[2]).map((i) => ({ x: i[0], y: i[1], ph: 0 }));
+    vsShells = (S.sh || []).map((s) => s[2] ? { flat: true, x: s[0], y: s[1], h: s[3] } : { tx: s[0], ty: s[1], t: s[3] / 100, T: 1, sx: s[4], sy: s[5], h0: 40, peak: 90 });
+    vs.score.blue = S.sc[0]; vs.score.red = S.sc[1];
+    vs.feed = S.fd.map((f) => ({ k: f[0], kc: f[1], v: f[2], vc: f[3], t: f[4] / 10 }));
+    if (me) {
+      const was = player.hp;
+      net.meUid = me.uid; vs.myTeam = me.team; player.vsTeam = me.team;
+      player.hp = me.hp; player.maxHp = me.mh; player.ammo = me.am; player.reload = me.rl / 10; player.skillCd = me.cd / 10; player.buffT = me.bt / 10;
+      player.charges = me.ch; player.chargeT = me.ct / 10; partCount = me.pa; player.deadT = me.rs / 10; player.shield = me.sh; player.gold = me.gd ? [{ v: me.gd, t: 1 }] : [];
+      player.skillArmed = !!me.ar; player.birds = me.bd; player.birdT = me.bdT / 10; player.stacks = me.st;
+      if (me.hp < was && me.hp > 0) { hurtT = 0.35; shake = Math.max(shake, 3); }
+      updateHp(); updateAmmo(); updateParts(); updateSkill(); updateDodge();
+    }
+    if (S.ov && !vs.over) { vs.over = true; vs.winner = S.ov === 1 ? 'blue' : 'red'; setTimeout(() => { if (state === 'play' && netGuest()) endGame(true); }, 1200); }
+  }
+  // 插值：平滑地移到快照的位置
+  const al = [], en = [], myClones = [];
+  for (const [id, o] of net.units) {
+    o.x += (o.tx - o.x) * k; o.y += (o.ty - o.y) * k;
+    if (id === net.meUid) { player.x += (o.tx - player.x) * k; player.y += (o.ty - player.y) * k; player.moving = o.moving; player.aiming = o.aiming || player.shot > 0; player.faceLeft = o.faceLeft; player.shot = o.shot; player.shotMax = o.shotMax; player.dodgeT = o.dodgeT; player.prone = o.prone; player.invT = o.invT; player.rest = o.rest; player.moveAngle = o.angle; continue; }
+    if (net.meUid && id.startsWith(net.meUid + 'c')) { o.clone = true; myClones.push(o); continue; }
+    (o.vsTeam === vs.myTeam ? al : en).push(o);
+  }
+  aiAllies = al; enemies = en; clones = myClones;
 }
 
 /* ───────── 零件與擴編（戰事關卡） ─────────
@@ -3286,6 +3690,8 @@ function updatePick() {
   }
   $('teamNote').hidden = !team_;
   $('vsLobby').hidden = selectedLevel !== 'versus'; if (selectedLevel === 'versus') buildLobby();
+  if (netHosting()) netLobbyChanged();
+  if (netGuest() && net.conn && net.conn.open && net.sentChar !== selectedId) { net.sentChar = selectedId; net.conn.send({ t: 'char', charId: selectedId }); }
   const lv = LEVELS.find((l) => l.id === selectedLevel); $('levelDesc').textContent = lv ? lv.desc : '';
 }
 // 槍種分頁按鈕（選角、人形圖鑑共用）
@@ -3713,7 +4119,13 @@ function startGame() {
   if (gameLoading) return;
   audio();
   phaseBoss = levelPhases() ? levelPhases().map((ph) => ph.bossPool ? pickBoss(ph.bossPool) : null) : [];   // 開局就抽好各階段的 Boss
+  if (netGuest()) {
+    // 加入的玩家：只能等房主按開始
+    if (!net.go) { if (state === 'over') backToMenu(); netStatus('等房主開始下一場。'); return; }
+    net.go = false;
+  }
   const need = packsFor(selectedId, selectedLevel);
+  if (netHosting() && selectedLevel === 'versus') { const msg = { t: 'start', lobby: vsLobby, guardId: vsGuardId, hostChar: selectedId }; for (const g of net.guests.values()) { try { g.conn.send(msg); } catch (_) {} } }
   const btns = [$('startBtn'), $('retryBtn')], labels = btns.map((b) => b.textContent);
   gameLoading = true; btns.forEach((b) => { b.disabled = true; b.textContent = '載入素材中…'; });
   if (need.some((pid) => !packReady[pid])) setLoadingTips(true);
@@ -3798,7 +4210,7 @@ function beginGame() {
   phase = levelPhases() ? levelPhases()[0] : null; phaseIdx = 0; phaseStart = 0; spawnIdx = 0;
   $('phaseBlock').hidden = !phase || !!phase.bigmap;   // 戰局：時間照算但不顯示
   MAPGEN = phase && phase.versus ? (VERSUS_MAP || (VERSUS_MAP = genVersusMap())) : BATTLE_MAP; miniCanvas = null;   // 依模式換地圖
-  vs = null; aiAllies = []; vsNades = [];
+  vs = null; aiAllies = []; vsNades = []; vsShells = [];
   const testing = !!(phase && phase.test);
   $('testPanel').hidden = !testing; if (testing) buildTestPanel();
   $('hudScore').hidden = testing;
@@ -3998,6 +4410,10 @@ function syncSettings() {
 }
 const setMuted = (v) => { muted = v; store.set('rxxlc-muted', muted ? '1' : '0'); syncMute(); syncSettings(); };
 $('settingsBtn').addEventListener('click', () => { syncSettings(); $('settings').hidden = false; });
+$('vsHostBtn').addEventListener('click', () => netHost());
+$('vsJoinBtn').addEventListener('click', () => netJoin($('vsCode').value));
+$('vsCode').addEventListener('keydown', (e) => { if (e.key === 'Enter') netJoin($('vsCode').value); });
+$('vsLeaveBtn').addEventListener('click', () => netClose());
 $('settingsClose').addEventListener('click', () => { $('settings').hidden = true; });
 $('setZoom').addEventListener('input', (e) => setZoom(Number(e.target.value)));
 $('setSndOn').addEventListener('click', () => { setMuted(false); audio(); });
@@ -4157,6 +4573,7 @@ function onReloadDone() {
 }
 function useSkill() {
   if (vsDead()) return;
+  if (netGuestPress('sk')) return;
   const sk = cfg.skill;
   if (state !== 'play' || !player || !sk || sk.pending || player.skillCd > 0 || player.skillArmed || player.buffT > 0) return;
   minoNoticeSkill();   // 彌諾陶洛斯的被動：附近有人用技能就舉盾
@@ -4351,6 +4768,7 @@ function updateSkill() {
 }
 function startDodge() {
   if (vsDead()) return;
+  if (netGuestPress('dg')) return;
   if (state !== 'play' || !player || player.dodgeT > 0 || player.charges <= 0) return;
   const dm = cfg.dodgeMove;
   // 有移動輸入就往移動方向撲，沒有就往面向（準星）方向撲
@@ -4368,6 +4786,7 @@ function updateDodge() {
 }
 function reload() {
   if (vsDead()) return;
+  if (netGuestPress('rl')) return;
   if (state !== 'play' || player.ammo >= cfg.weapon.magazine || player.reload > 0) return;
   player.reload = cfg.weapon.reload;
 }
@@ -4574,6 +4993,7 @@ function updateParts() {
 }
 function expandEchelon() {
   if (vsDead()) return;
+  if (netGuestPress('ex')) return;
   if (state !== 'play' || partCount < PARTS.cost || clones.length >= CLONE.maxCount) return;
   partCount -= PARTS.cost;
   const slot = CLONE_SLOTS[clones.length];
@@ -6460,6 +6880,7 @@ function breakCrate(blk) {
 function mouseWorld() { return unproj(mouse.x, mouse.y); }
 
 function update(dt) {
+  if (netGuest() && vs) { netGuestUpdate(dt); return; }   // 加入的玩家：畫面由房主的快照決定
   gameTime += dt;
   let dx = Number(keys.has('KeyD') || keys.has('ArrowRight')) - Number(keys.has('KeyA') || keys.has('ArrowLeft'));
   let dy = Number(keys.has('KeyS') || keys.has('ArrowDown')) - Number(keys.has('KeyW') || keys.has('ArrowUp'));
@@ -7243,7 +7664,7 @@ function draw(t) {
   ctx.globalAlpha = 1;
   drawMissiles(); drawHomers();
   drawJamWaves();
-  if (vs) drawVsNades();
+  if (vs) { drawVsNades(); drawVsShells(); }
   for (const g of grenades) {
     const k = g.t / g.T, x = g.sx + (g.tx - g.sx) * k, y = g.sy + (g.ty - g.sy) * k, h = Math.sin(k * Math.PI) * 60;
     const q = proj(x, y);
