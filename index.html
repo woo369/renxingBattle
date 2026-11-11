@@ -1858,7 +1858,7 @@ function drawBigMapHud() {
      霰彈槍／衝鋒槍＝前排：站在隊友前面，主動找敵人牽制；身邊沒有隊友時改當輸出
      手槍＝輔助：幫輸出護航；身邊沒有前排時改當前排
    ・精銳：每個角色各自的行為邏輯（VS_ELITE）。還沒寫專屬邏輯的角色先用普通邏輯，只加上預判瞄準與精銳的躲子彈方式 */
-const VS = { win: 30, startParts: 10, respawn: 5, view: 1000, partEvery: 2.5, partMax: 8, medEvery: 9, medMax: 2, medHeal: 0.4, pickR: 22, steal: 0.5, spawnInv: 2 };
+const VS = { win: 30, startParts: 10, respawn: 5, view: 1000, partEvery: 0.625, partMax: 32, medEvery: 4.5, medMax: 4, medHeal: 0.4, pickR: 22, steal: 0.5, spawnInv: 2 };
 const VS_ELITE = {
   // HK433：彈匣滿了才開技能（不滿先換彈）、優先移動躲子彈、必中才閃避並保留 1 次（生命 ≤ 25% 才無限制）、預判瞄準、找掩體、輸出太多時換位置夾擊
   hk433: { dodgeFree: 0.25, fullMagSkill: true, cover: true, flank: true },
@@ -2081,10 +2081,11 @@ function vsFighterTick(f, dt) {
   // 移動
   let mv = null;
   if (f.evadeT > 0) { f.evadeT -= dt; mv = f.evadeDir; }
-  else if (f.goal) { const gx = f.goal.x - f.x, gy = f.goal.y - f.y; if (gx * gx + gy * gy > 30 * 30) mv = Math.atan2(gy, gx); }
+  else if (f.goal) { const gx = f.goal.x - f.x, gy = f.goal.y - f.y, near = tgt ? 60 : 30; if (gx * gx + gy * gy > near * near) mv = Math.atan2(gy, gx); }
   f.moving = false;
   if (mv != null && wantMove) {
-    const spd = D.speed * speedMul(f) * (sk && sk.id === 'lockon' && f.buffT > 0 ? 1 - sk.lockSlow : 1);
+    const fighting = tgt && f.evadeT <= 0;   // 交戰中調整站位：用 55% 速度走（趕路、躲子彈才全速）
+    const spd = D.speed * speedMul(f) * (sk && sk.id === 'lockon' && f.buffT > 0 ? 1 - sk.lockSlow : 1) * (fighting ? 0.55 : 1);
     const x0 = f.x, y0 = f.y;
     vsSteer(f, mv, spd * dt);
     const moved = Math.hypot(f.x - x0, f.y - y0);
@@ -2152,7 +2153,7 @@ function vsThink(f) {
   } else {
     const d = Math.hypot(tgt.x - f.x, tgt.y - f.y) || 1, ux = (f.x - tgt.x) / d, uy = (f.y - tgt.y) / d;
     const keep = role === 'front' ? range * (D.weapon.class === 'SG' ? 0.45 : 0.6) : role === 'support' ? range * 0.75 : range * 0.92;
-    const st = Math.sin(gameTime * 0.9 + f.seed) * 70;   // 左右遊走
+    const st = Math.sin(gameTime * 0.6 + f.seed) * 50;   // 左右遊走（慢慢的）
     goal = { x: tgt.x + ux * keep - uy * st, y: tgt.y + uy * keep + ux * st };
     if (role === 'dps' && fronts.length) {
       const fx = Math.max(...fronts.map((u) => u.x * dirX));
