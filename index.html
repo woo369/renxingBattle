@@ -315,13 +315,13 @@ body.touch #testPanel{max-height:38vh}   /* 手機：不要擋到左下的移動
 <div id="hud" hidden>
   <div id="effects" aria-label="身上的效果"></div>
   <div id="testPanel" hidden><b>測試工具</b><div id="testBtns"></div></div>
+  <div id="miniSlot" hidden></div>
   <div class="hud-block" id="hudScore">
     <div><span class="hud-label">分數</span><span class="hud-num" id="score">0</span></div>
   </div>
   <div class="hud-block" id="phaseBlock" hidden><span class="hud-label" id="phaseName">第一階段</span><span class="hud-num" id="phaseTime">3:00</span>
 </div>
   <div class="hud-block" id="partsBlock" hidden><span class="hud-label">零件</span><span class="hud-num" id="partsNum">0</span></div>
-  <div id="miniSlot" hidden></div>
   <div class="hud-block" id="hudHp">
     <div id="hpText"><span>生命</span><span><span id="hpNum">150 / 150</span><span id="shieldNum"></span><span id="goldNum"></span></span></div>
     <div id="hpTrack"><div id="hpFill"></div><div class="shield-fill" id="shieldFill"></div><div class="shield-fill" id="shieldFill2"></div><div class="shield-fill" id="goldFill"></div></div>
@@ -1072,7 +1072,7 @@ const LEVELS = [
   { id: 'war', name: '戰事', open: true, desc: '三階段的戰事，敵人會階段性地變強，每個階段末尾都會出現 Boss，擊敗第三階段的 Boss 即過關。' },
   { id: 'duel', name: '菁英對決', open: true, desc: '入場 5 秒後出現一名隨機精英敵人，擊敗它即可過關。精英以三階的強度為基準，一階、二階精英會依類型強化到相同水準。場上會定時出現零件與醫療箱。' },
   { id: 'test', name: '測試模式', open: true, desc: '不會自動出怪，可以自選召喚任何敵人或精英，零件無限。' },
-  { id: 'battle', name: '戰局', open: true, desc: '（開發中）250×250 格的大地圖，之後會做成 7 打 7 的戰局。地圖上有三個佔領點，站在點上就能佔領；山、房屋、樹木會擋路與子彈，樹林會遮擋視線。左上角是小地圖，按 M 或點小地圖可以打開全圖（單位會變成點）。' },
+  { id: 'battle', name: '戰局', open: true, desc: '（開發中）175×175 格的大地圖，之後會做成 7 打 7 的戰局。地圖上有三個佔領點，站在點上就能佔領；山、房屋、樹木會擋路與子彈，樹林會遮擋視線。左上角是小地圖，按 M 或點小地圖可以打開全圖（單位會變成點）。' },
   { id: 'locked1', name: '尚未解鎖', open: false, desc: '敬請期待' },
 ];
 let selectedLevel = 'training';
@@ -1434,17 +1434,17 @@ const levelPhases = () => LEVEL_PHASES[selectedLevel] || null;
 let phase = null, phaseIdx = 0, phaseStart = 0, spawnIdx = 0;   // 目前階段、階段開始時間、輪到第幾種敵人
 const phaseClock = () => gameTime - phaseStart;
 
-/* ───────── 戰局：250×250 格的大地圖 ─────────
+/* ───────── 戰局：175×175 格的大地圖 ─────────
    一格 110（跟地面格線一樣）→ 地圖 27500×27500，中心是 (0,0)。整張地圖對中心點對稱（雙方公平）：
    藍方基地在左下、紅方基地在右上；三條路（中路、上路、下路）；三個佔領點 A（左上）、B（中央）、C（右下）
    地形：山（擋路、擋子彈、擋視線）、平房（同上）、樹木（實體，擋路、擋子彈）、樹林（樹冠遮擋視線）、湖（擋路，子彈可以飛過） */
-const BIGMAP = { cells: 250, cell: 110 };
+const BIGMAP = { cells: 175, cell: 110 };
 BIGMAP.half = BIGMAP.cells * BIGMAP.cell / 2;
 const bigMap = () => !!(phase && phase.bigmap);
 const CAPTURE = { r: 320, rate: 10, flagH: 150 };   // 佔領點：半徑、每秒佔領點數（100 點約 10 秒）、旗桿高度
 const MAPGEN = (() => {
   let seed = 20261111; const rnd = () => { seed = (seed * 1664525 + 1013904223) >>> 0; return seed / 4294967296; };
-  const H = BIGMAP.half, M = H - 2600;
+  const H = BIGMAP.half, M = H - 2000;
   const bases = [{ x: -M, y: M, team: 'blue' }, { x: M, y: -M, team: 'red' }];
   const points = [{ id: 'A', x: -0.62 * H, y: -0.62 * H }, { id: 'B', x: 0, y: 0 }, { id: 'C', x: 0.62 * H, y: 0.62 * H }];
   // 三條路：中路（對角線）、上路（經過 A）、下路（經過 C）
@@ -1455,12 +1455,12 @@ const MAPGEN = (() => {
   for (const L of lanes) for (let i = 0; i < L.length - 1; i++) { const [ax, ay] = L[i], [bx, by] = L[i + 1], n = Math.ceil(Math.hypot(bx - ax, by - ay) / 140); for (let k = 0; k <= n; k++) blobs.push({ x: ax + (bx - ax) * k / n, y: ay + (by - ay) * k / n, r: 210, kind: 'road' }); }
   // 能不能放東西：離路、佔領點、基地、地圖邊緣都要有距離；也不能跟已經放的東西重疊
   const free = (x, y, r, laneGap = 260) => Math.abs(x) < H - r - 300 && Math.abs(y) < H - r - 300 && laneDist(x, y) > r + laneGap
-    && points.every((p) => Math.hypot(x - p.x, y - p.y) > r + CAPTURE.r + 450) && bases.every((b) => Math.hypot(x - b.x, y - b.y) > r + 2300)
+    && points.every((p) => Math.hypot(x - p.x, y - p.y) > r + CAPTURE.r + 450) && bases.every((b) => Math.hypot(x - b.x, y - b.y) > r + 2000)
     && solids.every((o) => o.kind === 'house' ? (Math.abs(x - o.x) > o.w / 2 + r + 60 || Math.abs(y - o.y) > o.h / 2 + r + 60) : Math.hypot(x - o.x, y - o.y) > r + o.r + 80)
     && forests.every((f) => Math.hypot(x - f.x, y - f.y) > r + f.r + 60);
   const twin = (fn) => { fn(1); fn(-1); };   // 每樣東西都放一對（對中心點對稱）
   // 山：一座山＝幾個重疊的圓
-  for (let n = 0, tries = 0; n < 5 && tries < 400; tries++) {
+  for (let n = 0, tries = 0; n < 3 && tries < 400; tries++) {
     const x = (rnd() * 2 - 1) * (H - 2500), y = (rnd() * 2 - 1) * (H - 2500), parts = [];
     const k = 3 + Math.floor(rnd() * 3); for (let i = 0; i < k; i++) parts.push({ dx: (rnd() - 0.5) * 1300, dy: (rnd() - 0.5) * 900, r: 420 + rnd() * 520 });
     if (!parts.every((p) => free(x + p.dx, y + p.dy, p.r, 380) && free(-x - p.dx, -y - p.dy, p.r, 380))) continue;
@@ -1477,11 +1477,11 @@ const MAPGEN = (() => {
     if (!free(x, y, Math.max(w, h) / 2 + 40, 120) || !free(-x, -y, Math.max(w, h) / 2 + 40, 120)) return false;
     twin((sg) => solids.push({ kind: 'house', x: sg * x, y: sg * y, w, h, col })); return true; };
   for (const p of [points[0], points[1]]) for (let i = 0, tries = 0; i < (p.id === 'B' ? 3 : 5) && tries < 200; tries++) { const a = rnd() * Math.PI * 2, d = CAPTURE.r + 700 + rnd() * 900; if (house(p.x + Math.cos(a) * d, p.y + Math.sin(a) * d)) i++; }
-  for (let i = 0, tries = 0; i < 10 && tries < 600; tries++) { const L = lanes[Math.floor(rnd() * 3)], k = Math.floor(rnd() * (L.length - 1)), t = rnd(), [ax, ay] = L[k], [bx, by] = L[k + 1], side = rnd() < 0.5 ? 1 : -1, len = Math.hypot(bx - ax, by - ay) || 1;
+  for (let i = 0, tries = 0; i < 6 && tries < 600; tries++) { const L = lanes[Math.floor(rnd() * 3)], k = Math.floor(rnd() * (L.length - 1)), t = rnd(), [ax, ay] = L[k], [bx, by] = L[k + 1], side = rnd() < 0.5 ? 1 : -1, len = Math.hypot(bx - ax, by - ay) || 1;
     if (house(ax + (bx - ax) * t + side * -(by - ay) / len * 520, ay + (by - ay) * t + side * (bx - ax) / len * 520)) i++; }
   // 樹林：一片範圍裡種滿實體樹木（樹冠會遮擋視線）＋零星的單棵樹
-  for (let n = 0, tries = 0; n < 9 && tries < 800; tries++) {
-    const x = (rnd() * 2 - 1) * (H - 1800), y = (rnd() * 2 - 1) * (H - 1800), r = 700 + rnd() * 900;
+  for (let n = 0, tries = 0; n < 5 && tries < 800; tries++) {
+    const x = (rnd() * 2 - 1) * (H - 1800), y = (rnd() * 2 - 1) * (H - 1800), r = 600 + rnd() * 700;
     if (!free(x, y, r, 200) || !free(-x, -y, r, 200)) continue;
     twin((sg) => forests.push({ x: sg * x, y: sg * y, r })); n++;
   }
@@ -1492,7 +1492,7 @@ const MAPGEN = (() => {
       const sz = 0.85 + rnd() * 0.4; trees.push({ x, y, sz }, { x: -x, y: -y, sz });
     }
   }
-  for (let i = 0, tries = 0; i < 70 && tries < 1500; tries++) { const x = (rnd() * 2 - 1) * (H - 600), y = (rnd() * 2 - 1) * (H - 600); if (!free(x, y, 40, 140) || !free(-x, -y, 40, 140) || trees.some((t) => Math.abs(t.x - x) < 90 && Math.abs(t.y - y) < 90)) continue; const sz = 0.9 + rnd() * 0.4; trees.push({ x, y, sz }, { x: -x, y: -y, sz }); i++; }
+  for (let i = 0, tries = 0; i < 35 && tries < 1500; tries++) { const x = (rnd() * 2 - 1) * (H - 600), y = (rnd() * 2 - 1) * (H - 600); if (!free(x, y, 40, 140) || !free(-x, -y, 40, 140) || trees.some((t) => Math.abs(t.x - x) < 90 && Math.abs(t.y - y) < 90)) continue; const sz = 0.9 + rnd() * 0.4; trees.push({ x, y, sz }, { x: -x, y: -y, sz }); i++; }
   // 空間分格：碰撞／遮擋只查附近幾格
   const G = 600, grid = new Map(), put = (o, x0, y0, x1, y1) => { for (let gx = Math.floor(x0 / G); gx <= Math.floor(x1 / G); gx++) for (let gy = Math.floor(y0 / G); gy <= Math.floor(y1 / G); gy++) { const k = gx + ',' + gy; (grid.get(k) || grid.set(k, []).get(k)).push(o); } };
   for (const o of solids) o.kind === 'house' ? put(o, o.x - o.w / 2, o.y - o.h / 2, o.x + o.w / 2, o.y + o.h / 2) : put(o, o.x - o.r, o.y - o.r, o.x + o.r, o.y + o.r);
@@ -1654,7 +1654,7 @@ function drawMapView(x, y, size, full) {
     ctx.strokeStyle = 'rgba(255,255,255,0.08)'; ctx.lineWidth = 1; ctx.beginPath();
     for (let i = 50; i < BIGMAP.cells; i += 50) { const p = x + i / BIGMAP.cells * size, q = y + i / BIGMAP.cells * size; ctx.moveTo(p, y); ctx.lineTo(p, y + size); ctx.moveTo(x, q); ctx.lineTo(x + size, q); }
     ctx.stroke();
-    ctx.fillStyle = '#ffe6a8'; ctx.font = '600 13px system-ui, sans-serif'; ctx.textAlign = 'center'; ctx.fillText('戰局地圖　250 × 250 格（按 M 或點地圖關閉）', x + size / 2, y - 8); ctx.textAlign = 'left';
+    ctx.fillStyle = '#ffe6a8'; ctx.font = '600 13px system-ui, sans-serif'; ctx.textAlign = 'center'; ctx.fillText('戰局地圖　175 × 175 格（按 M 或點地圖關閉）', x + size / 2, y - 8); ctx.textAlign = 'left';
   }
   // 佔領點
   for (const p of capPoints) {
@@ -1672,7 +1672,7 @@ function drawMapView(x, y, size, full) {
   ctx.restore();
 }
 let hudCheck = 0, slotRect = null;
-const miniSize = () => Math.min(140, Math.max(96, Math.round(Math.min(W, H) * 0.26)));
+const miniSize = () => Math.round(0.85 * Math.min(140, Math.max(96, Math.round(Math.min(W, H) * 0.26))));   // 小地圖縮成 0.85 倍
 const miniRect = () => {
   if (performance.now() - hudCheck > 500) {
     hudCheck = performance.now(); const sl = $('miniSlot'); sl.style.setProperty('--mini', miniSize() + 'px');
@@ -2856,7 +2856,7 @@ function beginGame() {
   if (testing) $('phaseBlock').hidden = true;   // 測試模式不顯示分數與模式
   boss = null; bossSpawned = false;
   jamWaves = []; homers = []; parts = []; partCount = (phase && phase.startParts) || 0; partClock = 0; clones = []; missiles = []; aegisT = 0; medkits = []; medClock = 0; shockWaves = [];
-  $('partsBlock').hidden = !phase || !!phase.noParts; $('miniSlot').hidden = !(phase && phase.bigmap); updateParts();
+  $('partsBlock').hidden = !phase || !!phase.noParts; $('miniSlot').hidden = !(phase && phase.bigmap); $('hudScore').style.display = phase && phase.bigmap ? 'none' : '';   /* 戰局：分數照算但不顯示，小地圖放在分數原本的位置 */ updateParts();
   if (phase && !phase.startParts) for (let i = 0; i < PARTS.initial; i++) spawnPart(); $('bossBar').hidden = true; $('phaseName').textContent = phase ? phase.name : '';
   for (let i = 0; i < (phase ? phase.initial : ENEMY.initial); i++) addEnemy();
   mapOpen = false;
