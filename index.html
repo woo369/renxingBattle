@@ -3599,7 +3599,7 @@ const pickBoss = (pool) => {
   const L = pool === 'elite' ? ELITE_POOL : Array.isArray(pool) ? pool : ELITE_POOL.filter((id) => BOSSES[id].tier === pool.tier);
   return L[Math.floor(Math.random() * L.length)];
 };
-let boss = null, bossSpawned = false;
+let boss = null, bossSpawned = false, phaseAdvT = 0;   // phaseAdvT：Boss 倒下後，等多久進入下一階段（>0 代表正在等）
 const CHUNK = 420;
 // 偽 3D：地面向後傾斜。squash＝地面壓扁程度，depth＝透視強度（越小越強），anchor＝玩家在畫面的高度比例
 const VIEW3D = { squash: 0.78, depth: 2.2, anchor: 0.58, haze: 0.5 };
@@ -4446,7 +4446,7 @@ function beginGame() {
   $('testPanel').hidden = !testing; if (testing) buildTestPanel();
   $('hudScore').hidden = testing;
   if (testing) $('phaseBlock').hidden = true;   // 測試模式不顯示分數與模式
-  boss = null; bossSpawned = false;
+  boss = null; bossSpawned = false; phaseAdvT = 0;
   jamWaves = []; homers = []; parts = []; partCount = (phase && phase.startParts) || 0; partClock = 0; clones = []; missiles = []; aegisT = 0; medkits = []; medClock = 0; shockWaves = [];
   $('partsBlock').hidden = !phase || !!phase.noParts; $('miniSlot').hidden = !(phase && phase.bigmap); $('hudScore').style.display = phase && phase.bigmap ? 'none' : '';   /* 戰局：分數照算但不顯示，小地圖放在分數原本的位置 */ updateParts();
   if (phase && !phase.startParts) for (let i = 0; i < PARTS.initial; i++) spawnPart(); $('bossBar').hidden = true; $('phaseName').textContent = phase ? phase.name : '';
@@ -4522,10 +4522,10 @@ function endGame(cleared) {
 function nextPhase() {
   if (state !== 'play' || !phase) return;
   const waitFor = phasePacks(phaseIdx + 1).filter((pid) => !packReady[pid]);   // 下一階段的素材還沒下載完就稍等
-  if (waitFor.length) { Promise.all(waitFor.map(ensurePack)).then(nextPhase, () => setTimeout(nextPhase, 1000)); return; }
+  if (waitFor.length) { Promise.all(waitFor.map(ensurePack)).then(() => { phaseAdvT = 1.5; }, () => setTimeout(() => { phaseAdvT = 1.5; }, 1000)); return; }   // 下載完由遊戲迴圈再呼叫
   const nx = levelPhases()[phaseIdx + 1];
   if (!nx) { endGame(true); return; }
-  phaseIdx++; phase = nx; phaseStart = gameTime;
+  phaseIdx++; phase = nx; phaseStart = gameTime; phaseAdvT = 0;
   spawnIdx = 0; spawnClock = 0; boss = null; bossSpawned = false;
   releaseUnused([...teamPacks(), ...phasePacks(phaseIdx), ...phasePacks(phaseIdx + 1)]);   // 上一階段用完的敵人、Boss 釋放；下一階段還會用到的保留
   for (const pid of phasePacks(phaseIdx + 1)) ensurePack(pid).catch(() => {});   // 再下一階段的素材先開始下載
@@ -7184,7 +7184,7 @@ function killEnemy(e) {
     for (const d of enemies.filter((x) => x.owner === e)) { burst(d.x, d.y, '#ffb36b', 10); enemies.splice(enemies.indexOf(d), 1); }
     const rw = phase && phase.bossReward;
     if (rw && rw.parts) { partCount += rw.parts; updateParts(); }   // 擊殺獎勵的零件：不顯示文字
-    if (!(phase && phase.test)) setTimeout(nextPhase, 1500);
+    if (!(phase && phase.test)) phaseAdvT = 1e-6;   // 1.5 秒後進入下一階段（在遊戲迴圈裡計時：暫停、切到背景都不會漏掉）
     return;
   }
   const pts = e.T?.ai === 'drone' ? 50 : 100;
@@ -7418,6 +7418,7 @@ function update(dt) {
       } else { endGame(true); return; }
     }
     if (boss) { $('phaseTime').textContent = 'BOSS'; }
+    if (phaseAdvT > 0) { phaseAdvT += dt; if (phaseAdvT >= 1.5) { phaseAdvT = 0; nextPhase(); } }
   }
 
   if (vs) vsUpdate(dt);
