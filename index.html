@@ -3729,14 +3729,14 @@ const BOSSES = {
     ai: 'quail',                 // 使用奎鳥專用的行為
     weapon: '主砲、干擾煙霧彈',
     desc: '正規軍的懸浮主戰坦克，靠反重力裝置貼地滑行，裝甲厚重。主砲每發都會爆炸，連續打完四發才要長時間重新裝填。',
-    specialDesc: '干擾煙霧彈：長裝填期間朝瞄準的位置投出煙霧彈，形成範圍 300 的煙霧。待在煙霧裡的人形移動速度 −30%、命中 −30%，離開後效果再維持 3 秒。',
+    specialDesc: '干擾煙霧彈：長裝填開始 2 秒後，朝瞄準的位置投出煙霧彈，形成範圍 300 的煙霧。待在煙霧裡的人形移動速度 −30%、命中 −30%，離開後效果再維持 3 秒。',
     hp: 2300, armor: 20,
     evade: 0.05,                 // 迴避率 5%
     speed: 200,
     lockRange: 450,
     shellDmg: 45, shellR: 25, shellSpeed: 560,   // 主砲：砲彈碰到人或飛到瞄準點就爆炸（半徑 25、傷害 45，爆炸不能迴避）
     magazine: 4, reload: 2, longReload: 10,      // 每發短裝填 2 秒；打完 4 發長裝填 10 秒
-    smoke: { r: 150, life: 8, flight: 0.9, peak: 110,   // 煙霧：直徑 300，留在場上 8 秒
+    smoke: { r: 150, life: 8, flight: 0.9, peak: 110, delay: 2,   // 煙霧：直徑 300，留在場上 8 秒；長裝填開始 2 秒後才投出
       eff: { id: 'smoke', name: '干擾煙霧：移動速度 −30%、命中 −30%', mark: '霧', color: '#aeb8c2', spd: -0.3, acc: -0.3, time: 3 } },
     radius: 40,
     assets: ASSETS.quail,
@@ -6162,17 +6162,22 @@ function updateQuail(e, dt, toward, dist) {
   if (e.moving) moveWithCover(e, Math.cos(toward) * B.speed * want * dt, Math.sin(toward) * B.speed * want * dt);
   if (inRange && !(e.reloadT > 0) && e.atkT > m.attack.dur) {
     // 主砲：往玩家目前的位置發射，碰到人形或飛到那個位置爆炸
-    const mz = spritePoint(e, m, m.muzzle), a = Math.atan2(player.y - mz.y, player.x - mz.x) + rand(-0.03, 0.03);
-    const range = Math.min(Math.hypot(player.x - mz.x, player.y - mz.y) + 10, B.lockRange * 1.15);
-    missiles.push({ flat: true, sx: mz.x, sy: mz.y, x: mz.x, y: mz.y, dx: Math.cos(a), dy: Math.sin(a), v: B.shellSpeed, range, h: e.y - mz.y, t: 0, T: Infinity, r: B.shellR, dmg: B.shellDmg * atkMulNow });
+    // 砲彈的地面位置在砲口正下方，高度＝砲口離地的高度（畫出來剛好從砲口飛出）
+    const mz = spritePoint(e, m, m.muzzle), gx = mz.x, gy = e.y, a = Math.atan2(player.y - gy, player.x - gx) + rand(-0.03, 0.03);
+    const range = Math.min(Math.hypot(player.x - gx, player.y - gy) + 10, B.lockRange * 1.15);
+    missiles.push({ flat: true, sx: gx, sy: gy, x: gx, y: gy, dx: Math.cos(a), dy: Math.sin(a), v: B.shellSpeed, range, h: e.y - mz.y, t: 0, T: Infinity, r: B.shellR, dmg: B.shellDmg * atkMulNow });
     burst(mz.x, mz.y, '#ffd27a', 8); shake = Math.max(shake, 2); e.atkT = 0;
     const vol = ENEMY_SFX_VOL * 2.2 * clamp(1 - (dist - 150) / 650, 0, 1); if (vol > 0.02) playShot('MCN', vol, 'MCN:q');   // 中口徑火炮
-    if (--e.ammo <= 0) {
-      e.reloadT = B.longReload; e.smT = 0;   // 長裝填：投出干擾煙霧彈
-      const sp = B.smoke, p = spritePoint(e, m, m.smoke);
+    if (--e.ammo <= 0) { e.reloadT = B.longReload; e.smokeIn = B.smoke.delay; }   // 長裝填：2 秒後才投干擾煙霧彈
+    else e.reloadT = B.reload;
+  }
+  if (e.smokeIn > 0) {
+    e.smokeIn -= dt;
+    if (e.smokeIn <= 0) {
+      const sp = B.smoke, p = spritePoint(e, m, m.smoke); e.smT = 0;
       missiles.push({ sx: e.x, sy: e.y, h0: e.y - p.y, hx: p.x - e.x, tx: player.x, ty: player.y, t: 0, T: sp.flight, r: sp.r, dmg: 0, lob: true, peak: sp.peak, smoke: sp });
       floatText(e.x, e.y - 80, '干擾煙霧彈', '#cfd8dc');
-    } else e.reloadT = B.reload;
+    }
   }
   bossTail(e, dt, dist);
 }
