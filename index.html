@@ -5015,7 +5015,7 @@ function updateSwap() {
   const f = team.cd > 0 ? team.cd / SWAP_CD : 0;
   $('swapCd').style.background = f > 0 ? 'conic-gradient(rgba(4,14,20,.6) ' + (f * 360) + 'deg, transparent 0)' : 'none';
 }
-$('swapBtn').addEventListener('click', () => swapChar(false));
+tapBtn($('swapBtn'), () => swapChar(false));   // 跟擴編鈕一樣：手機上按住移動時也能換人（tapBtn 定義在下面，函式宣告會提升）
 function endGame(cleared) {
   bgmStop(false);
   setTimeout(() => { if (state === 'play' || gameLoading) return; releaseUnused(openingPacks()); prefetch(); }, 300);   // 清掉上一局的素材，先在背景準備下一場
@@ -5170,7 +5170,12 @@ $('tSkill').addEventListener('pointerdown', (e) => { e.preventDefault(); useSkil
 $('skillBtn').addEventListener('click', () => useSkill());
 
 $('startBtn').addEventListener('click', startGame);
-$('expandBtn').addEventListener('click', expandEchelon);
+/* 手機：按住移動搖桿（另一根手指）時，click 事件不會觸發 → 觸控改用 pointerdown，滑鼠維持 click */
+function tapBtn(el, fn) {
+  el.addEventListener('pointerdown', (e) => { if (e.pointerType === 'mouse') return; e.preventDefault(); el._tapT = performance.now(); fn(); });
+  el.addEventListener('click', () => { if (performance.now() - (el._tapT || -1e9) < 700) return; fn(); });   // 觸控已經處理過的就略過
+}
+tapBtn($('expandBtn'), expandEchelon);
 $('retryBtn').addEventListener('click', startGame);
 function backToMenu() { bgmStop(true); showBest(); setState('menu'); releaseUnused(openingPacks()); prefetch(); }
 $('menuBtn').addEventListener('click', backToMenu);
@@ -5469,12 +5474,12 @@ function drawSakura(u) {
   if (!u || !u.sakura || u.dead) return;
   const q = proj(u.x, u.y); ctx.save(); upright(q, u.x, u.y);
   const D = u.def || cfg, m = D.assets.meta, sc = D.anim.scale, bh = m.body[3] * sc;   // 照角色圖的大小：圓球剛好包住全身
-  const cx = u.x, cy = u.y + (m.body[1] + m.body[3] * 0.52 - m.cy) * sc, r = bh * 0.36 * (1 + Math.sin(gameTime * 4) * 0.02), k = Math.min(1, u.sakura.t / 0.4);
+  const cx = u.x, cy = u.y + (m.body[1] + m.body[3] * 0.52 - m.cy) * sc, r = bh * 0.56 * (1 + Math.sin(gameTime * 4) * 0.02), k = Math.min(1, u.sakura.t / 0.4);
   const g = ctx.createRadialGradient(cx - 8, cy - 10, 4, cx, cy, r);
-  g.addColorStop(0, 'rgba(255,235,245,0.10)'); g.addColorStop(0.7, 'rgba(255,160,205,0.16)'); g.addColorStop(1, 'rgba(255,110,175,0.38)');
+  g.addColorStop(0, 'rgba(255,235,245,0.04)'); g.addColorStop(0.72, 'rgba(255,160,205,0.08)'); g.addColorStop(1, 'rgba(255,110,175,0.24)');
   ctx.globalAlpha = k; ctx.fillStyle = g; ctx.beginPath(); ctx.arc(cx, cy, r, 0, Math.PI * 2); ctx.fill();
-  ctx.strokeStyle = 'rgba(255,200,228,0.75)'; ctx.lineWidth = 1.6; ctx.stroke();
-  ctx.fillStyle = 'rgba(255,255,255,0.35)'; ctx.beginPath(); ctx.ellipse(cx - r * 0.35, cy - r * 0.45, r * 0.24, r * 0.12, -0.6, 0, Math.PI * 2); ctx.fill();
+  ctx.strokeStyle = 'rgba(255,200,228,0.55)'; ctx.lineWidth = 1.4; ctx.stroke();
+  ctx.fillStyle = 'rgba(255,255,255,0.22)'; ctx.beginPath(); ctx.ellipse(cx - r * 0.35, cy - r * 0.45, r * 0.24, r * 0.12, -0.6, 0, Math.PI * 2); ctx.fill();
   ctx.restore();
 }
 function useSkill() {
