@@ -2160,7 +2160,14 @@ const VS_ELITE = {
   hk433: { dodgeFree: 0.25, fullMagSkill: true, cover: true, flank: true },
   // 沙漠之鷹：擴編不到 2 次先撿零件，之後當輸出；彈匣滿了才開技能；優先打血少的敵人（含擴編人形）；閃避保留 1 次（生命 ≤ 50% 才無限制）
   deagle: { dodgeFree: 0.5, fullMagSkill: true, lowHpFirst: true, collectUntil: 2 },
+  // X95：前排兼輸出；彈匣滿了才開花之鎖；優先打「已損失生命比例」最高的敵人（花之鎖傷害最高）
+  x95: { dodgeFree: 0.3, fullMagSkill: true, lostHpFirst: true, front: true },
+  // 82式：優先疊手雷層數（丟出就 +1，不管有沒有炸到）；隊友都沒在交戰時先把手雷丟到 3 層再去打
+  type82: { dodgeFree: 0.3, prestack: true },
+  // SP9：隊友都沒在交戰時優先撿零件，擴編到 2 個擴編人形（被動需要的條件）
+  sp9: { dodgeFree: 0.3, collectCalm: 2 },
 };
+// 所有精銳：隊友正在跟敵人交戰時會主動過去支援
 const VS_ELITE_DEFAULT = { dodgeFree: 0.3 };
 // 大本營守衛：從精英敵人裡挑（目前只有巨劍士），一場抽一次，雙方一樣；只在自己的大本營裡活動，無限重生
 const VS_GUARD_POOL = ['greatsword', 'hydra'];
@@ -2527,6 +2534,7 @@ function vsThink(f) {
   // 目標：最近的敵人；沙漠之鷹精銳優先打血少的（含擴編人形）
   let tgt = null, best = Infinity;
   if (E && E.lowHpFirst) for (const u of vis) { const d = Math.hypot(u.x - f.x, u.y - f.y); if (d <= range * 1.25 && u.hp < best) { best = u.hp; tgt = u; } }
+  if (E && E.lostHpFirst) { best = -1; for (const u of vis) { const d = Math.hypot(u.x - f.x, u.y - f.y), lost = 1 - u.hp / (u.maxHp || u.hp || 1); if (d <= range * 1.25 && lost - d / 1e5 > best) { best = lost - d / 1e5; tgt = u; } } }   // 損失生命比例最高的
   if (!tgt) { best = Infinity; for (const u of vis) { const d = Math.hypot(u.x - f.x, u.y - f.y) - (u.isClone || u.clone ? 0 : 40); if (d < best) { best = d; tgt = u; } } }
   f.target = tgt;
   if (vis.some((u) => !u.guard)) { const u = vis.find((u) => !u.guard); (vs.intel || (vs.intel = {}))[f.vsTeam] = { x: u.x, y: u.y, t: gameTime }; }   // 隊伍情報：最後看到敵人的位置
@@ -2539,6 +2547,10 @@ function vsThink(f) {
   if (role === 'front' && !friends.length) role = 'dps';
   if (role === 'support' && !fronts.length) role = 'front';
   if (E && E.collectUntil != null) role = f.clones.length < E.collectUntil ? 'collect' : 'dps';
+  // 正在交戰的隊友（目標在自己射程附近）
+  const fighting = elite ? vsFriendsOf(f).filter((u) => u !== f && !u.isClone && !u.clone && !u.guard && u.target && vsAlive(u.target) && Math.hypot(u.target.x - u.x, u.target.y - u.y) <= vsRange(vsUnitDef(u)) * 1.1) : [];
+  if (E && E.front) role = 'front';
+  if (E && E.collectCalm && !fighting.length && !tgt && f.clones.length < E.collectCalm) role = 'collect';
   f.role = role;
   const dirX = f.vsTeam === 'blue' ? 1 : -1;
   const nearestItem = (list, maxD) => { let it = null, bd = maxD; for (const p of list) { const d = Math.hypot(p.x - f.x, p.y - f.y); if (d < bd) { bd = d; it = p; } } return it; };
@@ -2546,7 +2558,15 @@ function vsThink(f) {
   let goal = null;
   if (role === 'collect' && part && !(tgt && Math.hypot(tgt.x - f.x, tgt.y - f.y) < range * 0.5)) goal = { x: part.x, y: part.y, item: true };
   else if (!tgt) {
-    if (med) goal = { x: med.x, y: med.y, item: true };
+    let help = null, hd = Infinity;
+    for (const u of fighting) { const dd = Math.hypot(u.x - f.x, u.y - f.y); if (dd < hd) { hd = dd; help = u; } }
+    if (help && !(E && E.prestack && f.stacks < 3 && f.skillCd <= 0.6)) {
+      // 精銳：隊友在交戰 → 過去支援（走到隊友的敵人在自己射程內的位置）
+      const t = help.target, dd = Math.hypot(f.x - t.x, f.y - t.y) || 1, keep = range * 0.85;
+      goal = { x: t.x + (f.x - t.x) / dd * keep, y: t.y + (f.y - t.y) / dd * keep };
+      if (med && f.hp < f.maxHp * 0.35) goal = { x: med.x, y: med.y, item: true };
+    }
+    else if (med) goal = { x: med.x, y: med.y, item: true };
     else if (part) goal = { x: part.x, y: part.y, item: true };
     else if (role !== 'front' && fronts.length) { const a = fronts[0]; goal = { x: a.x - dirX * 160, y: a.y + Math.sin(f.seed) * 120 }; }   // 跟在前排後面
     else goal = vsHuntGoal(f, dirX);   // 往敵方推進（有情報就往敵人最後出現的地方）
@@ -2597,6 +2617,8 @@ function vsThink(f) {
   f.goal = goal;
   if (!tgt && f.ammo < D.weapon.magazine) vsReload(f);   // 沒有敵人時先把彈匣補滿
   vsMaybeSkill(f, tgt, vis);
+  // 精銳 82式：隊友都沒在交戰、自己也沒有目標 → 先把手雷往前丟，疊滿 3 層再去打
+  if (E && E.prestack && D.skill && D.skill.id === 'grenade' && !tgt && !fighting.length && f.stacks < 3 && f.skillCd <= 0) vsMaybeSkill(f, null, vis, true);
 }
 // 躲子彈：算出會打中自己的子彈
 // 搜敵的目的地：隊伍情報（12 秒內）→ 離自己遠的隊友 → 敵方半場的搜索點
@@ -2758,6 +2780,7 @@ function vsMaybeSkill(f, tgt, vis, force) {
       f.marks = sk.need; maskBadge(f); burst(f.x, f.y, '#ffd84a', 10); f.skillCd = sk.cooldown; break;
     case 'flowerlock':
       if (!force && !inRange) return;   // AI：敵人進入射程就啟用
+      if (!force && E && E.fullMagSkill && !magReady()) return;   // 精銳：彈匣滿了才開
       addEffect(f, sk.buff, f); burst(f.x, f.y, sk.buff.color, 10); f.skillCd = sk.cooldown; break;
     case 'laceration': if (force || (inRange && dist > 120 && magReady())) f.armed = true; return;
     case 'ironWall': {
