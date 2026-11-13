@@ -2678,7 +2678,7 @@ function vsThink(f) {
   if (!tgt) { best = Infinity; for (const u of vis) { const d = Math.hypot(u.x - f.x, u.y - f.y) - (u.isClone || u.clone ? 0 : 40); if (d < best) { best = d; tgt = u; } } }
   f.target = tgt;
   if (vis.some((u) => !u.guard)) { const u = vis.find((u) => !u.guard); (vs.intel || (vs.intel = {}))[f.vsTeam] = { x: u.x, y: u.y, t: gameTime }; }   // 隊伍情報：最後看到敵人的位置
-  if (f.parts >= PARTS.cost && f.clones.length < CLONE.maxCount) vsExpand(f);
+  if (f.parts >= expandCost(f.def) && f.clones.length < CLONE.maxCount) vsExpand(f);
   // 角色定位
   const friends = vsFriendsOf(f).filter((u) => u !== f && !u.isClone && !u.clone && !u.guard && Math.hypot(u.x - f.x, u.y - f.y) < 700);
   const roleOf = (u) => ROLE_OF[vsUnitDef(u).weapon.class];
@@ -2845,7 +2845,7 @@ function vsShoot(f, shooter, ang) {
   if (isMain && !free && f.ammo <= 0) vsReload(f);
 }
 function vsExpand(f) {
-  f.parts -= PARTS.cost;
+  f.parts -= expandCost(f.def);
   const D = f.def, hp = D.mg ? f.maxHp : Math.round(f.maxHp * CLONE.hpRatio);   // 機槍、蹲射步槍：擴編人形生命不打折   // 擴編人形用 3 倍後的生命計算
   const c = { fighter: true, isClone: true, lead: f, vsTeam: f.vsTeam, def: D, slot: CLONE_SLOTS[f.clones.length], x: f.x, y: f.y, r: D.radius, hp, maxHp: hp,
     T: { hp, evade: evadeRate(D), armor: f.T.armor, ai: 'fighter' }, cool: 0, angle: f.angle, moveAngle: 0, moving: false, aiming: false, shot: 0, shotMax: D.weapon.anim,
@@ -3519,7 +3519,7 @@ function netRemoteTick(f, dt) {
   f.wide = g.wide;
   if (press('dg') && f.charges > 0) { vsDodge(f, mag > 0.08 ? Math.atan2(my, mx) : f.angle); return; }
   if (press('rl')) vsReload(f);
-  if (press('ex') && f.parts >= PARTS.cost && f.clones.length < CLONE.maxCount) vsExpand(f);
+  if (press('ex') && f.parts >= expandCost(f.def) && f.clones.length < CLONE.maxCount) vsExpand(f);
   if (press('sk')) vsMaybeSkill(f, null, [], true);
   // 機槍：開火就趴下，要移動先起身
   let canMove = true;
@@ -3666,7 +3666,10 @@ function netApply(dt) {
 
 /* ───────── 零件與擴編（戰事關卡） ─────────
    地圖上會散落「零件」，撿到 10 個可以「擴編」：多一個跟隨自己的分身 */
-const PARTS = { initial: 3, every: 10, maxOnField: 5, minDist: 180, maxDist: 480, pickR: 16, cost: 10 };
+const PARTS = { initial: 3, every: 10, maxOnField: 5, minDist: 180, maxDist: 480, pickR: 16, cost: 10, goldCost: 15 };
+// 擴編要消耗的零件：金牌人形數值強，擴編要 15 個；其他 10 個
+const expandCost = (D) => (D && D.gold ? PARTS.goldCost : PARTS.cost);
+const cloneSrcDef = () => (team ? CHARACTERS[team.ids[team.cloneSrc]] : cfg);   // 擴編的是主要角色（倒下後改副角色）
 const CLONE = { maxCount: 4, hpRatio: 0.5, minGap: 20, maxGap: 100 };
 // 分身站位：以玩家為中心的方向與距離（距離＝玩家碰撞半徑＋20～100）
 // 擴編隊形：方陣——四個分身站在玩家周圍的四個角（[角度, 距離]）；1、2 號在下方，3、4 號在上方
@@ -5951,16 +5954,18 @@ function spawnPart() {
 function updateParts() {
   if (phase && phase.infiniteParts) partCount = 99;   // 測試模式：零件無限
   $('partsNum').textContent = phase && phase.infiniteParts ? '∞' : partCount;
-  const can = state === 'play' && phase && !phase.noParts && partCount >= PARTS.cost && clones.length < CLONE.maxCount;
+  const cost = expandCost(cloneSrcDef());
+  const can = state === 'play' && phase && !phase.noParts && partCount >= cost && clones.length < CLONE.maxCount;
   $('expandBtn').hidden = !can;
+  const sm = $('expandBtn').querySelector('small'); if (sm) sm.textContent = '消耗 ' + cost + ' 零件';
 }
 function expandEchelon() {
   if (vsDead()) return;
   if (netGuestPress('ex')) return;
-  if (state !== 'play' || partCount < PARTS.cost || clones.length >= CLONE.maxCount) return;
-  partCount -= PARTS.cost;
+  const D = cloneSrcDef();   // 擴編的是主要角色（主要角色倒下後改成副角色），不管目前操控誰
+  if (state !== 'play' || partCount < expandCost(D) || clones.length >= CLONE.maxCount) return;
+  partCount -= expandCost(D);
   const slot = CLONE_SLOTS[clones.length];
-  const D = team ? CHARACTERS[team.ids[team.cloneSrc]] : cfg;   // 擴編的是主要角色（主要角色倒下後改成副角色），不管目前操控誰
   const mh = D.maxHp * (vs ? VS.hpMul : 1), hp = D.mg ? mh : Math.round(mh * CLONE.hpRatio);   // 機槍趴射機動性差（雲圖對戰：用 3 倍後的生命）：擴編人形是唯一保有 100% 血量的槍種
   const c = { clone: true, slot, x: player.x, y: player.y, r: D.radius, hp, maxHp: hp, def: D, cool: 0, angle: player.angle, moveAngle: 0,
     moving: false, aiming: false, shot: 0, faceLeft: player.faceLeft, invT: 0.6, dodgeT: 0, trail: [] };
