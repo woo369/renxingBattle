@@ -3729,14 +3729,14 @@ const BOSSES = {
     ai: 'quail',                 // 使用奎鳥專用的行為
     weapon: '主砲、干擾煙霧彈',
     desc: '正規軍的懸浮主戰坦克，靠反重力裝置貼地滑行，裝甲厚重。主砲每發都會爆炸，連續打完四發才要長時間重新裝填。',
-    specialDesc: '干擾煙霧彈：長裝填開始 2 秒後，朝瞄準的位置投出煙霧彈，形成範圍 300 的煙霧。待在煙霧裡的人形移動速度 −30%、命中 −30%，離開後效果再維持 3 秒。',
+    specialDesc: '干擾煙霧彈：長裝填開始 2 秒後，朝瞄準的位置投出煙霧彈，形成半徑 200 的煙霧。待在煙霧裡的人形移動速度 −30%、命中 −30%，離開後效果再維持 3 秒。',
     hp: 2300, armor: 20,
     evade: 0.05,                 // 迴避率 5%
     speed: 200,
     lockRange: 450,
     shellDmg: 45, shellR: 25, shellSpeed: 560,   // 主砲：砲彈碰到人或飛到瞄準點就爆炸（半徑 25、傷害 45，爆炸不能迴避）
     magazine: 4, reload: 2, longReload: 10,      // 每發短裝填 2 秒；打完 4 發長裝填 10 秒
-    smoke: { r: 150, life: 8, flight: 0.9, peak: 110, delay: 2,   // 煙霧：直徑 300，留在場上 8 秒；長裝填開始 2 秒後才投出
+    smoke: { r: 200, life: 8, flight: 0.9, peak: 110, delay: 2,   // 煙霧：半徑 200，留在場上 8 秒；長裝填開始 2 秒後才投出
       eff: { id: 'smoke', name: '干擾煙霧：移動速度 −30%、命中 −30%', mark: '霧', color: '#aeb8c2', spd: -0.3, acc: -0.3, time: 3 } },
     radius: 40,
     assets: ASSETS.quail,
@@ -4006,7 +4006,7 @@ function bgmSwitch(list, idx = 0) {
 // Boss／菁英出現：一般音樂淡出，改播 Boss 歌單（隨機順序）；記下一般歌單接下來要播哪一首
 function bgmBoss() {
   if (!bgm.saved && bgm.list.length && !BGM_SETS.boss.includes(bgm.list[0])) bgm.saved = { list: bgm.list, idx: bgm.el ? (bgm.idx + 1) % bgm.list.length : bgm.idx };
-  bgmSwitch(bgmShuffle(BGM_SETS.boss));
+  bgmSwitch(selectedLevel === 'duel' ? bgmPick('boss', 3) : bgmShuffle(BGM_SETS.boss));   // 菁英對決：從 Boss 歌單抽 3 首輪播
 }
 // Boss 倒下：Boss 音樂淡出；之後（戰事的下一階段）接回一般歌單
 function bgmBossDown() {
@@ -4014,8 +4014,18 @@ function bgmBossDown() {
   if (bgm.saved) { const sv = bgm.saved; bgm.saved = null; if (bgm.el) bgm.pending = sv; else { bgm.list = sv.list; bgm.idx = sv.idx; } }
   else if (bgm.el) bgm.pending = { list: [], idx: 0 };
 }
+// 從曲庫隨機抽 n 首不重複；曲庫不夠時用「空白曲」補（播到就直接跳過，之後有新曲子再換掉）
+const BGM_SILENT = '_silent';
+function bgmPick(set, n) {
+  const pool = bgmShuffle(BGM_SETS[set]), list = pool.slice(0, n);
+  while (list.length < n) list.splice(Math.floor(Math.random() * (list.length + 1)), 0, BGM_SILENT);
+  return list;
+}
 function bgmPlay() {
-  const id = bgm.list[bgm.idx]; if (!id) return;
+  // 空白曲：直接跳到下一首（不空檔）；整個歌單都是空白就不播
+  let guard = bgm.list.length;
+  while (bgm.list[bgm.idx] === BGM_SILENT && guard-- > 0) bgm.idx = (bgm.idx + 1) % bgm.list.length;
+  const id = bgm.list[bgm.idx]; if (!id || id === BGM_SILENT) return;
   const el = bgm.next && bgm.next._id === id ? bgm.next : bgmMake(id); bgm.next = null;
   bgm.el = el; bgm.g = 0; bgm.mode = 'in'; bgm.gain = null;
   const a = audio();
@@ -4041,7 +4051,7 @@ function bgmTick(dt) {
       if (bgm.mode !== 'out' && left <= BGM_FADE) bgm.mode = 'out';      // 快結束：淡出
       if (bgm.mode === 'out') bgm.g = Math.max(0, bgm.g - dt / BGM_FADE);
       bgmApplyVol();
-      if (bgm.on && !bgm.next && left < BGM_PREFETCH && bgm.list.length > 1) bgm.next = bgmMake(bgm.list[(bgm.idx + 1) % bgm.list.length]);   // 預先下載下一首
+      if (bgm.on && !bgm.next && left < BGM_PREFETCH && bgm.list.length > 1) { let j = (bgm.idx + 1) % bgm.list.length, n = bgm.list.length; while (bgm.list[j] === BGM_SILENT && n-- > 0) j = (j + 1) % bgm.list.length; if (bgm.list[j] !== BGM_SILENT && j !== bgm.idx) bgm.next = bgmMake(bgm.list[j]); }   // 預先下載下一首
       if ((bgm.mode === 'out' && bgm.g <= 0) || el.ended) {
         bgmEnd(); bgm.idx = (bgm.idx + 1) % Math.max(1, bgm.list.length); bgm.gap = BGM_GAP;   // 下一首前空 2.5 秒
         if (bgm.pending) { bgm.list = bgm.pending.list; bgm.idx = bgm.pending.idx; bgm.pending = null; }
