@@ -473,6 +473,7 @@ body.touch #testPanel{max-height:38vh}   /* 手機：不要擋到左下的移動
   <div class="sheet" style="max-width:400px">
     <h2>設定</h2>
     <label class="field" for="setZoom"><span>視野</span><input id="setZoom" type="range" min="0.4" max="1.4" step="0.01" value="1"></label>
+    <label class="field" for="setBgm"><span>音樂音量</span><input id="setBgm" type="range" min="0" max="1" step="0.05" value="0.5"></label>
     <div class="set-row"><span>音效</span><div class="seg"><button type="button" id="setSndOn">開</button><button type="button" id="setSndOff">關</button></div></div>
     <div class="set-row only-touch"><span>瞄準</span><div class="seg"><button type="button" id="setAimAuto">自動</button><button type="button" id="setAimManual">手動</button></div></div>
     <p class="set-note only-touch" id="aimNote"></p>
@@ -484,6 +485,7 @@ body.touch #testPanel{max-height:38vh}   /* 手機：不要擋到左下的移動
   <div class="sheet" style="max-width:380px">
     <h2>已暫停</h2>
     <label class="field" for="zoomRange"><span>視野</span><input id="zoomRange" type="range" min="0.4" max="1.4" step="0.01" value="1"></label>
+    <label class="field" for="pauseBgm"><span>音樂音量</span><input id="pauseBgm" type="range" min="0" max="1" step="0.05" value="0.5"></label>
     <div class="row">
       <button id="resumeBtn" class="btn primary" type="button">繼續</button>
       <button id="quitBtn" class="btn" type="button">回主選單</button>
@@ -3871,6 +3873,59 @@ function silhouette(im) {
   return c;
 }
 
+/* ───────── 背景音樂 ─────────
+   歌單：開局從曲庫隨機抽幾首，依序輪流播放（播完從頭再來）。一首一首串流，不會開局就全部下載；
+   目前這首剩 25 秒時才預先下載下一首。每首開頭淡入、結尾淡出，兩首之間空 2.5 秒。
+   戰事：只在各階段的一般戰鬥播放，Boss 出現時淡出，打倒 Boss 進入下一階段後接著播下一首。 */
+const BGM_FILES = {"map2":"assets/bgm_map2.mp3","map3":"assets/bgm_map3.mp3","map6":"assets/bgm_map6.mp3","map8":"assets/bgm_map8.mp3"};   // 曲目 → 網址（拆檔版是 assets/ 底下的 mp3，離線版直接內嵌）
+const BGM_SETS = { normal: ['map2', 'map3', 'map6', 'map8'] };   // 普通程度歌單
+const BGM_FADE = 2, BGM_GAP = 2.5, BGM_PREFETCH = 25;
+let bgmVol = clamp(parseFloat(store.get('rxxlc-bgm') ?? '0.5') || 0, 0, 1);
+const bgm = { list: [], idx: 0, on: false, el: null, gain: null, g: 0, mode: 'off', gap: 0, next: null };
+function bgmMake(id) {
+  const el = new Audio(); el.preload = 'auto'; el.src = BGM_FILES[id]; el._id = id; return el;
+}
+function bgmStart(set, n) {
+  bgmStop(true);
+  const pool = BGM_SETS[set].slice(), list = [];
+  while (list.length < n && pool.length) list.push(pool.splice(Math.floor(Math.random() * pool.length), 1)[0]);
+  Object.assign(bgm, { list, idx: 0, on: true, gap: 0.6 });
+}
+function bgmPlay() {
+  const id = bgm.list[bgm.idx]; if (!id) return;
+  const el = bgm.next && bgm.next._id === id ? bgm.next : bgmMake(id); bgm.next = null;
+  bgm.el = el; bgm.g = 0; bgm.mode = 'in'; bgm.gain = null;
+  const a = audio();
+  if (a) { try { const src = a.createMediaElementSource(el), g = a.createGain(); g.gain.value = 0; src.connect(g); g.connect(a.destination); bgm.gain = g; } catch (e) { bgm.gain = null; } }   // iPhone 不能直接調整 audio 的音量，要經過 WebAudio
+  bgmApplyVol(); el.currentTime = 0; el.play().catch(() => {});
+}
+function bgmApplyVol() {
+  if (!bgm.el) return; const v = bgm.g * bgmVol;
+  if (bgm.gain) { bgm.gain.gain.value = v; bgm.el.volume = 1; } else bgm.el.volume = clamp(v, 0, 1);
+}
+function bgmEnd() { if (bgm.el) { bgm.el.pause(); bgm.el.removeAttribute('src'); bgm.el.load(); } bgm.el = null; bgm.gain = null; bgm.mode = 'off'; }
+function bgmFadeOut() { bgm.on = false; if (bgm.el && bgm.mode !== 'out') bgm.mode = 'out'; }   // 淡出後停住（Boss 戰、結算）
+function bgmResume() { if (bgm.on || !bgm.list.length) return; bgm.on = true; if (!bgm.el) bgm.gap = Math.max(bgm.gap, 0.8); }
+function bgmStop(now) { bgm.on = false; if (now) { bgmEnd(); bgm.next = null; bgm.list = []; } else bgmFadeOut(); }
+function bgmTick(dt) {
+  const el = bgm.el, playing = state === 'play';
+  if (el) {
+    if (!playing && bgm.mode !== 'out' && !el.paused) el.pause();           // 暫停遊戲時音樂也暫停
+    else if (playing && el.paused && !el.ended) el.play().catch(() => {});
+    if (playing || bgm.mode === 'out') {
+      const dur = el.duration, left = isFinite(dur) ? dur - el.currentTime : 99;
+      if (bgm.mode === 'in') { bgm.g = Math.min(1, bgm.g + dt / BGM_FADE); if (bgm.g >= 1) bgm.mode = 'play'; }
+      if (bgm.mode !== 'out' && left <= BGM_FADE) bgm.mode = 'out';      // 快結束：淡出
+      if (bgm.mode === 'out') bgm.g = Math.max(0, bgm.g - dt / BGM_FADE);
+      bgmApplyVol();
+      if (bgm.on && !bgm.next && left < BGM_PREFETCH && bgm.list.length > 1) bgm.next = bgmMake(bgm.list[(bgm.idx + 1) % bgm.list.length]);   // 預先下載下一首
+      if ((bgm.mode === 'out' && bgm.g <= 0) || el.ended) {
+        bgmEnd(); bgm.idx = (bgm.idx + 1) % Math.max(1, bgm.list.length); bgm.gap = BGM_GAP;   // 下一首前空 2.5 秒
+      }
+    }
+  } else if (bgm.on && playing && bgm.list.length) { bgm.gap -= dt; if (bgm.gap <= 0) bgmPlay(); }
+}
+
 /* ───────── 音效（WebAudio 合成，需先有使用者操作）───────── */
 let AC = null;
 function audio() {
@@ -4625,6 +4680,7 @@ function beginGame() {
   if (phase && phase.versus) vsBegin();   // 對戰：建立雙方隊伍（玩家在自己隊伍的大本營出發）
   $('score').textContent = '0'; refreshCharHud();
   setState('play'); last = performance.now();
+  if (selectedLevel === 'war') bgmStart('normal', 3); else bgmStop(true);   // 背景音樂：戰事從普通程度歌單抽 3 首
 }
 // 角色相關的介面（技能圖示、彈藥、生命、閃避、效果列、切換按鈕）依目前出擊的人形更新
 function refreshCharHud() {
@@ -4663,6 +4719,7 @@ function updateSwap() {
 }
 $('swapBtn').addEventListener('click', () => swapChar(false));
 function endGame(cleared) {
+  bgmStop(false);
   setTimeout(() => { if (state === 'play' || gameLoading) return; releaseUnused(openingPacks()); prefetch(); }, 300);   // 清掉上一局的素材，先在背景準備下一場
   if (vs) {
     // 對戰：顯示勝負與比分（不計入最高分）
@@ -4697,6 +4754,7 @@ function nextPhase() {
   const nx = levelPhases()[phaseIdx + 1];
   if (!nx) { endGame(true); return; }
   phaseIdx++; phase = nx; phaseStart = gameTime; phaseAdvT = 0;
+  if (selectedLevel === 'war') bgmResume();   // 新階段：音樂接著播下一首
   spawnIdx = 0; spawnClock = 0; boss = null; bossSpawned = false;
   releaseUnused([...teamPacks(), ...phasePacks(phaseIdx), ...phasePacks(phaseIdx + 1)]);   // 上一階段用完的敵人、Boss 釋放；下一階段還會用到的保留
   for (const pid of phasePacks(phaseIdx + 1)) ensurePack(pid).catch(() => {});   // 再下一階段的素材先開始下載
@@ -4706,7 +4764,7 @@ function nextPhase() {
   floatText(player.x, player.y - 64, phase.name + ' 開始！', '#f9cf70'); shake = Math.max(shake, 5);
   for (let i = 0; i < phase.initial; i++) addEnemy();
 }
-function pauseGame() { if (state === 'play') { $('zoomRange').value = userZoom; setState('pause'); } }
+function pauseGame() { if (state === 'play') { $('zoomRange').value = userZoom; $('pauseBgm').value = bgmVol; setState('pause'); } }
 function resumeGame() { if (state === 'pause') { setState('play'); last = performance.now(); } }
 
 /* ───────── 輸入 ───────── */
@@ -4816,7 +4874,7 @@ $('skillBtn').addEventListener('click', () => useSkill());
 $('startBtn').addEventListener('click', startGame);
 $('expandBtn').addEventListener('click', expandEchelon);
 $('retryBtn').addEventListener('click', startGame);
-function backToMenu() { showBest(); setState('menu'); releaseUnused(openingPacks()); prefetch(); }
+function backToMenu() { bgmStop(true); showBest(); setState('menu'); releaseUnused(openingPacks()); prefetch(); }
 $('menuBtn').addEventListener('click', backToMenu);
 $('resumeBtn').addEventListener('click', resumeGame);
 $('quitBtn').addEventListener('click', backToMenu);
@@ -4824,6 +4882,7 @@ $('pauseBtn').addEventListener('click', pauseGame);
 $('zoomRange').addEventListener('input', (e) => setZoom(Number(e.target.value)));
 // 首頁設定：視野、音效、瞄準方式（手機）
 function syncSettings() {
+  $('setBgm').value = bgmVol; $('pauseBgm').value = bgmVol;
   $('setZoom').value = userZoom;
   $('setSndOn').classList.toggle('on', !muted); $('setSndOff').classList.toggle('on', muted);
   $('setAimAuto').classList.toggle('on', aimMode === 'auto'); $('setAimManual').classList.toggle('on', aimMode === 'manual');
@@ -4832,6 +4891,7 @@ function syncSettings() {
 }
 const setMuted = (v) => { muted = v; store.set('rxxlc-muted', muted ? '1' : '0'); syncMute(); syncSettings(); };
 $('settingsBtn').addEventListener('click', () => { syncSettings(); $('settings').hidden = false; });
+for (const id of ['setBgm', 'pauseBgm']) $(id).addEventListener('input', (e) => { bgmVol = clamp(+e.target.value, 0, 1); store.set('rxxlc-bgm', String(bgmVol)); bgmApplyVol(); syncSettings(); });
 $('vsName').value = store.get('rxxlc-name') || '';
 $('vsName').addEventListener('change', () => { store.set('rxxlc-name', netName()); netLobbyChanged(); });
 $('vsHostBtn').addEventListener('click', () => netHost());
@@ -5620,6 +5680,7 @@ function spawnBoss(id) {
   // 菁英對決：依精英等級套用倍率
   const sc = phase && phase.bossScale === 'tier' ? (DUEL_BOSS_SCALE[id] || DUEL_TIER_SCALE[BOSSES[id].tier]) : null;
   const B = scaleStats(BOSSES[id], sc); bossSpawned = true;
+  if (selectedLevel === 'war') bgmFadeOut();   // Boss 戰：一般戰鬥音樂淡出（Boss 音樂之後再加）
   const a = rand(0, Math.PI * 2), d = 420;
   boss = { boss: true, B, id, x: player.x + Math.cos(a) * d, y: player.y + Math.sin(a) * d, r: B.radius, hp: B.hp, maxHp: B.hp,
     ammo: B.magazine, reloadT: 0, magsDone: 0, special: null, cool: 0.8, barrel: 0, angle: 0, strafe: 1, strafeT: 0, jinkT: 0, jx: 0, jy: 0, vx: 0, vy: 0,
@@ -8364,6 +8425,7 @@ function frame(t) {
   watchPerf(t - last);
   const dt = clamp((t - last) / 1000, 0, 0.05); last = t;
   try {
+    bgmTick(dt);
     if (state === 'play') update(dt);
     draw(t);
   } catch (err) {
