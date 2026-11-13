@@ -3980,9 +3980,9 @@ function silhouette(im) {
    歌單：開局從曲庫隨機抽幾首，依序輪流播放（播完從頭再來）。一首一首串流，不會開局就全部下載；
    目前這首剩 25 秒時才預先下載下一首。每首開頭淡入、結尾淡出，兩首之間空 2.5 秒。
    戰事：只在各階段的一般戰鬥播放，Boss 出現時淡出，打倒 Boss 進入下一階段後接著播下一首。 */
-const BGM_FILES = {"boss1":"assets/bgm_boss1.mp3","boss3":"assets/bgm_boss3.mp3","map2":"assets/bgm_map2.mp3","map3":"assets/bgm_map3.mp3","map6":"assets/bgm_map6.mp3","map8":"assets/bgm_map8.mp3","purg1":"assets/bgm_purg1.mp3"};   // 曲目 → 網址（拆檔版是 assets/ 底下的 mp3，離線版直接內嵌）
-const BGM_SETS = { normal: ['map2', 'map3', 'map6', 'map8'], boss: ['boss1', 'boss3'], purgatory: ['purg1'] };   // 普通程度歌單；Boss 歌單（只在 Boss／菁英出現時播放）；煉獄歌單（之後的新模式用）
-const BGM_GAIN = { purg1: 1.5 };   // 個別曲目的音量補正（煉獄這首原本比其他曲子小聲約 3.5 dB）
+const BGM_FILES = {"boss1":"assets/bgm_boss1.mp3","boss3":"assets/bgm_boss3.mp3","map2":"assets/bgm_map2.mp3","map3":"assets/bgm_map3.mp3","map6":"assets/bgm_map6.mp3","map8":"assets/bgm_map8.mp3","occisor":"assets/bgm_occisor.mp3","purg1":"assets/bgm_purg1.mp3","wicked":"assets/bgm_wicked.mp3"};   // 曲目 → 網址（拆檔版是 assets/ 底下的 mp3，離線版直接內嵌）
+const BGM_SETS = { normal: ['map2', 'map3', 'map6', 'map8'], boss: ['boss1', 'boss3', 'occisor', 'wicked'], purgatory: ['purg1'] };   // 普通程度歌單；Boss 歌單（只在 Boss／菁英出現時播放）；煉獄歌單（之後的新模式用）
+const BGM_GAIN = { purg1: 1.5, occisor: 1.48, wicked: 1.32 };   // 個別曲目的音量補正（原本比同歌單的曲子小聲的，放大到差不多）
 const BGM_FADE = 2, BGM_GAP = 2.5, BGM_PREFETCH = 25;
 // 音量：基準 15%（滑桿中間＝100%），可以往下調到 50%、往上調到 150%
 const BGM_BASE = 0.15;
@@ -4007,7 +4007,7 @@ function bgmSwitch(list, idx = 0) {
 // Boss／菁英出現：一般音樂淡出，改播 Boss 歌單（隨機順序）；記下一般歌單接下來要播哪一首
 function bgmBoss() {
   if (!bgm.saved && bgm.list.length && !BGM_SETS.boss.includes(bgm.list[0])) bgm.saved = { list: bgm.list, idx: bgm.el ? (bgm.idx + 1) % bgm.list.length : bgm.idx };
-  bgmSwitch(selectedLevel === 'duel' ? bgmPick('boss', 3) : bgmShuffle(BGM_SETS.boss));   // 菁英對決：從 Boss 歌單抽 3 首輪播
+  bgmSwitch(bgmPick('boss', 3));   // 戰事、菁英對決：從 Boss 歌單隨機抽 3 首輪播（不夠就用空白曲補）
 }
 // Boss 倒下：Boss 音樂淡出；之後（戰事的下一階段）接回一般歌單
 function bgmBossDown() {
