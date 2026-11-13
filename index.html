@@ -3127,14 +3127,21 @@ function vsMakeGuard(team) {
     ammo: B.magazine, reloadT: 0, cool: 0, aimT: 0, mode: 'stand', shiftT: 0, phase: Math.random() * 5, faceLeft: team === 'red', angle: 0, special: null,
     dead: false, respawnT: 0, wander: null, wanderT: rand(1, 4), target: null, touchCd: 0, magsDone: 0 };
 }
-// 守衛的巡邏線：大本營最外圍、面向戰場那一側的一條直線（守衛只在這條線上來回走）
+/* 守衛的巡邏帶：大本營最外圍、面向戰場那一側的一條長帶（寬 VS_PATROL_DEPTH）
+   以前只走一條線，守衛互相推擠就卡死；現在每名守衛在帶子裡有自己的「車道」（離外緣的深度），
+   閒逛時隨機挑帶子裡的點走（順便換車道），前面有同伴擋路就換到另一側的車道，走不動也會重新挑路 */
+const VS_PATROL_DEPTH = 150;
 function vsPatrol(team) {
   const b = vsBase(team), o = vsBase(team === 'blue' ? 'red' : 'blue'), horiz = Math.abs(o.x - b.x) >= Math.abs(o.y - b.y);
-  if (horiz) return { horiz, fix: o.x > b.x ? b.x1 - 60 : b.x0 + 60, a0: b.y0 + 70, a1: b.y1 - 70 };
-  return { horiz, fix: o.y > b.y ? b.y1 - 60 : b.y0 + 60, a0: b.x0 + 70, a1: b.x1 - 70 };
+  // fix＝最外緣的那條線；inward＝往大本營內的方向（+1／−1）；f0～f1＝巡邏帶在固定軸上的範圍
+  if (horiz) { const out = o.x > b.x, fix = out ? b.x1 - 60 : b.x0 + 60, inward = out ? -1 : 1; return { horiz, fix, inward, f0: Math.min(fix, fix + inward * VS_PATROL_DEPTH), f1: Math.max(fix, fix + inward * VS_PATROL_DEPTH), a0: b.y0 + 70, a1: b.y1 - 70 }; }
+  const out = o.y > b.y, fix = out ? b.y1 - 60 : b.y0 + 60, inward = out ? -1 : 1;
+  return { horiz, fix, inward, f0: Math.min(fix, fix + inward * VS_PATROL_DEPTH), f1: Math.max(fix, fix + inward * VS_PATROL_DEPTH), a0: b.x0 + 70, a1: b.x1 - 70 };
 }
-const vsLinePt = (L, t) => (L.horiz ? { x: L.fix, y: clamp(t, L.a0, L.a1) } : { x: clamp(t, L.a0, L.a1), y: L.fix });
-function vsGuardPoint(team) { const L = vsPatrol(team); for (let n = 0; n < 20; n++) { const p = vsLinePt(L, rand(L.a0, L.a1)); if (!mapSolidAt(p.x, p.y, 50)) return p; } return vsLinePt(L, (L.a0 + L.a1) / 2); }
+// t：沿著巡邏帶的位置；f：固定軸的座標（沒給＝最外緣）
+const vsLinePt = (L, t, f) => { const ff = clamp(f ?? L.fix, L.f0, L.f1), tt = clamp(t, L.a0, L.a1); return L.horiz ? { x: ff, y: tt } : { x: tt, y: ff }; };
+const vsLaneRand = (L) => L.fix + L.inward * rand(0, VS_PATROL_DEPTH);   // 隨機車道（越靠外緣越常見也無妨）
+function vsGuardPoint(team) { const L = vsPatrol(team); for (let n = 0; n < 20; n++) { const p = vsLinePt(L, rand(L.a0, L.a1), vsLaneRand(L)); if (!mapSolidAt(p.x, p.y, 50)) return p; } return vsLinePt(L, (L.a0 + L.a1) / 2); }
 // 守衛：巨劍士原汁原味（生命、護盾、笨重的停下／起步、停下後頓一下才開火、雙機砲、每兩輪彈匣一次榴彈齊射、碰撞傷害）
 // 只在自己的大本營裡活動：沒有敵人時閒逛；大本營內（或外圍 260 內）有敵人就追過去開火，但不會走出大本營
 function vsGuardTick(g, dt) {
@@ -3193,11 +3200,33 @@ function vsGuardTick(g, dt) {
   }
   // 目的地：只在巡邏線上移動。有敵人：沿著線走到最接近敵人的位置（射程內就停下開火）；沒有：在線的兩端來回巡邏
   const PL = vsPatrol(g.vsTeam);
+  if (g.lane == null) g.lane = vsLaneRand(PL);
+  // 前方擋路：同隊守衛在自己前進方向上很近、而且車道差不多 → 換到巡邏帶的另一側
+  const along = (u) => (PL.horiz ? u.y : u.x), across = (u) => (PL.horiz ? u.x : u.y);
+  g.laneCd = Math.max(0, (g.laneCd || 0) - dt);
+  if (g.laneCd <= 0 && g.mode === 'walk') {
+    const dir = Math.sign(along(g.wander || g) - along(g)) || (g.pdir ? 1 : -1);
+    for (const o of vs.guards) {
+      if (o === g || o.dead || o.vsTeam !== g.vsTeam) continue;
+      const da = (along(o) - along(g)) * dir, dc = Math.abs(across(o) - g.lane);
+      if (da > 0 && da < (g.r + o.r) * 1.8 && dc < (g.r + o.r) * 0.9) {
+        const mid = (PL.f0 + PL.f1) / 2; g.lane = across(o) > mid ? rand(PL.f0, mid - 10) : rand(mid + 10, PL.f1); g.laneCd = 1.2; break;
+      }
+    }
+  }
+  // 走不動（被擠住）：1.5 秒內幾乎沒前進 → 重新挑一個隨機目的地和車道
+  g.stuckT = (g.stuckT || 0) + dt;
+  if (g.stuckT >= 1.5) { const moved = Math.hypot(g.x - (g.sx ?? g.x), g.y - (g.sy ?? g.y)); if (g.mode === 'walk' && moved < 20) { g.wander = null; g.lane = vsLaneRand(PL); g.wanderT = 0; } g.stuckT = 0; g.sx = g.x; g.sy = g.y; }
   let dest = null, wantStop;
-  if (tgt) { dest = vsLinePt(PL, PL.horiz ? tgt.y : tgt.x); wantStop = Math.hypot(dest.x - g.x, dest.y - g.y) < 40 || bd <= B.lockRange * 0.75; }
+  if (tgt) { dest = vsLinePt(PL, along(tgt), g.lane); wantStop = Math.hypot(dest.x - g.x, dest.y - g.y) < 40 || bd <= B.lockRange * 0.75; }
   else {
     g.wanderT -= dt;
-    if (!g.wander || (Math.hypot(g.wander.x - g.x, g.wander.y - g.y) < 40 && g.wanderT <= 0)) { g.pdir = !g.pdir; g.wander = vsLinePt(PL, g.pdir ? PL.a1 : PL.a0); g.wanderT = rand(1, 2.5); }
+    if (!g.wander || (Math.hypot(g.wander.x - g.x, g.wander.y - g.y) < 40 && g.wanderT <= 0)) {
+      // 隨機路徑：在巡邏帶裡挑一個離現在至少 200 的點，偶爾換車道
+      let t = along(g); for (let n = 0; n < 8 && Math.abs(t - along(g)) < 200; n++) t = rand(PL.a0, PL.a1);
+      if (Math.random() < 0.5) g.lane = vsLaneRand(PL);
+      g.wander = vsLinePt(PL, t, g.lane); g.pdir = t > along(g); g.wanderT = rand(0.8, 2.2);
+    }
     dest = g.wander; wantStop = Math.hypot(dest.x - g.x, dest.y - g.y) < 40;
   }
   const toward = Math.atan2(dest.y - g.y, dest.x - g.x);
@@ -3214,7 +3243,7 @@ function vsGuardTick(g, dt) {
   const k = g.mode === 'walk' ? 1 : g.mode === 'stopping' ? g.shiftT / B.shift : g.mode === 'starting' ? 1 - g.shiftT / B.shift : 0;
   if (k > 0) {
     moveWithCover(g, Math.cos(toward) * B.speed * k * dt, Math.sin(toward) * B.speed * k * dt);
-    if (PL.horiz) { g.x = PL.fix; g.y = clamp(g.y, PL.a0, PL.a1); } else { g.y = PL.fix; g.x = clamp(g.x, PL.a0, PL.a1); }   // 只能在巡邏線上
+    if (PL.horiz) { g.x = clamp(g.x, PL.f0, PL.f1); g.y = clamp(g.y, PL.a0, PL.a1); } else { g.y = clamp(g.y, PL.f0, PL.f1); g.x = clamp(g.x, PL.a0, PL.a1); }   // 只能在巡邏帶裡
   }
   g.moving = k > 0.05;
   g.cool -= dt;
