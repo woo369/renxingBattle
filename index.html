@@ -1102,9 +1102,9 @@ const CHARACTERS = {
     },
     // 蹲下射擊：跟機槍同一套開火方式（要蹲好才能開火、不能邊走邊射），蹲下／起身的時間是機槍（Kord）的一半
     mg: { stopTime: 0.18, downTime: 0.22, upTime: 0.2, downStill: 0.11, upStill: 0.11, accelTime: 0.3 },
-    anim: { scale: ASSETS.carc.scale, kick: 6, recoil: 0.18, runCycle: 0.3, backCycle: 0.36, bob: 0, aimUp: 20, aimDown: 20 },
+    anim: { scale: ASSETS.carc.scale, kick: 6, recoil: 0.18, runCycle: 0.33, backCycle: 0.4, bob: 0, aimUp: 20, aimDown: 20 },
     frames: {
-      carry: Array.from({ length: 16 }, (_, i) => 'mv' + String(i + 1).padStart(2, '0')),
+      carry: Array.from({ length: 18 }, (_, i) => 'mv' + String(i + 1).padStart(2, '0')),
       body: { idle: 'body_kneel', run: ['body_kneel'] },   // 蹲射：槍（含握槍的手）拆開轉向準星，挖掉的地方用沒拿槍的身體補
       rigKeys: { body_kneel: 'kneel' },
     },
@@ -2460,8 +2460,13 @@ function vsFighterTick(f, dt) {
   // 機槍：要開火就停下趴好；要移動就先起身
   let wantMove = true;
   if (mgOn(f)) {
-    if (canShoot && f.evadeT <= 0) { wantMove = false; f.prone = Math.min(1, f.prone + dt / D.mg.downStill); }
-    else if (f.prone > 0) { wantMove = false; f.prone = Math.max(0, f.prone - dt / D.mg.upStill); }
+    // 普通 AI：跑動中要開火，照玩家的規則用比較慢的「跑步中趴下」時間
+    // 精銳 AI：先把速度降到 0 再趴，趴下／起身更快（原地時間的 6 成）；換彈時目標還在射程內就繼續趴著，不起身亂跑
+    const M = D.mg, el = f.level === 'elite';
+    const down = el ? M.downStill * 0.6 : (f.moving ? M.downTime : M.downStill), up = el ? M.upStill * 0.6 : M.upStill;
+    const hold = el && tgt && f.reloadT > 0 && Math.hypot(tgt.x - f.x, tgt.y - f.y) <= range * 1.02;
+    if ((canShoot || hold) && f.evadeT <= 0) { wantMove = false; f.prone = Math.min(1, f.prone + dt / down); }
+    else if (f.prone > 0) { wantMove = false; f.prone = Math.max(0, f.prone - dt / up); }
   }
   // 移動
   let mv = null;
