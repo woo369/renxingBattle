@@ -1428,9 +1428,10 @@ const CHARACTERS = {
       aim: 1,                    // 瞄準 1 秒
       speedMul: 4,               // 強化子彈 4 倍速度
       multMin: 5, multMax: 10,   // 1 層 5 倍 → 7 層 10 倍（中間平均分配）
-      killCharge: 3, chainMax: 3,   // 強化子彈擊殺：+3 層蓄力並立刻再射一發（不用瞄準），最多連續 3 次
+      killCharge: 3, chainMax: 3,   // 強化子彈擊殺：+3 層蓄力並再瞄準 1 秒射一發，最多連續 3 次
+      cloneShots: 2,             // 施放時隨機 2 個擴編人形一起射強化子彈
       cooldown: 9,
-      desc: '被動：技能冷卻結束後，每秒獲得 1 層蓄力，最多 7 層。普通攻擊與強化子彈對生命高於 50% 的敵人傷害 +10%。\n主動：瞄準 1 秒後射出 4 倍速度的強化子彈，消耗全部蓄力，造成 5～10 倍傷害（1 層 5 倍、7 層 10 倍），並無視護盾。強化子彈擊殺目標時，獲得 3 層蓄力並立刻再射出一發強化子彈（不用瞄準），最多連續 3 次。\n冷卻 9 秒。',
+      desc: '被動：技能冷卻結束後，每秒獲得 1 層蓄力，最多 7 層。普通攻擊與強化子彈對生命高於 50% 的敵人傷害 +10%。\n主動：瞄準 1 秒後射出 4 倍速度的強化子彈，消耗全部蓄力，造成 5～10 倍傷害（1 層 5 倍、7 層 10 倍），並無視護盾。施放時隨機抽 2 個擴編人形一起瞄準並射出強化子彈。強化子彈擊殺目標時，獲得 3 層蓄力，再瞄準 1 秒射出下一發強化子彈，最多連續 3 次。\n冷卻 9 秒。',
     },
     equipment: ['ntw_cape', 'ntw_hei'],   // 專屬裝備（圖鑑顯示；高難度模式開放）
     portrait: 'portrait_ntw',
@@ -2818,7 +2819,7 @@ function vsFighterTick(f, dt) {
   painPassive(f);
   tickEffects(f, dt); for (const c of f.clones) tickEffects(c, dt);
   tickSakura(f, dt); for (const c of f.clones) tickSakura(c, dt);
-  tickHunt(f, dt);
+  tickHunt(f, dt); for (const c of f.clones) tickHuntClone(c, dt);
   if (f.vsTeam !== vs.myTeam) for (const u of [f, ...f.clones]) if (u.gold && u.gold.length) { for (const g of u.gold) g.t -= dt; u.gold = u.gold.filter((g) => g.t > 0); }   // 敵隊的金盾（友隊由 tickGold 處理）
   if (f.reloadT > 0) {
     f.reloadT -= dt;
@@ -4402,7 +4403,7 @@ let best = Number(store.get('rxxlc-best')) || 0;
    每個人形／敵人的動畫圖放在 assets/<素材包>.json；網頁本身只帶設定（meta）與介面圖（ui）。
    離線單檔版會把圖片直接打包進網頁，這時就不用另外下載。 */
 const ASSET_BASE = 'assets/';
-const ASSET_VER = {"triple_crown":"42a6eaf59e","hk433":"df9cc9f7f7","type82":"19d6eb08aa","mh":"d23c2759a3","ouro":"ab4a21e936","cyc":"e3e7f09e34","meye":"a41da84ea9","hb":"dba320370d","dreamer":"87285c47db","scarecrow":"498db0f898","xm":"08da1bca4f","wasp":"0d68029acb","beast":"c322e71a84","lion":"3c116d5e13","intr":"e0de4d19e7","ceye":"82a6aca9a7","cent":"c58be64dbf","sws":"54ff5cb0d8","ouroE":"28421ec974","arch":"fcf8a15108","judge":"0904b780f7","lycan":"21ec39a3b9","aegis":"722f1b93d1","scep":"80de946a2c","hind":"a262c79af5","ti":"07477aefc9","lcan":"5b4b46404f","aeq":"3b96bb238d","scout":"cd3b141af2","hammer":"b9220bbb9f","gsw":"43b26bea32","mino":"169c3bf368","agent":"462fa8a126","de":"a0d77eed11","vhs":"48d898f5b3","sp9":"d43d1c3717","sat8":"59d571a15b","m110":"12ad1ce260","kord":"f4dbe7d0e1","t561":"5c635a3d9d","rpk":"29db8d90a9","x95":"7e54a51692","carc":"e53118059f","hydra":"b369a4278c","quail":"5bc9991ecd","wb":"a1920ee4d7","aa12":"c0b5a9004a","t100":"63d9404ba2","mg4":"b55fb8363b","an94":"3070abd310","m950":"e7757f6551","ntw":"e9fc49dcff","class_SG":"ec0862e8f0","class_AR":"f86d58b274","class_SMG":"fceb08bbb1","class_RF":"c107da1c64","class_HG":"f6305e910b","class_MG":"be1790479a","codex_enemy":"5234fb3af5"};   // 素材檔的內容雜湊（拆檔版）：網址帶版本，更新後不會吃到瀏覽器裡的舊快取
+const ASSET_VER = {"triple_crown":"42a6eaf59e","hk433":"df9cc9f7f7","type82":"19d6eb08aa","mh":"d23c2759a3","ouro":"ab4a21e936","cyc":"e3e7f09e34","meye":"a41da84ea9","hb":"dba320370d","dreamer":"87285c47db","scarecrow":"498db0f898","xm":"08da1bca4f","wasp":"0d68029acb","beast":"c322e71a84","lion":"3c116d5e13","intr":"e0de4d19e7","ceye":"82a6aca9a7","cent":"c58be64dbf","sws":"54ff5cb0d8","ouroE":"28421ec974","arch":"fcf8a15108","judge":"0904b780f7","lycan":"21ec39a3b9","aegis":"722f1b93d1","scep":"80de946a2c","hind":"a262c79af5","ti":"07477aefc9","lcan":"5b4b46404f","aeq":"3b96bb238d","scout":"cd3b141af2","hammer":"b9220bbb9f","gsw":"43b26bea32","mino":"169c3bf368","agent":"462fa8a126","de":"a0d77eed11","vhs":"48d898f5b3","sp9":"d43d1c3717","sat8":"59d571a15b","m110":"12ad1ce260","kord":"f4dbe7d0e1","t561":"5c635a3d9d","rpk":"29db8d90a9","x95":"7e54a51692","carc":"e53118059f","hydra":"b369a4278c","quail":"5bc9991ecd","wb":"a1920ee4d7","aa12":"c0b5a9004a","t100":"63d9404ba2","mg4":"b55fb8363b","an94":"3070abd310","m950":"e7757f6551","ntw":"7b558a5c50","class_SG":"ec0862e8f0","class_AR":"f86d58b274","class_SMG":"fceb08bbb1","class_RF":"c107da1c64","class_HG":"f6305e910b","class_MG":"be1790479a","codex_enemy":"5234fb3af5"};   // 素材檔的內容雜湊（拆檔版）：網址帶版本，更新後不會吃到瀏覽器裡的舊快取
 const assetUrl = (name) => ASSET_BASE + name + '.json' + (ASSET_VER[name] ? '?v=' + ASSET_VER[name] : '');
 const packOf = (assets) => Object.keys(ASSETS).find((k) => ASSETS[k] === assets);
 const packBox = {};                                  // 素材包 → 解碼後的圖片放在 imgs 的哪一格
@@ -5909,7 +5910,24 @@ function castHunt(u, sk) {
   u.huntAim = sk.aim; u.huntChain = 0;
   u.skillCd = sk.cooldown * Math.max(0.1, 1 + effSum(u, 'cdr'));   // 密林迷彩披風：冷卻 −50%
   floatText(u.x, u.y - 52, '瞄準…', '#ff7043');
+  // 擴編人形：隨機抽 2 個一起瞄準 1 秒、射出同樣倍率的強化子彈（倍率用施放當下的蓄力）
+  const pool = (u === player ? clones.filter((c) => c.def === cfg) : u.clones).filter((c) => !c.dead && !(c.huntAim > 0));
+  for (let i = pool.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [pool[i], pool[j]] = [pool[j], pool[i]]; }
+  for (const c of pool.slice(0, sk.cloneShots || 2)) { c.huntAim = sk.aim; c.huntMul = huntMult(sk, u.huntCharge || 0); c.huntOwner = u; }
 }
+// 擴編人形的強化子彈
+function huntCloneFire(c) {
+  const o = c.huntOwner, sk = o && huntSk(o); if (!sk || c.dead) return;
+  HUNT.on = true; HUNT.mult = c.huntMul || sk.multMin;
+  if (o === player) {
+    const wp = cfg.weapon, mz = muzzleWorld(c), a = c.angle ?? player.angle, sp = rand(wp.speed[0], wp.speed[1]) * sk.speedMul, life = bulletRange(cfg) / sp;
+    bullets.push({ x: mz.x, y: mz.y, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp, age: 0, life, maxLife: life, r: wp.radius + 1.5, team: 'p', dist: 0, fromClone: true, src: c, def: cfg, huntEnh: true,
+      buff: HUNT.mult * (1 + effSum(c, 'dmg') + ownShare(c, 'dmg')), res: 1 + effSum(c, 'dmg') + ownShare(c, 'dmg'), crit: unitCrit(c) + ownShare(c, 'crit'), purple: false, apv: apOf(c, cfg, true), flat: effSum(c, 'dmgFlat') + ownShare(c, 'dmgFlat'), cdm: effSum(c, 'critDmg') + ownShare(c, 'critDmg') });
+    burst(mz.x, mz.y, '#ff7043', 6);
+  } else { const t = o.target; vsShoot(o, c, t ? Math.atan2(t.y - c.y, t.x - c.x) : c.angle); }
+  HUNT.on = false; c.huntOwner = null;
+}
+function tickHuntClone(c, dt) { if (c && c.huntAim > 0) { c.huntAim -= dt; if (c.huntAim <= 0) { c.huntAim = 0; huntCloneFire(c); } } }
 function huntFire(u) {
   const sk = huntSk(u); if (!sk || u.dead) return;
   const n = u.huntCharge || 0; HUNT.on = true; HUNT.mult = huntMult(sk, n); u.huntCharge = 0; u.huntT = 0; huntBadge(u);
@@ -5919,10 +5937,10 @@ function huntFire(u) {
 }
 // 強化子彈擊殺：+3 層並立刻再射一發（最多連續 3 次）
 function huntKill(src) {
-  const o = !src || src === player ? player : (src.lead || src), sk = huntSk(o); if (!sk) return;
+  const o = !src || src === player || clones.includes(src) ? player : (src.lead || src), sk = huntSk(o); if (!sk) return;
   if ((o.huntChain || 0) >= sk.chainMax) return;
   o.huntChain = (o.huntChain || 0) + 1; o.huntCharge = Math.min(sk.chargeMax, (o.huntCharge || 0) + sk.killCharge); huntBadge(o);
-  o.huntAim = 0.05;   // 不用瞄準：下一刻直接射出
+  o.huntAim = sk.aim;   // 再瞄準 1 秒後射出下一發
   floatText(o.x, o.y - 62, '連鎖狂獵 ' + o.huntChain + '/' + sk.chainMax, '#ffab91');
 }
 function tickHunt(u, dt) {
@@ -8566,7 +8584,7 @@ function update(dt) {
   }
   tickEffects(player, dt); for (const c of clones) tickEffects(c, dt);
   tickSakura(player, dt); for (const c of clones) tickSakura(c, dt);
-  tickJam(dt); tickHunt(player, dt);
+  tickJam(dt); tickHunt(player, dt); for (const c of clones) tickHuntClone(c, dt);
   if (player.dodgeT > 0) {
     // 撲出去：先快後慢，期間不能轉向、不能開火
     const dm = cfg.dodgeMove, k = player.dodgeT / dm.time;
@@ -9199,7 +9217,7 @@ function draw(t) {
     else if (k === 'e' && it.boss) ({ quail: drawQuail, dreamer: drawDreamer, scarecrow: drawScarecrow, interferer: drawInterferer, architect: drawArchitect, judge: drawJudge, lycaon: drawLycaon, ti: drawTi, greatsword: drawGreatsword, minotaur: drawMinotaur, agent: drawAgent }[it.B.ai] || drawBoss)(it);
     else if (k === 'm') {
       // 擴編分身
-      ctx.save(); drawCharacter(it, false); ctx.restore(); drawSakura(it);
+      ctx.save(); drawCharacter(it, false); ctx.restore(); drawSakura(it); drawHuntAim(it);
       if (it.hp < it.maxHp || it.shield > 0 || goldSum(it) > 0) {
         upright(q, it.x, it.y);
         ctx.fillStyle = '#d23b3b'; ctx.fillRect(it.x - 16, it.y - 44, 32, 4);
