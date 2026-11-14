@@ -4338,6 +4338,8 @@ let best = Number(store.get('rxxlc-best')) || 0;
    每個人形／敵人的動畫圖放在 assets/<素材包>.json；網頁本身只帶設定（meta）與介面圖（ui）。
    離線單檔版會把圖片直接打包進網頁，這時就不用另外下載。 */
 const ASSET_BASE = 'assets/';
+const ASSET_VER = {"triple_crown":"42a6eaf59e","hk433":"df9cc9f7f7","type82":"19d6eb08aa","mh":"d23c2759a3","ouro":"ab4a21e936","cyc":"e3e7f09e34","meye":"a41da84ea9","hb":"dba320370d","dreamer":"87285c47db","scarecrow":"498db0f898","xm":"08da1bca4f","wasp":"0d68029acb","beast":"c322e71a84","lion":"3c116d5e13","intr":"e0de4d19e7","ceye":"82a6aca9a7","cent":"c58be64dbf","sws":"54ff5cb0d8","ouroE":"28421ec974","arch":"fcf8a15108","judge":"0904b780f7","lycan":"21ec39a3b9","aegis":"722f1b93d1","scep":"80de946a2c","hind":"a262c79af5","ti":"07477aefc9","lcan":"5b4b46404f","aeq":"3b96bb238d","scout":"cd3b141af2","hammer":"b9220bbb9f","gsw":"43b26bea32","mino":"169c3bf368","agent":"462fa8a126","de":"a0d77eed11","vhs":"48d898f5b3","sp9":"d43d1c3717","sat8":"59d571a15b","m110":"12ad1ce260","kord":"f4dbe7d0e1","t561":"5c635a3d9d","rpk":"29db8d90a9","x95":"7e54a51692","carc":"e53118059f","hydra":"b369a4278c","quail":"5bc9991ecd","wb":"a1920ee4d7","aa12":"c0b5a9004a","t100":"63d9404ba2","mg4":"b55fb8363b","an94":"3070abd310","m950":"3fc5b98939","class_SG":"ec0862e8f0","class_AR":"f86d58b274","class_SMG":"fceb08bbb1","class_RF":"43c6707d43","class_HG":"064c3200b9","class_MG":"be1790479a","codex_enemy":"5234fb3af5"};   // 素材檔的內容雜湊（拆檔版）：網址帶版本，更新後不會吃到瀏覽器裡的舊快取
+const assetUrl = (name) => ASSET_BASE + name + '.json' + (ASSET_VER[name] ? '?v=' + ASSET_VER[name] : '');
 const packOf = (assets) => Object.keys(ASSETS).find((k) => ASSETS[k] === assets);
 const packBox = {};                                  // 素材包 → 解碼後的圖片放在 imgs 的哪一格
 for (const def of Object.values(CHARACTERS)) packBox[packOf(def.assets)] = def.id;
@@ -4348,7 +4350,7 @@ function ensurePack(pid) {
   if (packLoading[pid]) return packLoading[pid];
   const A = ASSETS[pid];
   const got = !A.split ? Promise.resolve()          // 離線單檔版：圖片已經在網頁裡
-    : fetch(ASSET_BASE + pid + '.json').then((r) => { if (!r.ok) throw new Error(pid); return r.json(); }).then((d) => { Object.assign(A.imgs, d); });
+    : fetch(assetUrl(pid)).then((r) => { if (!r.ok) throw new Error(pid); return r.json(); }).then((d) => { Object.assign(A.imgs, d); });
   const box = imgs[packBox[pid]] = imgs[packBox[pid]] || {};
   packLoading[pid] = got.then(() => Promise.all(Object.entries(A.imgs).map(([name, src]) => new Promise((res, rej) => {
     const im = new Image();
@@ -4672,7 +4674,7 @@ function ensureClass(cls) {
   if (classLoading[cls]) return classLoading[cls];
   const missing = charsOf(cls).some((d) => !previewOf(d) || !ASSETS.ui[d.portrait]);
   const p = !missing ? Promise.resolve()
-    : fetch(ASSET_BASE + 'class_' + cls + '.json').then((r) => { if (!r.ok) throw new Error(cls); return r.json(); }).then((d) => {
+    : fetch(assetUrl('class_' + cls)).then((r) => { if (!r.ok) throw new Error(cls); return r.json(); }).then((d) => {
       for (const [pid, o] of Object.entries(d)) {
         if (ASSETS[pid] && !ASSETS[pid].imgs.idle) ASSETS[pid].imgs.idle = o.preview;
         ASSETS.ui[o.portraitKey] = o.portrait;
@@ -5032,7 +5034,7 @@ function buildEnemyCodex(id) {
 let ecodexLoading = null;
 function ensureEnemyCodex() {
   if (!ecodexLoading) ecodexLoading = (ASSETS.ui.codex_cyc ? Promise.resolve()
-    : fetch(ASSET_BASE + 'codex_enemy.json').then((r) => { if (!r.ok) throw new Error('codex'); return r.json(); }).then((d) => { Object.assign(ASSETS.ui, d); }))
+    : fetch(assetUrl('codex_enemy')).then((r) => { if (!r.ok) throw new Error('codex'); return r.json(); }).then((d) => { Object.assign(ASSETS.ui, d); }))
     .catch((err) => { ecodexLoading = null; throw err; });
   return Promise.all([ecodexLoading, ensureClass(CHARACTERS[selectedId].weapon.class)]);
 }
