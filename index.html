@@ -2937,7 +2937,7 @@ function vsSteer(f, ang, step) {
 function vsReload(f) {
   const wp = f.def.weapon;
   if (f.reloadT > 0 || f.ammo >= wp.magazine) return;
-  f.reloadT = wp.reloadMode === 'shell' ? wp.reload * (wp.magazine - f.ammo) : reloadOf(f, D);
+  f.reloadT = wp.reloadMode === 'shell' ? wp.reload * (wp.magazine - f.ammo) : reloadOf(f, f.def);
   foxToAR(f);
 }
 // 思考（每 0.15～0.25 秒一次）：選目標、決定要站的位置、技能、擴編
