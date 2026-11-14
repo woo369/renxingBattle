@@ -1438,9 +1438,9 @@ const CHARACTERS = {
     // 趴下／起身是 Kord 的 0.8 倍（比 Kord 快）；停下、起步沿用 Kord
     mg: { stopTime: 0.35, downTime: 0.36, upTime: 0.32, downStill: 0.176, upStill: 0.176, accelTime: 0.6 },
     // 趴射：機槍擋住大半身體，挖掉後頭部用站立的未持槍素材補、身體用躺下的未持槍素材補；槍只上下轉 ±14°
-    anim: { scale: ASSETS.mg4.scale, kick: 4, recoil: 0.06, runCycle: 0.48, backCycle: 0.62, bob: 0, aimUp: 14, aimDown: 14 },
+    anim: { scale: ASSETS.mg4.scale, kick: 4, recoil: 0.06, runCycle: 0.3, backCycle: 0.36, bob: 0, aimUp: 14, aimDown: 14 },
     frames: {
-      carry: Array.from({ length: 28 }, (_, i) => 'mv' + String(i + 1).padStart(2, '0')),   // 跑步影片第 4～28 幀＋3 張接回開頭的過渡幀
+      carry: Array.from({ length: 18 }, (_, i) => 'mv' + String(i + 1).padStart(2, '0')),   // 跑步影片的穩定段（第 14～28 幀，馬尾一直甩在後面）＋3 張接回開頭的過渡幀
       body: { idle: 'body_idle', run: ['body_idle'] },
       rigKeys: { body_idle: 'idle' },
     },
@@ -1454,7 +1454,7 @@ const CHARACTERS = {
       overflow: 0.5,             // 特殊彈藥：穿甲值溢出（穿甲 − 目標護甲）的 50% 轉成額外傷害
       stack: { id: 'haunt_stack', per: 0.05, max: 8, time: 20 },   // 特殊彈藥沒被格擋：自身傷害 +5%／層，20 秒，最多 8 層
       cooldown: 15,              // 冷卻 15 秒（施放時開始計算）
-      desc: '被動：自身的子彈帶有 20 點穿甲值——命中時先用穿甲值抵銷目標的護甲，再計算格擋與傷害。\n主動：立刻補滿彈藥，並獲得 10 發特殊彈藥（優先射出、不消耗彈鏈），自身傷害 +50%，持續 8 秒。\n特殊彈藥：穿甲值超過目標護甲的部分，取 50% 轉成額外傷害（例：目標護甲 10、穿甲 20 → 溢出 10 → 額外 5 傷害）；沒有被格擋時，自身傷害再 +5%，持續 20 秒，最多疊 8 層（再次觸發會重置時間）。\n冷卻 15 秒（施放時開始計算）。',
+      desc: '被動：自身的子彈帶有 20 點穿甲值。\n主動：立刻補滿彈藥，並獲得 10 發特殊彈藥（優先射出、不消耗彈鏈），自身傷害 +50%，持續 8 秒。\n特殊彈藥：穿甲值超過目標護甲的部分，取 50% 轉成額外傷害（例：目標護甲 10、穿甲 20 → 溢出 10 → 額外 5 傷害）；沒有被格擋時，自身傷害再 +5%，持續 20 秒，最多疊 8 層（再次觸發會重置時間）。\n冷卻 15 秒（施放時開始計算）。',
     },
     equipment: ['mg4_headset', 'mg4_slap'],   // 專屬裝備（圖鑑顯示；高難度模式開放）
     portrait: 'portrait_mg4',
