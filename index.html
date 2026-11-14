@@ -1217,10 +1217,10 @@ const CHARACTERS = {
       anim: 0.1,
       sound: 'rifle',
     },
-    // 單手持槍：持槍的手＋槍會轉向準星；奔跑一圈 28 幀＋2 張接回開頭的過渡幀
-    anim: { scale: ASSETS.m950.scale, kick: 5, recoil: 0.14, runCycle: 0.5, backCycle: 0.58, bob: 0 },
+    // 單手持槍：持槍的手＋槍會轉向準星；奔跑一圈 28 幀＋6 張接回開頭的過渡幀（影片少錄的那幾幀）
+    anim: { scale: ASSETS.m950.scale, kick: 5, recoil: 0.14, runCycle: 0.57, backCycle: 0.66, bob: 0 },
     frames: {
-      carry: Array.from({ length: 30 }, (_, i) => 'mv' + String(i + 1).padStart(2, '0')),
+      carry: Array.from({ length: 34 }, (_, i) => 'mv' + String(i + 1).padStart(2, '0')),
       body: { idle: 'body_idle', run: Array.from({ length: 7 }, (_, i) => 'body_run' + (i + 1)) },
       rigKeys: Object.fromEntries([['body_idle', 'idle'], ...Array.from({ length: 7 }, (_, i) => ['body_run' + (i + 1), 'run' + (i + 1)])]),
     },
