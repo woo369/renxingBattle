@@ -1846,7 +1846,7 @@ const LEVELS = [
   { id: 'training', name: '訓練場', open: true, desc: '無限延伸的戰場，與跟你相同角色的影子敵人持續對戰，看能撐多久。' },
   { id: 'war', name: '戰事', open: true, desc: '三階段的戰事，敵人會階段性地變強，每個階段末尾都會出現 Boss，擊敗第三階段的 Boss 即過關。' },
   { id: 'duel', name: '菁英對決', open: true, desc: '入場 5 秒後出現一名隨機精英敵人，擊敗它即可過關。精英以三階的強度為基準，一階、二階精英會依類型強化到相同水準。場上會定時出現零件與醫療箱。' },
-  { id: 'night', name: '夜戰', open: true, desc: '在漆黑的野外作戰，分成三個階段，跟戰事一樣每階段末尾會出現 Boss。手槍的視野 500，其他槍種只有 200（隊伍裡有手槍人形時提高到 450）；所有單位迴避率 +20%。只能帶一名人形出擊，撿到通訊器後可以呼叫遠處的友方人形支援，最多再帶兩名隊友，並且可以切換操控；零件全隊共用，改用來強化目前操控的人形（子彈傷害、生命 ×1.5，最多 5 次）。前 3 分鐘是準備階段，敵人很少。' },
+  { id: 'night', name: '夜戰', open: true, desc: '在漆黑的野外作戰，分成三個階段，跟戰事一樣每階段末尾會出現 Boss。手槍的視野 500，其他槍種只有 200（隊伍裡有手槍人形時提高到 450），且每名手槍人形讓全隊命中 +20%；所有單位迴避率 +20%。只能帶一名人形出擊，撿到通訊器後可以呼叫遠處的友方人形支援，最多再帶三名隊友，並且可以切換操控；零件全隊共用，改用來強化目前操控的人形（子彈傷害、生命 ×1.2，最多 5 次）。前 3 分鐘是準備階段，敵人很少。' },
   { id: 'test', name: '測試模式', open: true, desc: '不會自動出怪，可以自選召喚任何敵人或精英，零件無限。' },
   { id: 'battle', name: '戰局', open: true, desc: '（開發中）100×100 格的大地圖，之後會做成 7 打 7 的戰局。地圖上有三個佔領點，站在點上就能佔領；山、房屋、樹木會擋路與子彈，樹林會遮擋視線。左上角是小地圖，按 M 或點小地圖可以打開全圖（單位會變成點）。' },
   { id: 'versus', name: '雲圖對戰', open: true, desc: '（開發中）5 打 5 的團隊對戰，所有人形的生命都是原本的 3 倍，60×30 格的長條地圖，藍隊、紅隊的大本營在左右兩側。擊倒敵方人形本體得 1 分，先到 30 分獲勝；初始零件 10，地圖中間會出現零件和醫療包，擊倒敵人可拿走對方 50% 的零件。可以加入普通或精銳 AI，倒下 5 秒後重生。大本營有會無限重生的守衛，會攻擊太靠近的敵人。' },
@@ -2225,7 +2225,7 @@ const DUEL_PHASES = [
 const TEST_PHASES = [{ name: '測試模式', end: Infinity, spawnTable: [], initial: 0, packs: [], test: true, infiniteParts: true }];
 const BATTLE_PHASES = [{ name: '戰局', end: Infinity, spawnTable: [], initial: 0, packs: [], bigmap: true, noParts: true }];   // 戰局：沒有零件（也不能擴編）
 const VERSUS_PHASES = [{ name: '雲圖對戰', end: Infinity, spawnTable: [], initial: 0, packs: [], bigmap: true, versus: true, startParts: 10 }];   // 對戰：零件由對戰模式自己生成
-// 夜戰：敵人與 Boss 照戰事的三個階段，地圖換成野外地形；通訊器每 40 秒出現一個（手上＋場上＋隊友加起來最多 2）
+// 夜戰：敵人與 Boss 照戰事的三個階段，地圖換成野外地形；通訊器每 40 秒出現一個（手上＋場上＋隊友加起來最多 3）
 const NIGHT_PHASES = [
   { ...WAR_PHASES[0], name: '準備階段', initial: 1, spawn: { every: 9, min: 7, max: 3 }, bossPool: null, bossReward: null, prep: true },   // 前 3 分鐘：只會出現少量敵人，沒有 Boss，時間到直接進第二階段
   WAR_PHASES[1], WAR_PHASES[2],   // 3:00～6:00 第二階段、之後第三階段（暫時沿用戰事的敵人表，之後換成夜戰專用的）
@@ -5504,15 +5504,20 @@ function refreshCharHud() {
 }
 /* ───────── 夜戰：視野、強化、通訊器、支援人形、隊友 ───────── */
 const NIGHT_VISION = { HG: 500, other: 200, withHG: 450 };   // 視野半徑：手槍 500、其他槍種 200；隊伍裡有手槍人形時其他人形提高到 450
-const NIGHT_ENH = { max: 5, mul: 1.5 };         // 強化：子彈傷害、生命 ×1.5，最多 5 次（花費同擴編）
+const NIGHT_ENH = { max: 5, mul: 1.2 };         // 強化：子彈傷害、生命 ×1.5，最多 5 次（花費同擴編）
 const NIGHT_ELITE = { chance: 0.15, cost: 10, dodgeCd: 2.5 };   // 通訊器有 15% 機率呼叫到精銳 AI 的人形，邀請時多花 10 零件
-const NIGHT = { teamMax: 2, inviteR: 150, spawnMin: 900, spawnMax: 1300, bgScale: 0.8 };   // 最多 2 名隊友；靠近支援人形 150 內可以邀請；支援人形出現在 900～1300 外
+const NIGHT = { teamMax: 3, inviteR: 150, spawnMin: 900, spawnMax: 1300, bgScale: 0.8 };   // 最多 2 名隊友；靠近支援人形 150 內可以邀請；支援人形出現在 900～1300 外
 const visionR = () => (isNight() && player ? (cfg.weapon.class === 'HG' ? NIGHT_VISION.HG : nightAllies().some((c) => c.def.weapon.class === 'HG') ? NIGHT_VISION.withHG : NIGHT_VISION.other) : Infinity);
+const NIGHT_HG_ACC = 0.2;   // 隊伍增益：隊伍裡每有一名手槍人形，全隊命中 +20%（抵銷敵人的迴避率，最低扣到 0）
+const nightAcc = () => (isNight() && player && (state === 'play' || state === 'pause') ? NIGHT_HG_ACC * nightOrder().filter((u) => u.def.weapon.class === 'HG').length : 0);
 const enhMul = (u) => Math.pow(NIGHT_ENH.mul, (u && u.enh) || 0);
-let nightComms = 0, commItems = [], commClock = 0, station = null, nightSwapCd = 0;
+let nightComms = 0, commItems = [], commClock = 0, station = null, nightSwapCd = 0, nightTeam = [];
+// 隊伍順序＝加入順序（出擊的人形排第一）；只留還活著的
+function nightOrder() { if (player && !nightTeam.includes(player) && !nightTeam.length) nightTeam.push(player); return nightTeam.filter((u) => u === player || (u.nightAlly && u.hp > 0 && clones.includes(u))); }
+const nightStep = (dir) => { const O = nightOrder(), i = O.indexOf(player); return O.length > 1 ? O[(i + dir + O.length) % O.length] : null; };
 const nightAllies = () => clones.filter((c) => c.nightAlly && c.hp > 0);
 const nightTeamIds = () => isNight() && player ? [player.def.id, ...nightAllies().map((c) => c.def.id), ...(station ? [station.unit.def.id] : [])] : [];
-function nightReset() { nightComms = 0; commItems = []; commClock = 20; station = null; nightSwapCd = 0; nightChunks.clear(); nightNear.clear(); chunks.clear(); coverCache = null; }   // 地圖區塊重建（夜戰不放木箱）
+function nightReset() { nightComms = 0; commItems = []; commClock = 20; station = null; nightSwapCd = 0; nightTeam = []; nightAccShown = -1; nightChunks.clear(); nightNear.clear(); chunks.clear(); coverCache = null; }   // 地圖區塊重建（夜戰不放木箱）
 function nightEnhance() {
   const D = cfg, cost = expandCost(D), lv = player.enh || 0;
   if (state !== 'play' || partCount < cost || lv >= NIGHT_ENH.max) return;
@@ -5522,7 +5527,14 @@ function nightEnhance() {
   updateParts();
 }
 function nightSpace() { return nightAllies().length + (station ? 1 : 0); }
+let nightAccShown = -1;
 function nightTick(dt) {
+  const acc = Math.round(nightAcc() * 100);
+  if (acc !== nightAccShown || !(player.effects || []).some((x) => x.id === 'night_acc') !== !acc) {
+    for (const u of [player, ...clones]) if (u.effects) u.effects = u.effects.filter((x) => x.id !== 'night_acc');
+    if (acc) (player.effects || (player.effects = [])).push({ id: 'night_acc', name: '手槍支援：全隊命中 +' + acc + '%（抵銷敵人迴避）', mark: '準' + acc, color: '#ffe08a', perm: true, t: 1, max: 1, from: 'self' });
+    nightAccShown = acc; renderEffects(true);
+  }
   nightSwapCd = Math.max(0, nightSwapCd - dt); if (nightSwapCd > 0) updateSwap();
   // 通訊器：定時出現在玩家附近
   commClock -= dt;
@@ -5570,7 +5582,7 @@ function nightInvite(yes) {
   if (yes && nightAllies().length < NIGHT.teamMax) {
     if (station.elite) { partCount -= NIGHT_ELITE.cost; updateParts(); u.eliteAI = true; }
     Object.assign(u, { clone: true, nightAlly: true, slot: CLONE_SLOTS[nightAllies().length % 4], invT: 0.6, moving: false, aiming: false, shot: 0, trail: [] });
-    clones.push(u); burst(u.x, u.y, '#6fe39a', 18); floatText(u.x, u.y - 60, (u.eliteAI ? '【精銳】' : '') + D_name(u) + ' 加入隊伍', u.eliteAI ? '#ffd76a' : '#6fe39a'); sfx.skill();
+    clones.push(u); nightOrder(); nightTeam.push(u); burst(u.x, u.y, '#6fe39a', 18); floatText(u.x, u.y - 60, (u.eliteAI ? '【精銳】' : '') + D_name(u) + ' 加入隊伍', u.eliteAI ? '#ffd76a' : '#6fe39a'); sfx.skill();
   } else { burst(station.x, station.y, '#9fb8bf', 12); floatText(station.x, station.y - 60, D_name(u) + ' 離開了', '#9fb8bf'); }
   station = null; updateSwap();
 }
@@ -5589,7 +5601,7 @@ function nightSwap(a, oldDead) {
   burst(player.x, player.y, '#9cc6ff', 14); floatText(player.x, player.y - 56, '操控：' + cfg.name, '#cfe3ff');
   refreshCharHud(); updateParts(); return true;
 }
-function nightSwapNext() { const A = nightAllies(); if (!A.length || nightSwapCd > 0) return false; return nightSwap(A[0], false); }
+function nightSwapNext(dir = 1) { const t = nightStep(dir); if (!t || nightSwapCd > 0) return false; return nightSwap(t, false); }
 // 隊友 AI：用雲圖對戰的 AI（普通 AI／精銳 AI，含技能、躲子彈），在一個暫時的對戰沙盒裡跑
 const NIGHT_VS = { myTeam: 'blue', night: true, intel: {}, score: { blue: 0, red: 0 } };
 let nightProxy = null;
@@ -5619,9 +5631,17 @@ function nightLeash(f, tgt, goal) {
     if (goal) { const gx = goal.x - P.x, gy = goal.y - P.y, gd = Math.hypot(gx, gy); if (gd > maxD) goal = { x: P.x + gx / gd * maxD, y: P.y + gy / gd * maxD }; }
     return goal;
   }
-  if (dP > maxD) { const k = 200 / dP; return { x: P.x + (f.x - P.x) * k, y: P.y + (f.y - P.y) * k }; }   // 太遠：走回 200 附近
-  if (dP < 50) { const a = Math.atan2(f.y - P.y, f.x - P.x) || f.seed; return { x: P.x + Math.cos(a) * 120, y: P.y + Math.sin(a) * 120 }; }   // 太近：讓開一點
-  return null;   // 50～300 之間：自由站著
+  // 沒有敵人：在玩家周圍 300 內隨機巡邏（當作視野），每 2.5～5 秒換一個點；點離玩家太遠（玩家走掉了）就重選
+  const bad = !f.wander || gameTime > f.wanderUntil || Math.hypot(f.wander.x - P.x, f.wander.y - P.y) > 300 || Math.hypot(f.wander.x - f.x, f.wander.y - f.y) < 20;
+  if (bad) {
+    for (let n = 0; n < 8; n++) {
+      const a = Math.random() * Math.PI * 2, r = 110 + Math.random() * 180, x = P.x + Math.cos(a) * r, y = P.y + Math.sin(a) * r;
+      if (!mapSolidAt(x, y, 30)) { f.wander = { x, y }; break; }
+    }
+    f.wanderUntil = gameTime + 2.5 + Math.random() * 2.5;
+  }
+  if (dP > maxD + 40) return { x: P.x + (f.x - P.x) * 200 / dP, y: P.y + (f.y - P.y) * 200 / dP };   // 太遠：先走回來
+  return f.wander ? { x: f.wander.x, y: f.wander.y } : null;
 }
 // 敵人的目標：玩家與 AI 隊友中最近的一個（每 1.2 秒重選一次；玩家稍微優先）
 function nightEnemyTarget(e) {
@@ -5809,8 +5829,8 @@ function swapChar(forced) {
 function updateSwap() {
   const b = $('swapBtn');
   if (isNight()) {
-    const A = nightAllies(); b.hidden = state !== 'play' || !A.length; if (b.hidden) return;
-    const def = A[0].def, im = $('swapImg'), src = previewOf(def); if (src && im.dataset.id !== def.id) { im.src = src; im.dataset.id = def.id; }
+    const nx = nightStep(1); b.hidden = state !== 'play' || !nx; if (b.hidden) return;
+    const def = nx.def, im = $('swapImg'), src = previewOf(def); if (src && im.dataset.id !== def.id) { im.src = src; im.dataset.id = def.id; }
     $('swapName').textContent = '切換'; const f = nightSwapCd > 0 ? nightSwapCd / SWAP_CD : 0;
     $('swapCd').style.background = f > 0 ? 'conic-gradient(rgba(4,14,20,.6) ' + (f * 360) + 'deg, transparent 0)' : 'none'; return;
   }
@@ -5882,6 +5902,7 @@ window.addEventListener('keydown', (e) => {
   if (e.code === 'KeyZ' && state === 'play' && !$('invitePanel').hidden) nightInvite(true);   // 夜戰：Z 邀請加入
   if (e.code === 'KeyX' && state === 'play' && !$('invitePanel').hidden) nightInvite(false);
   if (e.code === 'KeyC' && state === 'play' && !$('commBtn').hidden) nightUseComm();
+  if (e.code === 'KeyG' && state === 'play' && isNight()) nightSwapNext(-1);   // 夜戰：G 切換上一個人形
   if (e.code === 'KeyE' && state === 'play' && !$('expandBtn').hidden) expandEchelon();   // 擴編（電腦版）
   if (e.code === 'KeyF' && state === 'play') swapChar(false);   // 切換主／副角色
   if (e.code === 'KeyM' && state === 'play' && bigMap()) mapOpen = !mapOpen;   // 戰局：全圖
@@ -6893,7 +6914,7 @@ function moveWithCover(en, dx, dy) {
   }
 }
 // 影子敵人的實際迴避率：受「迴避率降低」影響，最低 0%
-const enemyEvade = (e) => Math.max(0, nightEv() + (e.boss ? e.B.evade : e.T.evade) - (!e.fighter && e.jamUntil > gameTime ? 0.3 : 0) - (e.debuffT > 0 ? e.evadeDown || 0 : 0) - (gameTime < (e.shredUntil || 0) ? e.shredN * e.shredPer : 0) + (e.fighter ? effSum(e, 'evade') : 0));
+const enemyEvade = (e) => Math.max(0, nightEv() - nightAcc() + (e.boss ? e.B.evade : e.T.evade) - (!e.fighter && e.jamUntil > gameTime ? 0.3 : 0) - (e.debuffT > 0 ? e.evadeDown || 0 : 0) - (gameTime < (e.shredUntil || 0) ? e.shredN * e.shredPer : 0) + (e.fighter ? effSum(e, 'evade') : 0));
 /* 暴擊：暴擊率＝自身暴擊率 ± 自身給予的暴擊增益 ± 他人給予的暴擊增益 ＋ 易傷，暴擊時傷害 ×2
    例：亨利（10%）打易傷 20% 的敵人，身上有蜂鳥給的暴擊 +25% → 10 + 25 + 20 = 55% */
 /* 傷害類型（備忘）
@@ -9642,7 +9663,7 @@ function update(dt) {
   if (player.hp <= 0 && vs) { if (!(player.deadT > 0)) vsHumanDown(); }   // 對戰：倒下 5 秒後重生
   else if (player.hp <= 0) {
     // 戰事：出擊中的人形倒下 → 另一名還活著就自動換上
-    if (isNight() && nightAllies().length) { const fallen = cfg.name; nightSwap(nightAllies()[0], true); floatText(player.x, player.y - 80, fallen + ' 倒下', '#ff8f83'); }
+    if (isNight() && nightAllies().length) { const fallen = cfg.name; nightSwap(nightStep(1) || nightAllies()[0], true); floatText(player.x, player.y - 80, fallen + ' 倒下', '#ff8f83'); }
     else if (team && !team.down[1 - team.active]) {
       const fallen = cfg.name; team.down[team.active] = true;
       if (team.active === 0) team.cloneSrc = 1;   // 主要角色倒下：之後擴編出來的改成副角色
