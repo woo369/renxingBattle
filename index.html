@@ -410,7 +410,7 @@ body.touch #testPanel{max-height:38vh}   /* 手機：不要擋到左下的移動
 </div>
 
 <button id="commBtn" type="button" hidden title="使用通訊器（C）">通訊器<small id="commNum">×1</small><small class="only-mouse">C</small></button>
-<div id="invitePanel" hidden><img id="inviteImg" alt=""><div class="inv-txt"><b id="inviteName"></b><span>請求加入你的隊伍</span></div><button id="inviteYes" type="button">邀請加入<small class="only-mouse">E</small></button><button id="inviteNo" type="button">不邀請<small class="only-mouse">X</small></button></div>
+<div id="invitePanel" hidden><img id="inviteImg" alt=""><div class="inv-txt"><b id="inviteName"></b><span>請求加入你的隊伍</span></div><button id="inviteYes" type="button">邀請加入<small id="inviteCost" class="only-mouse">Z</small></button><button id="inviteNo" type="button">不邀請<small class="only-mouse">X</small></button></div>
 <button id="expandBtn" type="button" hidden title="擴編（E）">擴編<small>消耗 10 零件</small><small class="only-mouse">E</small></button>
 <button id="swapBtn" type="button" hidden aria-label="切換角色" title="切換角色（F）"><img id="swapImg" alt=""><span id="swapName"></span><small class="only-mouse">F</small><span class="swap-cd" id="swapCd"></span></button>
 
@@ -1846,7 +1846,7 @@ const LEVELS = [
   { id: 'training', name: '訓練場', open: true, desc: '無限延伸的戰場，與跟你相同角色的影子敵人持續對戰，看能撐多久。' },
   { id: 'war', name: '戰事', open: true, desc: '三階段的戰事，敵人會階段性地變強，每個階段末尾都會出現 Boss，擊敗第三階段的 Boss 即過關。' },
   { id: 'duel', name: '菁英對決', open: true, desc: '入場 5 秒後出現一名隨機精英敵人，擊敗它即可過關。精英以三階的強度為基準，一階、二階精英會依類型強化到相同水準。場上會定時出現零件與醫療箱。' },
-  { id: 'night', name: '夜戰', open: true, desc: '在漆黑的野外作戰，分成三個階段，跟戰事一樣每階段末尾會出現 Boss。除了手槍以外，其他槍種的視野都很短。只能帶一名人形出擊，撿到通訊器後可以呼叫遠處的友方人形支援，最多再帶兩名隊友，並且可以切換操控；零件改用來強化自己（子彈傷害、生命 ×1.5，最多 5 次）。' },
+  { id: 'night', name: '夜戰', open: true, desc: '在漆黑的野外作戰，分成三個階段，跟戰事一樣每階段末尾會出現 Boss。手槍的視野 500，其他槍種只有 200（隊伍裡有手槍人形時提高到 450）；所有單位迴避率 +20%。只能帶一名人形出擊，撿到通訊器後可以呼叫遠處的友方人形支援，最多再帶兩名隊友，並且可以切換操控；零件全隊共用，改用來強化目前操控的人形（子彈傷害、生命 ×1.5，最多 5 次）。前 3 分鐘是準備階段，敵人很少。' },
   { id: 'test', name: '測試模式', open: true, desc: '不會自動出怪，可以自選召喚任何敵人或精英，零件無限。' },
   { id: 'battle', name: '戰局', open: true, desc: '（開發中）100×100 格的大地圖，之後會做成 7 打 7 的戰局。地圖上有三個佔領點，站在點上就能佔領；山、房屋、樹木會擋路與子彈，樹林會遮擋視線。左上角是小地圖，按 M 或點小地圖可以打開全圖（單位會變成點）。' },
   { id: 'versus', name: '雲圖對戰', open: true, desc: '（開發中）5 打 5 的團隊對戰，所有人形的生命都是原本的 3 倍，60×30 格的長條地圖，藍隊、紅隊的大本營在左右兩側。擊倒敵方人形本體得 1 分，先到 30 分獲勝；初始零件 10，地圖中間會出現零件和醫療包，擊倒敵人可拿走對方 50% 的零件。可以加入普通或精銳 AI，倒下 5 秒後重生。大本營有會無限重生的守衛，會攻擊太靠近的敵人。' },
@@ -2226,7 +2226,10 @@ const TEST_PHASES = [{ name: '測試模式', end: Infinity, spawnTable: [], init
 const BATTLE_PHASES = [{ name: '戰局', end: Infinity, spawnTable: [], initial: 0, packs: [], bigmap: true, noParts: true }];   // 戰局：沒有零件（也不能擴編）
 const VERSUS_PHASES = [{ name: '雲圖對戰', end: Infinity, spawnTable: [], initial: 0, packs: [], bigmap: true, versus: true, startParts: 10 }];   // 對戰：零件由對戰模式自己生成
 // 夜戰：敵人與 Boss 照戰事的三個階段，地圖換成野外地形；通訊器每 40 秒出現一個（手上＋場上＋隊友加起來最多 2）
-const NIGHT_PHASES = WAR_PHASES.map((p) => ({ ...p, packs: [...p.packs, 'night'], night: true, commEvery: 40 }));
+const NIGHT_PHASES = [
+  { ...WAR_PHASES[0], name: '準備階段', initial: 1, spawn: { every: 9, min: 7, max: 3 }, bossPool: null, bossReward: null, prep: true },   // 前 3 分鐘：只會出現少量敵人，沒有 Boss，時間到直接進第二階段
+  WAR_PHASES[1], WAR_PHASES[2],   // 3:00～6:00 第二階段、之後第三階段（暫時沿用戰事的敵人表，之後換成夜戰專用的）
+].map((p) => ({ ...p, packs: [...p.packs, 'night'], night: true, commEvery: 40 }));
 const LEVEL_PHASES = { night: NIGHT_PHASES, war: WAR_PHASES, duel: DUEL_PHASES, test: TEST_PHASES, battle: BATTLE_PHASES, versus: VERSUS_PHASES };   // 有分階段的關卡
 const levelPhases = () => LEVEL_PHASES[selectedLevel] || null;
 let phase = null, phaseIdx = 0, phaseStart = 0, spawnIdx = 0;   // 目前階段、階段開始時間、輪到第幾種敵人
@@ -5499,10 +5502,11 @@ function refreshCharHud() {
   updateSkill(); updateDodge(); $('ammoLabel').textContent = cfg.weapon.name + '彈藥'; updateAmmo(); updateHp(); renderEffects(true); updateParts(); updateSwap();
 }
 /* ───────── 夜戰：視野、強化、通訊器、支援人形、隊友 ───────── */
-const NIGHT_VISION = { HG: 420, other: 150 };   // 視野半徑：手槍看得遠，其他槍種很短
+const NIGHT_VISION = { HG: 500, other: 200, withHG: 450 };   // 視野半徑：手槍 500、其他槍種 200；隊伍裡有手槍人形時其他人形提高到 450
 const NIGHT_ENH = { max: 5, mul: 1.5 };         // 強化：子彈傷害、生命 ×1.5，最多 5 次（花費同擴編）
+const NIGHT_ELITE = { chance: 0.15, cost: 10, dodgeCd: 2.5 };   // 通訊器有 15% 機率呼叫到精銳 AI 的人形，邀請時多花 10 零件
 const NIGHT = { teamMax: 2, inviteR: 150, spawnMin: 900, spawnMax: 1300, bgScale: 0.8 };   // 最多 2 名隊友；靠近支援人形 150 內可以邀請；支援人形出現在 900～1300 外
-const visionR = () => (isNight() && player ? (cfg.weapon.class === 'HG' ? NIGHT_VISION.HG : NIGHT_VISION.other) : Infinity);
+const visionR = () => (isNight() && player ? (cfg.weapon.class === 'HG' ? NIGHT_VISION.HG : nightAllies().some((c) => c.def.weapon.class === 'HG') ? NIGHT_VISION.withHG : NIGHT_VISION.other) : Infinity);
 const enhMul = (u) => Math.pow(NIGHT_ENH.mul, (u && u.enh) || 0);
 let nightComms = 0, commItems = [], commClock = 0, station = null, nightSwapCd = 0;
 const nightAllies = () => clones.filter((c) => c.nightAlly && c.hp > 0);
@@ -5537,7 +5541,10 @@ function nightTick(dt) {
   cb.hidden = !canUse; if (canUse) $('commNum').textContent = '×' + nightComms;
   // 支援人形：靠近就可以邀請
   const ip = $('invitePanel'), near = station && station.ready && Math.hypot(station.x - player.x, station.y - player.y) < NIGHT.inviteR;
-  if (near && ip.hidden) { const D = station.unit.def; $('inviteName').textContent = D.name; const src = previewOf(D); if (src) $('inviteImg').src = src; }
+  if (near && ip.hidden) {
+    const D = station.unit.def; $('inviteName').textContent = (station.elite ? '【精銳】' : '') + D.name; const src = previewOf(D); if (src) $('inviteImg').src = src;
+    $('inviteCost').textContent = station.elite ? '需 ' + NIGHT_ELITE.cost + ' 零件' + (isTouch() ? '' : '（Z）') : 'Z'; $('inviteCost').classList.toggle('only-mouse', !station.elite);
+  }
   ip.hidden = !near;
   for (const c of clones) if (c.nightAlly) c.skillCd = Math.max(0, (c.skillCd || 0) - dt);
 }
@@ -5550,16 +5557,19 @@ function nightUseComm() {
   const a = rand(0, Math.PI * 2), d = rand(NIGHT.spawnMin, NIGHT.spawnMax), p = nightSpot(player.x + Math.cos(a) * d, player.y + Math.sin(a) * d, 60);
   nightComms--;
   const u = makePlayer(D); u.x = p.x; u.y = p.y; u.angle = Math.PI / 2; u.faceLeft = false;
-  station = { x: p.x, y: p.y, bg: Math.floor(Math.random() * 3), unit: u, ready: false, ph: rand(0, 6) };
+  station = { x: p.x, y: p.y, bg: Math.floor(Math.random() * 3), unit: u, ready: false, ph: rand(0, 6), elite: Math.random() < NIGHT_ELITE.chance };
   floatText(player.x, player.y - 70, '已發出支援請求', '#6fe39a'); sfx.skill();
   Promise.all([ensurePack(packOf(D.assets)), ensurePack('night')]).then(() => { if (station && station.unit === u) station.ready = true; }).catch(() => { if (station && station.unit === u) { station = null; nightComms++; floatText(player.x, player.y - 70, '通訊失敗', '#ff8f83'); } });
 }
 function nightInvite(yes) {
   if (!station) return;
-  const u = station.unit; $('invitePanel').hidden = true;
+  const u = station.unit;
+  if (yes && station.elite && partCount < NIGHT_ELITE.cost) { floatText(player.x, player.y - 60, '零件不足（需要 ' + NIGHT_ELITE.cost + ' 個）', '#ff8f83'); return; }
+  $('invitePanel').hidden = true;
   if (yes && nightAllies().length < NIGHT.teamMax) {
+    if (station.elite) { partCount -= NIGHT_ELITE.cost; updateParts(); u.eliteAI = true; }
     Object.assign(u, { clone: true, nightAlly: true, slot: CLONE_SLOTS[nightAllies().length % 4], invT: 0.6, moving: false, aiming: false, shot: 0, trail: [] });
-    clones.push(u); burst(u.x, u.y, '#6fe39a', 18); floatText(u.x, u.y - 60, D_name(u) + ' 加入隊伍', '#6fe39a'); sfx.skill();
+    clones.push(u); burst(u.x, u.y, '#6fe39a', 18); floatText(u.x, u.y - 60, (u.eliteAI ? '【精銳】' : '') + D_name(u) + ' 加入隊伍', u.eliteAI ? '#ffd76a' : '#6fe39a'); sfx.skill();
   } else { burst(station.x, station.y, '#9fb8bf', 12); floatText(station.x, station.y - 60, D_name(u) + ' 離開了', '#9fb8bf'); }
   station = null; updateSwap();
 }
@@ -5571,7 +5581,7 @@ function nightSwap(a, oldDead) {
   if (cfg.skill && cfg.skill.id === 'deter' && player.buffT > 0) { player.buffT = 0; player.skillCd = cfg.skill.cooldown; endDeter(); }
   clones.splice(clones.indexOf(a), 1);
   delete a.clone; delete a.nightAlly; delete a.slot;
-  a.dodgeT = 0; a.trail = []; a.shot = 0; a.invT = Math.max(a.invT || 0, 0.4); a.prone = 0;
+  a.dodgeT = 0; a.trail = []; a.shot = 0; a.invT = Math.max(a.invT || 0, 0.4); a.prone = 0; a.mgSpd = 1; a.mgMoveIn = a.mgFireIn = false; a.mgRan = false; a.curSpeed = 0;   // 機槍的移動狀態要重設（mgSpd 沒有值會讓移動速度變成 NaN）
   if (!oldDead) { Object.assign(old, { clone: true, nightAlly: true, slot: a.slotSave || CLONE_SLOTS[0], cool: 0, shot: 0, dodgeT: 0, aiming: false, prone: 0 }); clones.push(old); }
   clones.filter((c) => c.nightAlly).forEach((c, i) => { c.slot = CLONE_SLOTS[i]; });
   player = a; cfg = a.def; lockedTarget = null; nightSwapCd = SWAP_CD;
@@ -5584,8 +5594,27 @@ function updateNightAlly(c, dt) {
   const D = c.def, wp = D.weapon;
   c.invT = Math.max(0, (c.invT || 0) - dt); c.cool = Math.max(0, (c.cool || 0) - dt); c.shot = Math.max(0, (c.shot || 0) - dt);
   if (c.reload > 0) { c.reload -= dt; if (c.reload <= 0) { c.reload = 0; c.ammo = wp.magazine; } }
-  let tgt = null, bd = Infinity;
-  for (const e of enemies) { if (e.hp <= 0) continue; const d = Math.hypot(e.x - c.x, e.y - c.y); if (d <= D.lockRange && d < bd) { bd = d; tgt = e; } }
+  if (c.dodgeT > 0) {   // 精銳：閃避中（無敵、直線移動）
+    c.dodgeT -= dt; const v = D.dodgeMove.distance / D.dodgeMove.time;
+    moveWithCover(c, Math.cos(c.dodgeDir) * v * dt, Math.sin(c.dodgeDir) * v * dt); c.moving = true; c.moveAngle = c.dodgeDir; return;
+  }
+  if (c.eliteAI) {
+    c.edCd = Math.max(0, (c.edCd || 0) - dt);
+    if (c.edCd <= 0) for (const b of bullets) {   // 看到敵方子彈飛過來就側閃
+      if (b.team !== 'e') continue;
+      const rx = c.x - b.x, ry = c.y - b.y, d = Math.hypot(rx, ry); if (d > 150) continue;
+      const bs = Math.hypot(b.vx, b.vy) || 1; if ((rx * b.vx + ry * b.vy) / (d * bs) < 0.9) continue;
+      const side = (b.vx * ry - b.vy * rx) > 0 ? 1 : -1;
+      c.dodgeDir = Math.atan2(b.vx / bs * side, -b.vy / bs * side); c.dodgeT = D.dodgeMove.time; c.invT = D.dodgeMove.time + D.dodgeMove.afterInvuln; c.edCd = NIGHT_ELITE.dodgeCd; c.prone = 0;
+      burst(c.x, c.y, '#ffd76a', 6); return;
+    }
+  }
+  let tgt = null, bd = Infinity, bs0 = Infinity;
+  for (const e of enemies) {
+    if (e.hp <= 0) continue; const d = Math.hypot(e.x - c.x, e.y - c.y); if (d > D.lockRange) continue;
+    const sc = c.eliteAI ? e.hp / (e.maxHp || e.hp || 1) * 300 + d * 0.3 : d;   // 精銳：優先打殘血的敵人
+    if (sc < bs0) { bs0 = sc; bd = d; tgt = e; }
+  }
   const [sa, sd] = c.slot || CLONE_SLOTS[0], tx = player.x + Math.cos(sa) * (player.r + sd + 20), ty = player.y + Math.sin(sa) * (player.r + sd + 20) * 0.8;
   const dx = tx - c.x, dy = ty - c.y, d = Math.hypot(dx, dy), farOff = Math.hypot(player.x - c.x, player.y - c.y) > 380;
   const mg = mgOn(c);
@@ -5598,7 +5627,15 @@ function updateNightAlly(c, dt) {
     moveWithCover(c, dx / d * Math.min(d, sp * dt), dy / d * Math.min(d, sp * dt));
     c.moving = true; c.moveAngle = Math.atan2(dy, dx); c.curSpeed = sp;
   }
-  if (tgt) c.angle = Math.atan2(tgt.y - c.y, tgt.x - c.x); else if (c.moving) c.angle = c.moveAngle;
+  if (tgt) {
+    let ax = tgt.x, ay = tgt.y;
+    if (c.eliteAI) {   // 精銳：依目標的移動預判落點
+      if (c.tRef === tgt && dt > 0) { c.tvx = ((tgt.x - c.tpx) / dt) * 0.3 + (c.tvx || 0) * 0.7; c.tvy = ((tgt.y - c.tpy) / dt) * 0.3 + (c.tvy || 0) * 0.7; } else { c.tvx = c.tvy = 0; }
+      c.tRef = tgt; c.tpx = tgt.x; c.tpy = tgt.y;
+      const t = bd / (((D.weapon.speed[0] + D.weapon.speed[1]) / 2) || 400); ax += c.tvx * t; ay += c.tvy * t;
+    }
+    c.angle = Math.atan2(ay - c.y, ax - c.x);
+  } else if (c.moving) c.angle = c.moveAngle;
   c.aiming = !!tgt || !c.moving; c.faceLeft = Math.cos(c.angle) < 0; c.backward = c.moving && Math.cos(c.angle - c.moveAngle) < 0;
   if (tgt && c.cool <= 0 && c.reload <= 0 && c.ammo > 0 && (!mg || c.prone >= 1) && bd <= bulletRange(D) * 0.98) nightAllyShoot(c, c.angle);
   if (c.ammo <= 0 && c.reload <= 0) c.reload = wp.reloadMode === 'shell' ? wp.reload * wp.magazine : reloadOf(c, D);
@@ -5627,7 +5664,7 @@ function drawStation(st) {
   const u = st.unit; u.aiming = false; u.moving = false; u.angle = Math.PI / 2; u.faceLeft = false;
   ctx.save(); drawCharacter(u, false); ctx.restore();
   upright(q, st.x, st.y); ctx.font = '800 13px sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-  ctx.fillStyle = '#9fe8b8'; ctx.fillText(u.def.name + '　等待支援', st.x, st.y - 112 + Math.sin(gameTime * 3 + st.ph) * 3);
+  ctx.fillStyle = st.elite ? '#ffd76a' : '#9fe8b8'; ctx.fillText((st.elite ? '【精銳】' : '') + u.def.name + '　等待支援', st.x, st.y - 112 + Math.sin(gameTime * 3 + st.ph) * 3);
   ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
 }
 function drawComm(it) {
@@ -5774,7 +5811,7 @@ window.addEventListener('keydown', (e) => {
   if (e.repeat) { keys.add(e.code); return; }
   if (e.code === 'KeyR' && state === 'play') reload();
   if (e.code === 'KeyQ' && state === 'play') useSkill();
-  if (e.code === 'KeyE' && state === 'play' && !$('invitePanel').hidden) { nightInvite(true); return; }   // 夜戰：邀請加入
+  if (e.code === 'KeyZ' && state === 'play' && !$('invitePanel').hidden) nightInvite(true);   // 夜戰：Z 邀請加入
   if (e.code === 'KeyX' && state === 'play' && !$('invitePanel').hidden) nightInvite(false);
   if (e.code === 'KeyC' && state === 'play' && !$('commBtn').hidden) nightUseComm();
   if (e.code === 'KeyE' && state === 'play' && !$('expandBtn').hidden) expandEchelon();   // 擴編（電腦版）
@@ -5941,7 +5978,8 @@ const EVADE_BONUS = { SMG: 10, HG: 25 };
 // 槍種保底暴擊率：機槍沒有護甲、閃避又差，給 5% 保底（之後有新的槍種保底就加在這裡）
 const CLASS_CRIT_BONUS = { MG: 0.05 };
 const critRate = (D) => (D.crit || 0) + (CLASS_CRIT_BONUS[D.weapon.class] || 0);   // 人形的暴擊率＝自身＋槍種保底
-const evadeRate = (D) => (D.dodge * 0.1 + (EVADE_BONUS[D.weapon.class] || 0)) / 100;
+const nightEv = () => (isNight() && (state === 'play' || state === 'pause') ? 0.2 : 0);   // 夜戰：太暗不容易打中，所有單位迴避率 +20%
+const evadeRate = (D) => (D.dodge * 0.1 + (EVADE_BONUS[D.weapon.class] || 0)) / 100 + nightEv();
 /* 角色身上的效果（增益）：{ id, name, mark, color, dmg/rate/crit, t, max }
    同一種效果再次獲得時只重設時間；效果列顯示在畫面下方 */
 // src：給予效果的人。給自己的算「自身給予」，別人給的算「他人給予」（暴擊率等計算會分開加總）
@@ -6786,7 +6824,7 @@ function moveWithCover(en, dx, dy) {
   }
 }
 // 影子敵人的實際迴避率：受「迴避率降低」影響，最低 0%
-const enemyEvade = (e) => Math.max(0, (e.boss ? e.B.evade : e.T.evade) - (!e.fighter && e.jamUntil > gameTime ? 0.3 : 0) - (e.debuffT > 0 ? e.evadeDown || 0 : 0) - (gameTime < (e.shredUntil || 0) ? e.shredN * e.shredPer : 0) + (e.fighter ? effSum(e, 'evade') : 0));
+const enemyEvade = (e) => Math.max(0, nightEv() + (e.boss ? e.B.evade : e.T.evade) - (!e.fighter && e.jamUntil > gameTime ? 0.3 : 0) - (e.debuffT > 0 ? e.evadeDown || 0 : 0) - (gameTime < (e.shredUntil || 0) ? e.shredN * e.shredPer : 0) + (e.fighter ? effSum(e, 'evade') : 0));
 /* 暴擊：暴擊率＝自身暴擊率 ± 自身給予的暴擊增益 ± 他人給予的暴擊增益 ＋ 易傷，暴擊時傷害 ×2
    例：亨利（10%）打易傷 20% 的敵人，身上有蜂鳥給的暴擊 +25% → 10 + 25 + 20 = 55% */
 /* 傷害類型（備忘）
@@ -9022,6 +9060,7 @@ function update(dt) {
   const len = Math.hypot(dx, dy), mag = Math.min(1, len);
   player.moving = len > 0.08;
   let spd = (cfg.speed + effSum(player, 'spdFlat')) * speedMul(player) * (player.huntAim > 0 ? 0 : 1);   // 連鎖狂獵瞄準中不能移動   // 減速效果會降低移動速度；spdFlat＝裝備的移速 +固定值
+  if (!Number.isFinite(player.mgSpd)) player.mgSpd = 1;   // 保險：機槍移動倍率壞掉時復原
   if (mgOn(player)) {
     mgUpdate(dt, player.moving, (mouseDown || fireHeld || keys.has('Space') || keys.has('KeyJ')));
     spd *= player.mgSpd;
@@ -9230,7 +9269,8 @@ function update(dt) {
         const bid = phaseBoss[phaseIdx] || pickBoss(phase.bossPool), pid = packOf(BOSSES[bid].assets);
         if (packReady[pid]) spawnBoss(bid);
         else { ensurePack(pid).catch(() => {}); $('phaseTime').textContent = '載入中'; }   // 素材還沒下載完：稍等再出場
-      } else { endGame(true); return; }
+      } else if (phase.prep) { if (!phaseAdvT) phaseAdvT = 1e-6; }   // 夜戰準備階段：時間到直接進下一階段
+      else { endGame(true); return; }
     }
     if (boss) { $('phaseTime').textContent = 'BOSS'; }
     // 保險：Boss 生命歸零卻沒被結算、或 Boss 已經不在場上卻沒排進下一階段 → 補上
@@ -9742,6 +9782,7 @@ function draw(t) {
     else if (k === 'm') {
       // 擴編分身
       ctx.save(); drawCharacter(it, false); ctx.restore(); drawSakura(it); drawHuntAim(it);
+      if (it.eliteAI) { upright(q, it.x, it.y); ctx.font = '800 11px sans-serif'; ctx.textAlign = 'center'; ctx.fillStyle = '#ffd76a'; ctx.fillText('精銳', it.x, it.y - 60); }
       if (it.hp < it.maxHp || it.shield > 0 || goldSum(it) > 0) {
         upright(q, it.x, it.y);
         ctx.fillStyle = '#d23b3b'; ctx.fillRect(it.x - 16, it.y - 44, 32, 4);
