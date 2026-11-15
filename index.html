@@ -2897,7 +2897,7 @@ function vsSync() {
 }
 const vsFoesOf = (f) => f.vsTeam === vs.myTeam ? enemies : [...(vsDead() ? [] : [player]), ...clones, ...aiAllies];
 const vsFriendsOf = (f) => f.vsTeam === vs.myTeam ? [...(vsDead() ? [] : [player]), ...clones, ...aiAllies] : enemies;
-const vsAlive = (u) => !!u && (u === player ? !vsDead() : u.clone ? clones.includes(u) : u.guard ? !u.dead : u.fighter ? (u.isClone ? !u.lead.dead && u.lead.clones.includes(u) : !u.dead) : false);
+const vsAlive = (u) => !!u && (u === player ? !vsDead() : u.clone ? clones.includes(u) : u.guard ? !u.dead : u.fighter ? (u.isClone ? !u.lead.dead && u.lead.clones.includes(u) : !u.dead) : !!(vs && vs.night && u.hp > 0 && enemies.includes(u)));
 const vsUnitDef = (u) => u.def || cfg;
 const vsLineClear = (ax, ay, bx, by) => { const d = Math.hypot(bx - ax, by - ay), n = Math.ceil(d / 40); for (let i = 1; i < n; i++) if (mapSolidAt(ax + (bx - ax) * i / n, ay + (by - ay) * i / n, 3, true)) return false; return true; };
 
@@ -2959,8 +2959,8 @@ function vsFighterTick(f, dt) {
   if (f.debuffT > 0) f.debuffT = Math.max(0, f.debuffT - dt);
   if (f.castT > 0) f.castT = Math.max(0, f.castT - dt);
   painPassive(f);
-  tickEffects(f, dt); for (const c of f.clones) tickEffects(c, dt);
-  tickSakura(f, dt); for (const c of f.clones) tickSakura(c, dt);
+  if (!f.nightAlly) { tickEffects(f, dt); for (const c of f.clones) tickEffects(c, dt); }   // 夜戰隊友的效果由主迴圈處理
+  if (!f.nightAlly) { tickSakura(f, dt); for (const c of f.clones) tickSakura(c, dt); }
   tickHunt(f, dt); for (const c of f.clones) tickHuntClone(c, dt);
   if (f.vsTeam !== vs.myTeam) for (const u of [f, ...f.clones]) if (u.gold && u.gold.length) { for (const g of u.gold) g.t -= dt; u.gold = u.gold.filter((g) => g.t > 0); }   // 敵隊的金盾（友隊由 tickGold 處理）
   if (f.reloadT > 0) {
@@ -3178,6 +3178,7 @@ function vsThink(f) {
     if (!(E && E.flank) && f.flankT > 0) { f.flankT = Math.max(0, f.flankT - 0.2); const a = Math.atan2(uy, ux) + f.flankSide * 1.1; goal = { x: tgt.x + Math.cos(a) * keep, y: tgt.y + Math.sin(a) * keep }; }
   }
   if (gameTime < (f.detourUntil || 0)) goal = f.detour;   // 卡住時的繞路點
+  if (vs.night) goal = nightLeash(f, tgt, goal);   // 夜戰隊友：跟著玩家
   if (goal) { goal.x = clamp(goal.x, -MAPGEN.hw + 60, MAPGEN.hw - 60); goal.y = clamp(goal.y, -MAPGEN.hh + 60, MAPGEN.hh - 60); }
   f.goal = goal;
   if (!tgt && f.ammo < D.weapon.magazine) vsReload(f);   // 沒有敵人時先把彈匣補滿
@@ -3210,7 +3211,7 @@ function vsDodgeCheck(f) {
     if (miss < f.r + b.r + 4 && (!th || t < th.t)) th = { b, t, miss, mx, my };
   }
   if (!th) return;
-  f.rollT = f.level === 'elite' ? 0.35 : 0.7;   // 同一波子彈只判定一次（普通 AI 反應比較慢）
+  f.rollT = f.level === 'elite' ? 0.35 : vs.night ? 1 : 0.7;   // 夜戰的普通隊友反應再慢一點   // 同一波子彈只判定一次（普通 AI 反應比較慢）
   const b = th.b, side = (th.mx * -b.vy + th.my * b.vx) >= 0 ? 1 : -1, perp = Math.atan2(b.vy, b.vx) + side * Math.PI / 2;
   const step = (t) => { f.evadeT = t; f.evadeDir = perp; };
   if (f.level === 'elite') {
@@ -3221,8 +3222,8 @@ function vsDodgeCheck(f) {
     else if (f.charges > (free ? 0 : 1)) vsDodge(f, perp);
     else step(0.3);
   } else {
-    const r = Math.random();
-    if (r < 0.6) step(0.35); else if (r < 0.8 && f.charges > 0) vsDodge(f, perp);
+    const r = Math.random(), pS = vs.night ? 0.45 : 0.6, pD = vs.night ? 0.57 : 0.8;   // 夜戰：45% 側移、12% 閃避（對戰 60%／20%）
+    if (r < pS) step(0.35); else if (r < pD && f.charges > 0) vsDodge(f, perp);
   }
 }
 function vsDodge(f, dir) {
@@ -3238,7 +3239,7 @@ function vsShoot(f, shooter, ang) {
   const spc = sk && sk.id === 'haunt' && f.spAmmo > 0;   // MG4：特殊彈藥優先（擴編人形同時射出的也算特殊彈）
   const spSG = sk && sk.id === 'mirrorfolk' && isMain && f.spShell > 0 && !free;   // DP-12：特種彈優先
   if (isMain && !free) { if (spc) f.spAmmo--; else if (spSG) f.spShell--; else f.ammo--; }
-  let buff = 1 + effSum(f, 'dmg') + ((md && md.dmg) || 0);
+  let buff = (1 + effSum(f, 'dmg') + ((md && md.dmg) || 0)) * enhMul(f);   // 夜戰強化
   if (f.buffT > 0 && sk.dmgMult) buff *= sk.dmgMult;                                   // 榮光延續
   if (sk && sk.id === 'deter' && f.killStacks) buff *= Math.pow(sk.killDmg, f.killStacks);
   if (sk && sk.id === 'lockon' && f.buffT > 0) buff *= 1 + f.lockStacks * sk.critStack;
@@ -3434,7 +3435,7 @@ function vsHurt(u, amount, attacker, pierce) {
   if (u.guard && u.vsTeam === vs.myTeam) { vsDamageGuard(u, amount, pierce); return; }
   if (u === player) { player.lastHitBy = attacker; damage(amount, pierce); return; }
   if (u.clone) { u.lastHitBy = attacker; damageClone(u, amount, pierce); return; }
-  if (!u.fighter && !u.guard) return;
+  if (!u.fighter && !u.guard) { if (vs.night && enemies.includes(u)) { hitEnemy(u, amount, '#ffb347', false, 0); if (u.hp <= 0) killEnemy(u); } return; }   // 夜戰：隊友的技能打到一般敵人
   if (u.vsTeam === vs.myTeam) { vsDamageRaw(u, amount, pierce, attacker); return; }
   vsHitBy = attacker; hitEnemy(u, amount, '#ffb347', false, 0); if (u.hp <= 0) killEnemy(u); vsHitBy = null;
 }
@@ -5589,7 +5590,74 @@ function nightSwap(a, oldDead) {
   refreshCharHud(); updateParts(); return true;
 }
 function nightSwapNext() { const A = nightAllies(); if (!A.length || nightSwapCd > 0) return false; return nightSwap(A[0], false); }
-// 隊友 AI：跟在玩家身邊；鎖敵範圍內有敵人就停下瞄準開火，彈匣打空自己換彈（不會用主動技能）
+// 隊友 AI：用雲圖對戰的 AI（普通 AI／精銳 AI，含技能、躲子彈），在一個暫時的對戰沙盒裡跑
+const NIGHT_VS = { myTeam: 'blue', night: true, intel: {}, score: { blue: 0, red: 0 } };
+let nightProxy = null;
+function nightFighterTick(c, dt) {
+  const V0 = vs; vs = NIGHT_VS;
+  try {
+    Object.assign(c, { vsTeam: 'blue', level: c.eliteAI ? 'elite' : 'normal', parts: 0, reloadT: c.reload || 0 });
+    for (const [k, v] of [['clones', []], ['seed', Math.random() * 100], ['flankSide', 1], ['flankT', 0], ['thinkT', 0], ['rollT', 0], ['evadeT', 0], ['atkDownT', 0], ['debuffT', 0], ['castT', 0], ['stuckT', 0], ['prone', 0], ['marks', 0], ['stacks', 0], ['birds', 0], ['birdT', 0]]) if (c[k] == null) c[k] = v;
+    if (c.def.skill && c.def.skill.modes && c.mode == null) c.mode = Object.keys(c.def.skill.modes)[0];
+    vsFighterTick(c, dt);
+    // 落後太多：額外加速追上；超過 800 直接歸隊
+    const dP = Math.hypot(player.x - c.x, player.y - c.y);
+    if (dP > 800) { const p = nightSpot(player.x + rand(-80, 80), player.y + rand(-80, 80), c.r); c.x = p.x; c.y = p.y; c.goal = null; }
+    else if (dP > 320 && !(c.dodgeT > 0) && !(mgOn(c) && c.prone > 0)) { const v = c.def.speed * 0.6 * dt; moveWithCover(c, (player.x - c.x) / dP * v, (player.y - c.y) / dP * v); }
+    c.reload = c.reloadT; c.curSpeed = c.moving ? c.def.speed : 0; c.backward = c.moving && Math.cos(c.angle - c.moveAngle) < 0;
+  } finally { vs = V0; }
+}
+function nightLeash(f, tgt, goal) {
+  const P = player, dP = Math.hypot(f.x - P.x, f.y - P.y), maxD = tgt ? 170 : 300;
+  const near = (list, R, from = f) => { let it = null, bd = R; for (const p of list) { const d = Math.hypot(p.x - from.x, p.y - from.y); if (d < bd) { bd = d; it = p; } } return it; };
+  if (f.eliteAI) {   // 精銳：血少（< 50%）自己去吃醫療箱、300 內的零件會去撿
+    const med = f.hp < f.maxHp * 0.5 ? near(medkits, 900) : null; if (med) return { x: med.x, y: med.y, item: true };
+    const part = near(parts, 300); if (part && !(tgt && Math.hypot(tgt.x - f.x, tgt.y - f.y) < 200)) return { x: part.x, y: part.y, item: true };
+  }
+  if (goal && goal.item) goal = null;   // 其他撿東西的行為不要（普通 AI 不主動撿）
+  if (tgt) {
+    if (goal) { const gx = goal.x - P.x, gy = goal.y - P.y, gd = Math.hypot(gx, gy); if (gd > maxD) goal = { x: P.x + gx / gd * maxD, y: P.y + gy / gd * maxD }; }
+    return goal;
+  }
+  if (dP > maxD) { const k = 200 / dP; return { x: P.x + (f.x - P.x) * k, y: P.y + (f.y - P.y) * k }; }   // 太遠：走回 200 附近
+  if (dP < 50) { const a = Math.atan2(f.y - P.y, f.x - P.x) || f.seed; return { x: P.x + Math.cos(a) * 120, y: P.y + Math.sin(a) * 120 }; }   // 太近：讓開一點
+  return null;   // 50～300 之間：自由站著
+}
+// 敵人的目標：玩家與 AI 隊友中最近的一個（每 1.2 秒重選一次；玩家稍微優先）
+function nightEnemyTarget(e) {
+  const A = nightAllies(); if (!A.length) return player;
+  if (e.ntg && (e.ntg === player || (e.ntg.hp > 0 && clones.includes(e.ntg))) && gameTime < (e.ntT || 0)) return e.ntg;
+  let best = player, bd = Math.hypot(player.x - e.x, player.y - e.y);
+  for (const c of A) { const d = Math.hypot(c.x - e.x, c.y - e.y) * 1.1; if (d < bd) { bd = d; best = c; } }
+  e.ntg = best; e.ntT = gameTime + 1.2; return best;
+}
+// 脫離卡死：被生成或擠進樹、岩石、湖裡的單位推到外面；敵人原地卡住太久就往旁邊挪
+function pushOut(u) {
+  if (!u) return;
+  for (let k = 0; k < 3; k++) {
+    const o = mapSolidAt(u.x, u.y, (u.r || 16) * 0.55); if (!o || o.w) return;
+    let dx = u.x - o.x, dy = u.y - o.y, d = Math.hypot(dx, dy); if (d < 0.5) { const a = Math.random() * Math.PI * 2; dx = Math.cos(a); dy = Math.sin(a); d = 1; }
+    const R = o.r + (u.r || 16) * 0.55 + 2; u.x = o.x + dx / d * R; u.y = o.y + dy / d * R;
+  }
+}
+function nightAfterEnemies(dt) {
+  for (const e of enemies) {
+    pushOut(e);
+    e.ckT = (e.ckT || 0) + dt;
+    if (e.ckT >= 1.5) {
+      const moved = Math.hypot(e.x - (e.ckX ?? e.x), e.y - (e.ckY ?? e.y)); e.ckT = 0; e.ckX = e.x; e.ckY = e.y;
+      const tg = e.ntg || player, dT = Math.hypot(tg.x - e.x, tg.y - e.y), want = e.boss ? (e.B.lockRange || 200) : (e.T.lockRange || 200);
+      if (moved < 10 && dT > want * 1.15 && !e.boss) {   // 該往前走卻一直沒動：往側邊挪一段
+        const a = Math.atan2(tg.y - e.y, tg.x - e.x) + (Math.random() < 0.5 ? 1 : -1) * Math.PI / 2;
+        for (const step of [70, 110, 160]) { const nx = e.x + Math.cos(a) * step, ny = e.y + Math.sin(a) * step; if (!mapSolidAt(nx, ny, (e.r || 16) * 0.8)) { e.x = nx; e.y = ny; e.ckX = nx; e.ckY = ny; break; } }
+      }
+    }
+  }
+  pushOut(player); for (const c of clones) pushOut(c);
+  if (clones.some((c) => c.nightAlly && c.hp <= 0)) { clones = clones.filter((c) => !(c.nightAlly && c.hp <= 0)); updateSwap(); }
+  if (vsNades.length) { const V0 = vs; vs = NIGHT_VS; try { vsUpdateNades(dt); } finally { vs = V0; } }
+}
+// （舊版）隊友 AI：只會跟著玩家開火，已改用 nightFighterTick
 function updateNightAlly(c, dt) {
   const D = c.def, wp = D.weapon;
   c.invT = Math.max(0, (c.invT || 0) - dt); c.cool = Math.max(0, (c.cool || 0) - dt); c.shot = Math.max(0, (c.shot || 0) - dt);
@@ -6765,6 +6833,7 @@ function shootEnemy(e) {
   if (n > 1) burst(mz.x, mz.y, '#ffb36b', 6);
 }
 function damage(amount, pierce, armorPen = 0) {
+  if (nightProxy && player === nightProxy) { damageClone(nightProxy, amount, pierce, armorPen); return; }   // 夜戰：敵人打的是 AI 隊友
   lastBlk = false;
   if (player.invT > 0) return;   // 閃避無敵中
   amount *= atkMulNow;   // 攻擊被削弱的敵人（埃癸斯之盾）在自己的回合直接造成的傷害
@@ -6971,7 +7040,7 @@ function drawBirds() {
 function updateClones(dt) {
   for (let i = clones.length - 1; i >= 0; i--) {
     const c = clones[i];
-    if (c.nightAlly) { updateNightAlly(c, dt); continue; }   // 夜戰的隊友：自己找敵人開火
+    if (c.nightAlly) { nightFighterTick(c, dt); continue; }   // 夜戰的隊友：自己找敵人開火
     // 跟著玩家：站在自己的位置上，動作與玩家同步
     const [sa, sd] = c.slot, tx = player.x + Math.cos(sa) * (player.r + sd), ty = player.y + Math.sin(sa) * (player.r + sd) * 0.8;
     const dx = tx - c.x, dy = ty - c.y, d = Math.hypot(dx, dy);
@@ -7058,7 +7127,8 @@ function spawnBoss(id) {
   const B = scaleStats(BOSSES[id], sc); bossSpawned = true;
   if (selectedLevel === 'war' || selectedLevel === 'night' || selectedLevel === 'duel') bgmBoss();   // Boss／菁英出現：一般音樂淡出，改播 Boss 歌單
   const a = rand(0, Math.PI * 2), d = 420;
-  boss = { boss: true, B, id, x: player.x + Math.cos(a) * d, y: player.y + Math.sin(a) * d, r: B.radius, hp: B.hp, maxHp: B.hp,
+  const bp = nightSpot(player.x + Math.cos(a) * d, player.y + Math.sin(a) * d, B.radius || 30);
+  boss = { boss: true, B, id, x: bp.x, y: bp.y, r: B.radius, hp: B.hp, maxHp: B.hp,
     ammo: B.magazine, reloadT: 0, magsDone: 0, special: null, cool: 0.8, barrel: 0, angle: 0, strafe: 1, strafeT: 0, jinkT: 0, jx: 0, jy: 0, vx: 0, vy: 0,
     touchCd: 0, debuffT: 0, faceLeft: true, aiming: false, shot: 0, phase: 0 };
   // Boss 圍欄：把玩家與 Boss 框在同一個圓形場地裡，避免打帶跑把 Boss 耗死
@@ -9281,7 +9351,11 @@ function update(dt) {
 
   if (vs) vsUpdate(dt);
   const vb0 = viewBounds(), far = vs ? 1e9 : Math.max(vb0.hw, -vb0.t, vb0.b) * 1.8;   // 對戰：遠處 AI 之間的子彈也要算
+  const P0 = player;
   for (let i = enemies.length - 1; i >= 0; i--) {
+    const C0 = clones, nT = isNight() ? nightEnemyTarget(enemies[i]) : null;   // 夜戰：敵人會鎖定離自己最近的人形（含 AI 隊友）
+    if (nT && nT !== P0) { player = nT; clones = C0.filter((c) => c !== nT); nightProxy = nT; }
+    try {
     const e = enemies[i], toward = Math.atan2(player.y - e.y, player.x - e.x), dist = Math.hypot(player.x - e.x, player.y - e.y);
     if (e.fighter || e.guard) continue;   // 對戰模式的人形 AI 另外更新（vsUpdate）
     const nb0 = bullets.length, nm0 = missiles.length, nh0 = homers.length, ns0 = shockWaves.length;   // 開火音效用：更新前的數量
@@ -9365,7 +9439,9 @@ function update(dt) {
       }
       atkMulNow = 1;
     }
+    } finally { if (nightProxy) { player = P0; clones = C0; nightProxy = null; } }
   }
+  if (isNight()) nightAfterEnemies(dt);
   separateEnemies();
   updateJamWaves(dt);
 
@@ -9514,7 +9590,10 @@ function update(dt) {
       const m = medkits[i], d = Math.hypot(m.x - player.x, m.y - player.y);
       if (canPick(m)) {
         medkits.splice(i, 1);
-        if (player.hp >= player.maxHp && clones.length) {
+        if (isNight()) {
+          for (const u of [player, ...nightAllies()]) { const h = Math.min(u.maxHp * 0.15, u.maxHp - u.hp); if (h > 0) { u.hp += h; burst(u.x, u.y, '#7dff9a', 6); floatText(u.x, u.y - 44, '+' + Math.round(h), '#7dff9a'); } }
+          updateHp(); floatText(m.x, m.y - 20, '全隊 生命 +15%', '#7dff9a');
+        } else if (player.hp >= player.maxHp && clones.length) {
           // 自己滿血、有擴編人形 → 所有擴編人形各補 5 生命
           for (const c of clones) { c.hp = Math.min(c.maxHp, c.hp + 5); burst(c.x, c.y, '#7dff9a', 6); floatText(c.x, c.y - 44, '+5', '#7dff9a'); }
           floatText(m.x, m.y - 20, '擴編人形 生命 +5', '#7dff9a');
@@ -9881,7 +9960,7 @@ function draw(t) {
   ctx.globalAlpha = 1;
   drawMissiles(); drawHomers();
   drawJamWaves();
-  if (vs) { drawVsNades(); drawVsShells(); }
+  if (vs) { drawVsNades(); drawVsShells(); } else if (vsNades.length) drawVsNades();   // 夜戰隊友的手雷
   for (const g of grenades) {
     const k = g.t / g.T, x = g.sx + (g.tx - g.sx) * k, y = g.sy + (g.ty - g.sy) * k, h = Math.sin(k * Math.PI) * 60;
     const q = proj(x, y);
