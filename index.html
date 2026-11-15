@@ -412,7 +412,7 @@ body.touch #testPanel{max-height:38vh}   /* 手機：不要擋到左下的移動
 <button id="commBtn" type="button" hidden title="使用通訊器（C）">通訊器<small id="commNum">×1</small><small class="only-mouse">C</small></button>
 <div id="invitePanel" hidden><img id="inviteImg" alt=""><div class="inv-txt"><b id="inviteName"></b><span>請求加入你的隊伍</span></div><button id="inviteYes" type="button">邀請加入<small id="inviteCost" class="only-mouse">Z</small></button><button id="inviteNo" type="button">不邀請<small class="only-mouse">X</small></button></div>
 <button id="expandBtn" type="button" hidden title="擴編（E）">擴編<small>消耗 10 零件</small><small class="only-mouse">E</small></button>
-<button id="swapBtn" type="button" hidden aria-label="切換角色" title="切換角色（F）"><img id="swapImg" alt=""><span id="swapName"></span><small class="only-mouse">F</small><span class="swap-cd" id="swapCd"></span></button>
+<button id="swapBtn" type="button" hidden aria-label="切換角色" title="切換角色（F）"><img id="swapImg" alt=""><span id="swapName"></span><small id="swapKey" class="only-mouse">F</small><span class="swap-cd" id="swapCd"></span></button>
 
 <div id="bossBar" hidden><div id="bossHead"><b id="bossName">Boss</b><span id="bossHpNum"></span></div><div id="bossTrack"><div id="bossHpFill"></div><div id="bossShFill" hidden></div></div></div>
 
@@ -5828,8 +5828,10 @@ function swapChar(forced) {
 }
 function updateSwap() {
   const b = $('swapBtn');
+  if (!isNight() && $('swapKey').textContent !== 'F') { $('swapKey').textContent = 'F'; b.title = '切換角色（F）'; }
   if (isNight()) {
     const nx = nightStep(1); b.hidden = state !== 'play' || !nx; if (b.hidden) return;
+    if ($('swapKey').textContent !== 'F 下一個G 上一個') { $('swapKey').innerHTML = 'F 下一個<br>G 上一個'; b.title = '切換下一個人形（F）／上一個人形（G）'; }   // 夜戰：電腦版兩個切換鍵
     const def = nx.def, im = $('swapImg'), src = previewOf(def); if (src && im.dataset.id !== def.id) { im.src = src; im.dataset.id = def.id; }
     $('swapName').textContent = '切換'; const f = nightSwapCd > 0 ? nightSwapCd / SWAP_CD : 0;
     $('swapCd').style.background = f > 0 ? 'conic-gradient(rgba(4,14,20,.6) ' + (f * 360) + 'deg, transparent 0)' : 'none'; return;
