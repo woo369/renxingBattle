@@ -1846,7 +1846,7 @@ const LEVELS = [
   { id: 'training', name: '訓練場', open: true, desc: '無限延伸的戰場，與跟你相同角色的影子敵人持續對戰，看能撐多久。' },
   { id: 'war', name: '戰事', open: true, desc: '三階段的戰事，敵人會階段性地變強，每個階段末尾都會出現 Boss，擊敗第三階段的 Boss 即過關。' },
   { id: 'duel', name: '菁英對決', open: true, desc: '入場 5 秒後出現一名隨機精英敵人，擊敗它即可過關。精英以三階的強度為基準，一階、二階精英會依類型強化到相同水準。場上會定時出現零件與醫療箱。' },
-  { id: 'night', name: '夜戰', open: true, desc: '在漆黑的野外作戰，分成三個階段，跟戰事一樣每階段末尾會出現 Boss。手槍的視野 500，其他槍種只有 200（隊伍裡有手槍人形時提高到 450），且每名手槍人形讓全隊命中 +20%；所有單位迴避率 +20%。只能帶一名人形出擊，撿到通訊器後可以呼叫遠處的友方人形支援，最多再帶三名隊友，並且可以切換操控；零件全隊共用，改用來強化目前操控的人形（子彈傷害、生命 ×1.2，最多 5 次）。前 3 分鐘是準備階段，敵人很少。' },
+  { id: 'night', name: '夜戰', open: true, desc: '在漆黑的野外作戰，分成三個階段，跟戰事一樣每階段末尾會出現 Boss。每名人形都有自己的視野：手槍 500，其他槍種只有 200（隊伍裡有手槍人形時提高到 450），且每名手槍人形讓全隊命中 +20%；所有單位迴避率 +20%。只能帶一名人形出擊，撿到通訊器後可以呼叫遠處的友方人形支援，最多再帶三名隊友，並且可以切換操控；零件全隊共用，改用來強化目前操控的人形（子彈傷害、生命 ×1.2，最多 5 次）。前 3 分鐘是準備階段，敵人很少。' },
   { id: 'test', name: '測試模式', open: true, desc: '不會自動出怪，可以自選召喚任何敵人或精英，零件無限。' },
   { id: 'battle', name: '戰局', open: true, desc: '（開發中）100×100 格的大地圖，之後會做成 7 打 7 的戰局。地圖上有三個佔領點，站在點上就能佔領；山、房屋、樹木會擋路與子彈，樹林會遮擋視線。左上角是小地圖，按 M 或點小地圖可以打開全圖（單位會變成點）。' },
   { id: 'versus', name: '雲圖對戰', open: true, desc: '（開發中）5 打 5 的團隊對戰，所有人形的生命都是原本的 3 倍，60×30 格的長條地圖，藍隊、紅隊的大本營在左右兩側。擊倒敵方人形本體得 1 分，先到 30 分獲勝；初始零件 10，地圖中間會出現零件和醫療包，擊倒敵人可拿走對方 50% 的零件。可以加入普通或精銳 AI，倒下 5 秒後重生。大本營有會無限重生的守衛，會攻擊太靠近的敵人。' },
@@ -5304,7 +5304,7 @@ function updateAmmo() {
   $('ammoNum').style.color = player.ammo === 0 ? 'var(--danger)' : '';
 }
 function updateHp() {
-  $('hpNum').textContent = Math.ceil(player.hp) + ' / ' + player.maxHp;
+  $('hpNum').textContent = Math.min(Math.ceil(player.hp), Math.round(player.maxHp)) + ' / ' + Math.round(player.maxHp);   // 強化後的數值四捨五入顯示
   $('hpFill').style.width = (player.hp / player.maxHp * 100) + '%';
   // 護盾：半透明藍色覆蓋在生命條上；超過 1 倍最大生命的部分用較亮的藍色再疊一層
   const s1 = Math.min(player.shield, player.maxHp), s2 = Math.max(0, player.shield - player.maxHp);
@@ -5507,7 +5507,11 @@ const NIGHT_VISION = { HG: 500, other: 200, withHG: 450 };   // 視野半徑：�
 const NIGHT_ENH = { max: 5, mul: 1.2 };         // 強化：子彈傷害、生命 ×1.5，最多 5 次（花費同擴編）
 const NIGHT_ELITE = { chance: 0.15, cost: 10, dodgeCd: 2.5 };   // 通訊器有 15% 機率呼叫到精銳 AI 的人形，邀請時多花 10 零件
 const NIGHT = { teamMax: 3, inviteR: 150, spawnMin: 900, spawnMax: 1300, bgScale: 0.8 };   // 最多 2 名隊友；靠近支援人形 150 內可以邀請；支援人形出現在 900～1300 外
-const visionR = () => (isNight() && player ? (cfg.weapon.class === 'HG' ? NIGHT_VISION.HG : nightAllies().some((c) => c.def.weapon.class === 'HG') ? NIGHT_VISION.withHG : NIGHT_VISION.other) : Infinity);
+// 每名人形各自的視野：手槍人形 500；隊伍裡有手槍人形時其他人形 450；沒有就 200
+const visionOf = (u) => (u.def.weapon.class === 'HG' ? NIGHT_VISION.HG : nightOrder().some((c) => c.def.weapon.class === 'HG') ? NIGHT_VISION.withHG : NIGHT_VISION.other);
+const visionR = () => (isNight() && player ? visionOf(player) : Infinity);
+// 敵人有沒有被隊伍裡任何一名人形看到（看到的才能鎖定）
+const teamSees = (e) => !isNight() || nightOrder().some((u) => Math.hypot(e.x - u.x, e.y - u.y) <= visionOf(u));
 const NIGHT_HG_ACC = 0.2;   // 隊伍增益：隊伍裡每有一名手槍人形，全隊命中 +20%（抵銷敵人的迴避率，最低扣到 0）
 const nightAcc = () => (isNight() && player && (state === 'play' || state === 'pause') ? NIGHT_HG_ACC * nightOrder().filter((u) => u.def.weapon.class === 'HG').length : 0);
 const enhMul = (u) => Math.pow(NIGHT_ENH.mul, (u && u.enh) || 0);
@@ -5784,7 +5788,7 @@ function drawNightDark() {
     g.fillStyle = gr; g.beginPath(); g.ellipse(q.x, q.y, r, r * VIEW3D.squash, 0, 0, Math.PI * 2); g.fill();
   };
   if (!vsDead()) light(player.x, player.y - 10, visionR() * 1.12);
-  for (const c of clones) light(c.x, c.y - 10, 85, 0.85);
+  for (const c of clones) light(c.x, c.y - 10, c.nightAlly ? visionOf(c) * 1.12 : 85, c.nightAlly ? 1 : 0.85);   // 隊友各自的視野也會揭開黑霧
   if (station && station.ready) light(station.x, station.y - 40, 190, 0.95);
   for (const it of commItems) light(it.x, it.y, 60, 0.9);
   for (const it of parts) light(it.x, it.y, 34, 0.7);
@@ -9282,7 +9286,7 @@ function update(dt) {
   // 鎖定目標：範圍內最近的敵人
   let target = null, best = Infinity;
   const VR = visionR();   // 夜戰：看不到的敵人不能鎖定
-  for (const e of enemies) { const d = Math.hypot(e.x - player.x, e.y - player.y); if (d <= cfg.lockRange && d <= VR && d < best) { best = d; target = e; } }
+  for (const e of enemies) { const d = Math.hypot(e.x - player.x, e.y - player.y); if (d <= cfg.lockRange && d < best && teamSees(e)) { best = d; target = e; } }
   const wantsFire = (mouseDown || fireHeld || keys.has('Space') || keys.has('KeyJ')) && player.dodgeT <= 0 && !vsDead() && !(player.castT > 0) && !(player.huntAim > 0);
   player.wantsFire = wantsFire;   // 分身（不同人形）跟著開火用
 
@@ -9293,7 +9297,7 @@ function update(dt) {
     // 輕微瞄準輔助：滑鼠準星離敵人夠近時吸附過去
     let snap = null, bd = 0.2;
     for (const e of enemies) {
-      const d = Math.hypot(e.x - player.x, e.y - player.y); if (d > Math.min(330, VR)) continue;
+      const d = Math.hypot(e.x - player.x, e.y - player.y); if (d > 330 || !teamSees(e)) continue;
       let diff = Math.atan2(e.y - player.y, e.x - player.x) - a; diff = Math.atan2(Math.sin(diff), Math.cos(diff));
       if (Math.abs(diff) < bd) { bd = Math.abs(diff); snap = e; }
     }
@@ -9307,7 +9311,7 @@ function update(dt) {
     if (fireHeld && touchLockOk()) { a = Math.atan2(touchLock.y - player.y, touchLock.x - player.x) + touchOff; bd = -1; }   // 鎖定的敵人方向＋微調（持續跟著目標）
     else if (fireHeld && touchLock) { touchAim = a; touchLock = null; }   // 目標倒下／跑出射程：停在目前方向，改回自由拖曳
     if (wantsFire && bd > 0) for (const e of enemies) {
-      const d = Math.hypot(e.x - player.x, e.y - player.y); if (d > Math.min(bulletRange(cfg), VR)) continue;
+      const d = Math.hypot(e.x - player.x, e.y - player.y); if (d > bulletRange(cfg) || !teamSees(e)) continue;
       let diff = Math.atan2(e.y - player.y, e.x - player.x) - a; diff = Math.atan2(Math.sin(diff), Math.cos(diff));
       if (Math.abs(diff) < bd) { bd = Math.abs(diff); snap = e; }
     }
