@@ -5667,7 +5667,7 @@ function nightAfterEnemies(dt) {
     if (e.ckT >= 1.5) {
       const moved = Math.hypot(e.x - (e.ckX ?? e.x), e.y - (e.ckY ?? e.y)); e.ckT = 0; e.ckX = e.x; e.ckY = e.y;
       const tg = e.ntg || player, dT = Math.hypot(tg.x - e.x, tg.y - e.y), want = e.boss ? (e.B.lockRange || 200) : (e.T.lockRange || 200);
-      if (moved < 10 && dT > want * 1.15 && !e.boss) {   // 該往前走卻一直沒動：往側邊挪一段
+      if (moved < 10 && dT > want * 1.15 && !(e.boss && (e.mode === 'dash' || e.mode === 'aim' || e.dashing))) {   // 該往前走卻一直沒動：往側邊挪一段（Boss 衝刺／瞄準時除外）
         const a = Math.atan2(tg.y - e.y, tg.x - e.x) + (Math.random() < 0.5 ? 1 : -1) * Math.PI / 2;
         for (const step of [70, 110, 160]) { const nx = e.x + Math.cos(a) * step, ny = e.y + Math.sin(a) * step; if (!mapSolidAt(nx, ny, (e.r || 16) * 0.8)) { e.x = nx; e.y = ny; e.ckX = nx; e.ckY = ny; break; } }
       }
@@ -6905,12 +6905,26 @@ function separateEnemies() {
 }
 function moveWithCover(en, dx, dy) {
   if (isNight() && mudAt(en.x, en.y)) { dx *= 0.55; dy *= 0.55; }   // 夜戰：泥巴地減速
+  const x0 = en.x, y0 = en.y;
   if (!en.fighter && en.jamUntil > gameTime) { dx *= 0.7; dy *= 0.7; }   // 干擾圈：一般敵人移速 −30%
   const list = covers();
   for (const axis of ['x', 'y']) {
     const next = en[axis] + (axis === 'x' ? dx : dy);
     const px = axis === 'x' ? next : en.x, py = axis === 'y' ? next : en.y;
     if (!list.some((b) => Math.abs(px - b.x) < en.r * 0.55 + b.r && Math.abs(py - b.y) < en.r * 0.55 + b.r) && !((bigMap() || isNight()) && mapSolidAt(px, py, en.r * 0.55))) en[axis] = next;
+  }
+  // 夜戰：敵人（含 Boss）被樹、岩石、湖擋住時，轉個角度沿著邊緣繞過去（固定往同一側繞，繞不過去才換邊）
+  if (isNight() && en !== player && !en.clone && !en.fighter) {
+    const want = Math.hypot(dx, dy), got = Math.hypot(en.x - x0, en.y - y0);
+    if (want > 0.05 && got < want * 0.4) {
+      const base = Math.atan2(dy, dx), side = en.steerSide || (en.steerSide = Math.random() < 0.5 ? 1 : -1), r = en.r * 0.55;
+      let ok = false;
+      steer: for (const da of [0.6, 1.1, 1.6, 2.1]) for (const sd of [side, -side]) {
+        const a = base + da * sd, nx = x0 + Math.cos(a) * want, ny = y0 + Math.sin(a) * want;
+        if (!mapSolidAt(nx, ny, r) && !list.some((b) => Math.abs(nx - b.x) < r + b.r && Math.abs(ny - b.y) < r + b.r)) { en.x = nx; en.y = ny; ok = true; if (sd !== side) en.steerSide = sd; break steer; }
+      }
+      if (ok) en.steerT = 0; else if ((en.steerT = (en.steerT || 0) + 1) > 30) { en.steerSide = -side; en.steerT = 0; }
+    }
   }
 }
 // 影子敵人的實際迴避率：受「迴避率降低」影響，最低 0%
