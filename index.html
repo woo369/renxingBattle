@@ -1843,6 +1843,10 @@ const CHARACTERS = {
     assets: ASSETS.xm,
   }),
 };
+// 角色大小統一：素材來源不同的幾名人形先縮到跟其他人一樣大；再依槍種微調（手槍、衝鋒槍 ×0.95；霰彈槍、機槍 ×1.05）
+const SIZE_NORM = { hk433: 0.8, type82: 0.8, martini: 0.86, triple_crown: 0.86 };
+const SIZE_CLASS = { HG: 0.95, SMG: 0.95, SG: 1.05, MG: 1.05 };
+for (const D of Object.values(CHARACTERS)) D.anim.scale *= (SIZE_NORM[D.id] || 1) * (SIZE_CLASS[D.weapon.class] || 1);
 const WEAPON_CLASSES = ['突擊步槍', '衝鋒槍', '手槍', '步槍', '霰彈槍', '機槍'];
 const CLASS_NAMES = { AR: '突擊步槍', SMG: '衝鋒槍', HG: '手槍', RF: '步槍', SG: '霰彈槍', MG: '機槍' };
 // 關卡：之後新增關卡就在這裡加
@@ -4429,7 +4433,7 @@ const BOSSES = {
     ai: 'typhon',
     weapon: '電磁激光主砲、反重力裝置',
     desc: '正規軍的重型主戰坦克，靠反重力裝置浮空移動，非常笨重。開到定點後會把車體降到地面，蓄力後發射長達 650 的青藍色電磁激光束，並且一邊緩慢偏移一邊追著目標掃射。',
-    specialDesc: '電磁激光主砲：到達鎖敵距離後停下，車體降到地面（2.6 秒）再蓄力 2 秒，接著發射持續 5 秒的激光束（從砲管到 650 外），光束會帶著偏移慢慢追向目標；待在光束裡每 0.2 秒受到 10 點傷害。發射後冷卻 8 秒，目標還在範圍內就原地等待，跑出範圍外會把車體抬升（1.4 秒）再移動追擊；目標鑽到 150 內的射擊死角時，會抬升車體、車頭朝著目標往後退到 380 再降下開砲。',
+    specialDesc: '電磁激光主砲：到達鎖敵距離後停下，車體降到地面（2.6 秒）再蓄力 2 秒，接著發射持續 5 秒的激光束（從砲管到 650 外），光束會帶著偏移慢慢追向目標；待在光束裡每 0.2 秒受到 10 點傷害。發射後冷卻 8 秒，目標還在範圍內就原地等待，跑出範圍外會把車體抬升（1.4 秒）再移動追擊；目標鑽進射擊死角（150 內太近打不到，或冷卻中跑到車頭前方的射角外，不管多遠）時，會抬升車體、車頭朝著目標往後移動 200 再降下開砲。',
     hp: 4000, armor: 75,
     evade: 0,
     speed: 180,
@@ -4438,7 +4442,7 @@ const BOSSES = {
     radius: 50,
     laser: { range: 650, width: 25, dmg: 10, tick: 0.2, charge: 2, fire: 5, cooldown: 8, turn: 0.55, offset: 0.35, arc: 1.3 },   // 光束：射程 650、寬 25；蓄力 2 秒、發射 5 秒、冷卻 8 秒；從警示線的位置開始發射，之後每秒最多轉 0.55 弧度慢慢追向目標（偏移追蹤）；最多偏離車頭 1.3 弧度
     lift: 1.4, lower: 2.6,       // 抬升 1.4 秒後才移動；降下 2.6 秒後才開始瞄準
-    deadZone: 150, retreatTo: 380,   // 射擊死角：目標在 150 內（砲口在車頭前方，太近打不到）→ 抬升後一邊朝著目標一邊後退到 380 再降下（最多退 4 秒）
+    deadZone: 150, retreatMove: 200,   // 射擊死角：目標在 150 內（太近砲口打不到），或冷卻中跑到車頭前方射角外（不管多遠）→ 抬升後車頭朝著目標往後移動 200 再降下
     assets: ASSETS.typ,
   },
   paladin: {
@@ -7969,14 +7973,14 @@ function vsTyphonGuard(g, dt, tgt, bd) {
 }
 function typhonCore(e, dt, toward, aimTo, dist, canMove) {
   const B = e.B, L = B.laser;
-  e.phase = (e.phase || 0) + dt; e.angle = aimTo; e.t = (e.t || 0) + dt; e.mode = e.mode || 'hover'; e.cd = Math.max(0, (e.cd || 0) - dt); e.moving = false;
+  e.phase = (e.phase || 0) + dt; e.angle = aimTo; e.aimD = dist; e.t = (e.t || 0) + dt; e.mode = e.mode || 'hover'; e.cd = Math.max(0, (e.cd || 0) - dt); e.moving = false;
   const go = (m) => { e.mode = m; e.t = 0; };
   const front = (a) => { const f = e.faceLeft ? Math.PI : 0; let d = Math.atan2(Math.sin(a - f), Math.cos(a - f)); d = clamp(d, -L.arc, L.arc); return f + d; };   // 光束只能朝車頭前方
   if (e.mode === 'hover' && e.retreat) {
     // 拉開距離：車頭一直朝著目標，往反方向（稍微斜著）浮空後退，退到打得到的距離再降下
     e.faceLeft = Math.cos(aimTo) < 0; e.retreatT = (e.retreatT || 0) + dt;
-    const away = aimTo + Math.PI + (e.retreatSide || 0.35);
-    if (dist < B.retreatTo && e.retreatT < 4) { e.moving = true; const x0 = e.x, y0 = e.y; moveWithCover(e, Math.cos(away) * B.speed * dt, Math.sin(away) * B.speed * dt); if (Math.hypot(e.x - x0, e.y - y0) < B.speed * dt * 0.3) e.retreatSide = -(e.retreatSide || 0.35) * 1.6; }   // 後面被擋住：換一邊斜退
+    const away = e.retreatFar ? aimTo + Math.sign(e.retreatSide || 1) * Math.PI / 2 : aimTo + Math.PI + (e.retreatSide || 0.35);   // 目標很遠時橫移（再往後退會跑出射程）
+    if ((e.retreatRun || 0) < B.retreatMove && e.retreatT < 4) { e.moving = true; const x0 = e.x, y0 = e.y; moveWithCover(e, Math.cos(away) * B.speed * dt, Math.sin(away) * B.speed * dt); const mv = Math.hypot(e.x - x0, e.y - y0); e.retreatRun = (e.retreatRun || 0) + mv; if (mv < B.speed * dt * 0.3) e.retreatSide = -(e.retreatSide || 0.35) * 1.6; }   // 後面被擋住：換一邊斜退
     else { e.retreat = false; go('lower'); }
   } else if (e.mode === 'hover') {
     e.faceLeft = Math.cos(toward) < 0;
@@ -7985,7 +7989,7 @@ function typhonCore(e, dt, toward, aimTo, dist, canMove) {
   } else if (e.mode === 'lower') { if (e.t >= B.lower) go('ground'); }
   else if (e.mode === 'ground') {
     if (dist > B.lockRange) go('lift');
-    else if (dist < B.deadZone) { go('lift'); e.retreat = true; e.retreatT = 0; e.retreatSide = Math.random() < 0.5 ? 0.35 : -0.35; floatText(e.x, e.y - 100, '拉開距離', '#9fe8ff'); }   // 目標鑽進射擊死角（太近、砲口打不到）：抬升後往後退
+    else if (dist < B.deadZone || (e.cd > 0.5 && Math.abs(Math.atan2(Math.sin(aimTo - (e.faceLeft ? Math.PI : 0)), Math.cos(aimTo - (e.faceLeft ? Math.PI : 0)))) > L.arc)) { go('lift'); e.retreat = true; e.retreatT = 0; e.retreatRun = 0; e.retreatFar = dist + B.retreatMove > B.lockRange * 0.92; e.retreatSide = Math.random() < 0.5 ? 0.35 : -0.35; floatText(e.x, e.y - 100, '拉開距離', '#9fe8ff'); }   // 目標鑽進射擊死角（太近、砲口打不到）：抬升後往後退
     else if (e.cd <= 0) { go('charge'); e.faceLeft = Math.cos(aimTo) < 0; e.aim = front(aimTo); typSfx(e, 'charge'); }
   } else if (e.mode === 'lift') { if (e.t >= B.lift) go('hover'); }
   else if (e.mode === 'charge') {
@@ -7998,6 +8002,7 @@ function typhonCore(e, dt, toward, aimTo, dist, canMove) {
   if (e.kvx || e.kvy) { e.kvx = e.kvy = 0; }   // 重型坦克：不會被擊退
 }
 // 砲口位置（地面座標＋高度）；光束從砲口拉到 650 外
+const TYP_HIT_H = -3;   // 人形身體中間的高度（相對腳下座標）
 function typMuzzle(e) { const m = e.B.assets.meta, sc = m.scale, dx = (m.muzzle[0] - m.cx) * sc * (e.faceLeft ? 1 : -1), h = (m.muzzle[1] - m.cy) * sc; return { x: e.x + dx, y: e.y, h }; }
 function typBeamSeg(e) { const M = typMuzzle(e), R = e.B.laser.range, a = e.beam; return { M, E: { x: M.x + Math.cos(a) * R, y: M.y + Math.sin(a) * R } }; }
 const segDist = (px, py, ax, ay, bx, by) => { const vx = bx - ax, vy = by - ay, L2 = vx * vx + vy * vy || 1, t = clamp(((px - ax) * vx + (py - ay) * vy) / L2, 0, 1); return Math.hypot(px - ax - vx * t, py - ay - vy * t); };
@@ -8023,7 +8028,8 @@ function drawTyphonBeams() {
   for (const e of typUnits()) {
     if (e.mode !== 'fire' && e.mode !== 'charge') continue;
     const L = e.B.laser, M = typMuzzle(e), a = e.mode === 'fire' ? e.beam : e.aim, E = { x: M.x + Math.cos(a) * L.range, y: M.y + Math.sin(a) * L.range };
-    const qa = proj(M.x, M.y), qb = proj(E.x, E.y), ax = qa.x, ay = qa.y + M.h * qa.k, bx = qb.x, by = qb.y + M.h * qb.k;
+    const dT = clamp(Number.isFinite(e.aimD) ? e.aimD : 300, 90, L.range), hE = clamp(M.h + (TYP_HIT_H - M.h) * L.range / dT, M.h, 8);   // 光束斜斜往下，在目標的距離剛好打在身體中間
+    const qa = proj(M.x, M.y), qb = proj(E.x, E.y), ax = qa.x, ay = qa.y + M.h * qa.k, bx = qb.x, by = qb.y + hE * qb.k;
     ctx.save(); ctx.globalCompositeOperation = 'lighter'; ctx.lineCap = 'round';
     if (e.mode === 'charge') {   // 蓄力：細的瞄準線越來越亮＋砲口聚光
       const k = clamp(e.t / L.charge, 0, 1);
