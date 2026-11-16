@@ -3116,6 +3116,31 @@ function vsEliteGroup(f) {
   const lead = best.members.filter((u) => u.level !== 'elite').sort((a, b) => rank(b) - rank(a))[0] || best.members.slice().sort((a, b) => rank(b) - rank(a))[0];
   best.leader = lead; return best;
 }
+/* 群體投票（每 2 秒一次，由帶頭者統計）：每名成員依自己的狀況投票
+   撤退：生命低於 40%（附近有醫療箱更想去）／收集：附近 900 內有零件、自己的擴編少於 3 而且沒看到敵人／進攻：預設，群體擴編多時更想打
+   票數最多的就是整群接下來的行動；帶頭者照著走，其他人照定位跟在帶頭者身邊 */
+const GROUP_INTENT_TXT = { attack: '進攻', collect: '收集零件', retreat: '撤退整補' };
+function vsGroupIntent(L, grp, dirX) {
+  const I = L.grpIntent;
+  if (!I || gameTime >= I.until) {
+    const cx = grp.cx, cy = grp.cy, near = (list, R) => { let it = null, bd = R; for (const p of list) { const d = Math.hypot(p.x - cx, p.y - cy); if (d < bd) { bd = d; it = p; } } return it; };
+    const part = near(parts, 900), med = near(medkits, 1500), clonesAll = grp.members.reduce((a, u) => a + vsClonesOf(u), 0);
+    const v = { attack: 0, collect: 0, retreat: 0 };
+    for (const u of grp.members) {
+      const hp = u.hp / (u.maxHp || 1);
+      v.attack += 1 + (clonesAll >= 3 ? 0.5 : 0);
+      if (hp < 0.4) v.retreat += med ? 2 : 1.5;
+      if (part && vsClonesOf(u) < 3 && !(u.target && vsAlive(u.target))) v.collect += 1.2;
+    }
+    const mode = Object.keys(v).sort((a, b) => v[b] - v[a])[0];
+    if (!I || I.mode !== mode) floatText(L.x, L.y - 70, GROUP_INTENT_TXT[mode], '#ffe08a');
+    L.grpIntent = { mode, until: gameTime + 2, part, med };
+  }
+  const M = L.grpIntent;
+  if (M.mode === 'collect' && M.part && parts.includes(M.part)) return { x: M.part.x, y: M.part.y, item: true };
+  if (M.mode === 'retreat') return M.med && medkits.includes(M.med) ? { x: M.med.x, y: M.med.y, item: true } : { x: L.x - dirX * 400, y: L.y };
+  return vsHuntGoal(L, dirX);   // 進攻：主動往敵人（或最後看到敵人的地方）推進
+}
 function vsGroupGoal(f, grp, tgt, goal, role, range, dirX, dpsF) {
   const L = grp.leader; if (L === f) return goal;
   const side = Math.sin(f.seed || 0);
@@ -3248,7 +3273,8 @@ function vsThink(f) {
     for (const u of friends) { if (!['front', 'support'].includes(roleOf(u))) continue; const dd = Math.hypot(u.x - f.x, u.y - f.y); if (dd < bd) { bd = dd; ally = u; } }
     if (ally && bd > 200) { const ad = Math.hypot(tgt.x - ally.x, tgt.y - ally.y) || 1; goal = { x: ally.x + (tgt.x - ally.x) / ad * 70, y: ally.y + (tgt.y - ally.y) / ad * 70 }; }   // 精銳 S.A.T.8：站到隊友身邊、靠敵人那一側
   }
-  if (grp && !(goal && goal.item)) goal = vsGroupGoal(f, grp, tgt, goal, role, range, dirX, dpsF);   // 精銳：跟著群體行動（補血、撿零件等更優先的事除外）
+  if (grp && grp.leader === f && !tgt && !(goal && goal.item && f.hp < f.maxHp * 0.35)) goal = vsGroupIntent(f, grp, dirX);   // 精銳帶頭者：照群體投票的結果行動（進攻／收集／撤退）
+  else if (grp && !(goal && goal.item)) goal = vsGroupGoal(f, grp, tgt, goal, role, range, dirX, dpsF);   // 精銳：跟著群體行動（補血、撿零件等更優先的事除外）
   if (gameTime < (f.detourUntil || 0)) goal = f.detour;   // 卡住時的繞路點
   if (vs.night) goal = nightLeash(f, tgt, goal);   // 夜戰隊友：跟著玩家
   if (goal) { goal.x = clamp(goal.x, -MAPGEN.hw + 60, MAPGEN.hw - 60); goal.y = clamp(goal.y, -MAPGEN.hh + 60, MAPGEN.hh - 60); }
