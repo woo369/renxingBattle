@@ -3325,6 +3325,12 @@ function vsDodgeCheck(f) {
   f.rollT = f.level === 'elite' ? 0.35 : vs.night ? 1 : 0.7;   // 夜戰的普通隊友反應再慢一點   // 同一波子彈只判定一次（普通 AI 反應比較慢）
   const b = th.b, side = (th.mx * -b.vy + th.my * b.vx) >= 0 ? 1 : -1, perp = Math.atan2(b.vy, b.vx) + side * Math.PI / 2;
   const step = (t) => { f.evadeT = t; f.evadeDir = perp; };
+  if (mgOn(f) && f.prone > 0) {
+    // 機槍趴著（或正在趴下）時不側移：側移會讓她起身又趴下，一直被打斷而開不了槍；只有這一波夠痛才閃避
+    const hurt = vsIncoming(f, foeTeam), big = hurt >= Math.max(15, f.maxHp * 0.12) || hurt >= f.hp * 0.5;
+    if (big && f.charges > 0 && (f.level === 'elite' || Math.random() < 0.3)) vsDodge(f, perp);   // 普通 AI 只有 3 成機率反應過來
+    return;
+  }
   if (f.level === 'elite') {
     // 精銳：先算移動躲不躲得掉，躲不掉才閃避；保留 1 次閃避，生命低於門檻才無限制使用
     const E = VS_ELITE[D.id] || VS_ELITE_DEFAULT, spd = (D.speed + effSum(f, 'spdFlat')) * speedMul(f) * (mgOn(f) && f.prone > 0 ? 0 : 1) * (f.huntAim > 0 ? 0 : 1);
