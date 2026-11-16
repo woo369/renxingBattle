@@ -2730,6 +2730,8 @@ const VS_ELITE = {
   sp9: { dodgeFree: 0.3, collectCalm: 2 },
   // 蜂鳥：跟在輸出身邊（群體沒有前排時改當前排）；依附近最多的槍種決定要給哪個效果（步槍：射速＞暴擊＞傷害；突擊步槍／機槍／手槍：暴擊＞傷害＞射速；衝鋒槍／霰彈槍：暴擊＞射速＞傷害）
   hummingbird: { dodgeFree: 0.3 },
+  // S.A.T.8：前排；技能優先在前排／輔助隊友身邊開（讓他們也吃到金盾），技能好了會往他們靠；閃避只留給高傷害的子彈（霰彈槍精銳都適用）
+  sat8: { dodgeFree: 0.3, front: true, shieldNear: true },
 };
 // 所有精銳：隊友正在跟敵人交戰時會主動過去支援
 const VS_ELITE_DEFAULT = { dodgeFree: 0.3 };
@@ -3241,6 +3243,11 @@ function vsThink(f) {
     if ((f.idleT || 0) > 3) { f.idleT = 0; f.flankSide = -f.flankSide; f.flankT = 3; }
     if (!(E && E.flank) && f.flankT > 0) { f.flankT = Math.max(0, f.flankT - 0.2); const a = Math.atan2(uy, ux) + f.flankSide * 1.1; goal = { x: tgt.x + Math.cos(a) * keep, y: tgt.y + Math.sin(a) * keep }; }
   }
+  if (E && E.shieldNear && tgt && f.skillCd <= 0 && !(goal && goal.item)) {
+    let ally = null, bd = 520;
+    for (const u of friends) { if (!['front', 'support'].includes(roleOf(u))) continue; const dd = Math.hypot(u.x - f.x, u.y - f.y); if (dd < bd) { bd = dd; ally = u; } }
+    if (ally && bd > 200) { const ad = Math.hypot(tgt.x - ally.x, tgt.y - ally.y) || 1; goal = { x: ally.x + (tgt.x - ally.x) / ad * 70, y: ally.y + (tgt.y - ally.y) / ad * 70 }; }   // 精銳 S.A.T.8：站到隊友身邊、靠敵人那一側
+  }
   if (grp && !(goal && goal.item)) goal = vsGroupGoal(f, grp, tgt, goal, role, range, dirX, dpsF);   // 精銳：跟著群體行動（補血、撿零件等更優先的事除外）
   if (gameTime < (f.detourUntil || 0)) goal = f.detour;   // 卡住時的繞路點
   if (vs.night) goal = nightLeash(f, tgt, goal);   // 夜戰隊友：跟著玩家
@@ -3264,6 +3271,19 @@ function vsHuntGoal(f, dirX, idle) {
   if (!f.huntPt || Math.hypot(f.huntPt.x - f.x, f.huntPt.y - f.y) < 120) for (let n = 0; n < 10; n++) { f.huntPt = { x: dirX * MAPGEN.hw * rand(0.15, 0.7), y: rand(-1, 1) * MAPGEN.hh * 0.75 }; if (!mapSolidAt(f.huntPt.x, f.huntPt.y, 40)) break; }
   return f.huntPt;
 }
+// 估算接下來 0.5 秒內會打中自己的子彈總傷害（同一波霰彈彈丸一起算）
+function vsIncoming(f, foeTeam) {
+  let sum = 0;
+  for (const b of bullets) {
+    if (b.team !== foeTeam) continue;
+    const px = f.x - b.x, py = f.y - b.y; if (px * px + py * py > 380 * 380) continue;
+    const vv = b.vx * b.vx + b.vy * b.vy, t = (px * b.vx + py * b.vy) / vv; if (t <= 0 || t > 0.5) continue;
+    if (Math.hypot(px - b.vx * t, py - b.vy * t) >= f.r + b.r + 4) continue;
+    const base = b.dmg ?? (b.def && b.def.weapon ? b.def.weapon.damage : 10);
+    sum += base * (b.buff || 1) * (b.segs ? b.segs.n * (b.segs.pct || 1) : 1);
+  }
+  return sum;
+}
 function vsDodgeCheck(f) {
   if (f.dodgeT > 0 || f.evadeT > 0.05 || f.rollT > 0) return;
   const D = f.def, foeTeam = f.vsTeam === vs.myTeam ? 'e' : 'p';
@@ -3284,6 +3304,11 @@ function vsDodgeCheck(f) {
     const E = VS_ELITE[D.id] || VS_ELITE_DEFAULT, spd = (D.speed + effSum(f, 'spdFlat')) * speedMul(f) * (mgOn(f) && f.prone > 0 ? 0 : 1) * (f.huntAim > 0 ? 0 : 1);
     const need = f.r + b.r + 6 - th.miss, can = spd * th.t * 0.9, free = f.hp <= f.maxHp * E.dodgeFree;
     if (can >= need) step(need / Math.max(1, spd) + 0.12);
+    else if (D.weapon.class === 'SG') {
+      // 霰彈槍精銳（閃避次數少）：估算這一波 0.5 秒內會打中的總傷害，夠痛才閃避，不痛就直接吃下來
+      const hurt = vsIncoming(f, foeTeam), big = hurt >= Math.max(15, f.maxHp * 0.12) || hurt >= f.hp * 0.5;
+      if (big && f.charges > 0) vsDodge(f, perp); else step(0.25);
+    }
     else if (f.charges > (free ? 0 : 1)) vsDodge(f, perp);
     else step(0.3);
   } else {
@@ -3442,6 +3467,13 @@ function vsMaybeSkill(f, tgt, vis, force) {
     case 'laceration': if (force || (inRange && dist > 120 && magReady())) f.armed = true; return;
     case 'ironWall': {
       const near = friends.filter((u) => Math.hypot(u.x - f.x, u.y - f.y) <= sk.radius);
+      if (E && E.shieldNear && !force) {
+        // 精銳 S.A.T.8：身邊有前排／輔助隊友才開；等太久（有目標超過 6 秒）或自己血少才自己開
+        const guard = near.filter((u) => !u.isClone && !u.clone && ['front', 'support'].includes(ROLE_OF[vsUnitDef(u).weapon.class])).length;
+        f.iwWait = tgt ? (f.iwWait || 0) + 0.2 : 0;
+        if (!tgt || !(guard >= 1 || f.hp < f.maxHp * 0.5 || f.iwWait > 6)) return;
+        f.iwWait = 0;
+      } else
       if (!force && (!tgt || (near.length < 1 && f.hp > f.maxHp * 0.7))) return;
       for (const u of [f, ...f.clones, ...near]) addGold(u, sk.gold, sk.goldTime);
       rings.push({ x: f.x, y: f.y, r: sk.radius, life: 0.7, max: 0.7, color: '#ffd34d' });
