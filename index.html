@@ -4374,7 +4374,7 @@ const BOSSES = {
     lockRange: 600,
     bulletDmg: 10,               // 圖鑑用：激光每 0.2 秒的傷害
     radius: 50,
-    laser: { range: 650, width: 28, dmg: 10, tick: 0.2, charge: 2, fire: 5, cooldown: 10, turn: 0.55, offset: 0.35, arc: 1.3 },   // 光束：射程 650、寬 28；蓄力 2 秒、發射 5 秒、冷卻 10 秒；每秒最多轉 0.55 弧度（偏移追蹤），一開始偏 0.35；最多偏離車頭 1.3 弧度
+    laser: { range: 650, width: 25, dmg: 10, tick: 0.2, charge: 2, fire: 5, cooldown: 10, turn: 0.55, offset: 0.35, arc: 1.3 },   // 光束：射程 650、寬 25；蓄力 2 秒、發射 5 秒、冷卻 10 秒；從警示線的位置開始發射，之後每秒最多轉 0.55 弧度慢慢追向目標（偏移追蹤）；最多偏離車頭 1.3 弧度
     lift: 1.4, lower: 2.6,       // 抬升 1.4 秒後才移動；降下 2.6 秒後才開始瞄準
     assets: ASSETS.typ,
   },
@@ -7891,7 +7891,7 @@ function updateTyphon(e, dt, toward, dist) {
   } else if (e.mode === 'lift') { if (e.t >= B.lift) go('hover'); }
   else if (e.mode === 'charge') {
     e.aim = front(toward);
-    if (e.t >= L.charge) { go('fire'); e.beam = front(toward + (Math.random() < 0.5 ? 1 : -1) * L.offset); e.tickT = 0; typSfx(e, 'fire'); shake = Math.max(shake, 6); }
+    if (e.t >= L.charge) { go('fire'); e.beam = e.aim; /* 從警示線最後的位置開始發射 */ e.tickT = 0; typSfx(e, 'fire'); shake = Math.max(shake, 6); }
   } else if (e.mode === 'fire') {
     const want = front(toward); let d = Math.atan2(Math.sin(want - e.beam), Math.cos(want - e.beam)); e.beam += clamp(d, -L.turn * dt, L.turn * dt);   // 偏移追蹤：慢慢轉向目標
     if (e.t >= L.fire) { go('ground'); e.cd = L.cooldown; typSfxStop(e); }
