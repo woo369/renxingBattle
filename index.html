@@ -1633,7 +1633,7 @@ const CHARACTERS = {
       name: '蜂鳥共鳴',
       icon: 'skill_resonance',
       cooldown: 0,
-      birdEvery: 4,              // 被動：每 4 秒獲得 1 隻蜂鳥
+      birdEvery: 3,              // 被動：每 3 秒獲得 1 隻蜂鳥
       maxBirds: 3,               // 最多 3 隻
       radius: 450,               // 以蜂鳥為中心，半徑 450 內的友方獲得效果
       // 依消耗的蜂鳥數量給予效果（同一種效果再次獲得時只重設時間，不疊加）
@@ -1642,7 +1642,7 @@ const CHARACTERS = {
         2: { id: 'res_rate', name: '射速提升', mark: '速', color: '#7fe3ff', rate: 0.25, time: 12 },
         3: { id: 'res_crit', name: '暴擊提升', mark: '暴', color: '#ff7fa8', crit: 0.25, time: 16 },
       },
-      desc: '被動：每 4 秒獲得 1 隻蜂鳥，跟在身邊，最多 3 隻。發動時消耗全部蜂鳥，以自身為中心、半徑 450 內的友方依消耗數量獲得效果——1 隻：傷害提升 25%，持續 8 秒；2 隻：射擊速度提升 25%，持續 12 秒；3 隻：暴擊率提升 25%，持續 16 秒。',
+      desc: '被動：每 3 秒獲得 1 隻蜂鳥，跟在身邊，最多 3 隻。發動時消耗全部蜂鳥，以自身為中心、半徑 450 內的友方依消耗數量獲得效果——1 隻：傷害提升 25%，持續 8 秒；2 隻：射擊速度提升 25%，持續 12 秒；3 隻：暴擊率提升 25%，持續 16 秒。',
     },
     portrait: 'portrait_hb',
     assets: ASSETS.hb,
@@ -2724,11 +2724,13 @@ const VS_ELITE = {
   type82: { dodgeFree: 0.3, prestack: true },
   // SP9：隊友都沒在交戰時優先撿零件，擴編到 2 個擴編人形（被動需要的條件）
   sp9: { dodgeFree: 0.3, collectCalm: 2 },
+  // 蜂鳥：跟在輸出身邊（群體沒有前排時改當前排）；依附近最多的槍種決定要給哪個效果（步槍：射速＞暴擊＞傷害；突擊步槍／機槍／手槍：暴擊＞傷害＞射速；衝鋒槍／霰彈槍：暴擊＞射速＞傷害）
+  hummingbird: { dodgeFree: 0.3 },
 };
 // 所有精銳：隊友正在跟敵人交戰時會主動過去支援
 const VS_ELITE_DEFAULT = { dodgeFree: 0.3 };
 // 大本營守衛：從精英敵人裡挑（目前只有巨劍士），一場抽一次，雙方一樣；只在自己的大本營裡活動，無限重生
-const VS_GUARD_POOL = ['greatsword', 'hydra'];
+const VS_GUARD_POOL = ['greatsword', 'hydra', 'typhon'];
 // 守衛的數值：巨劍士用 Boss 資料；九頭蛇用普通敵人的數值（原汁原味）
 const HYDRA_GUARD = { name: '九頭蛇', hydra: true, hp: HYDRA.hp * 10 /* 對戰守衛：生命 ×10 */, armor: HYDRA.armor, evade: 0, radius: HYDRA.radius, speed: HYDRA.speed, lockRange: HYDRA.lockRange,
   shift: HYDRA.shift, aimDelay: 0.2, bulletDmg: HYDRA.bulletDmg, fireCooldown: HYDRA.fireCooldown, magazine: HYDRA.magazine, reload: HYDRA.reload,
@@ -3088,6 +3090,57 @@ function vsReload(f) {
   foxToAR(f);
 }
 // 思考（每 0.15～0.25 秒一次）：選目標、決定要站的位置、技能、擴編
+/* 精銳 AI 的群體：同隊（不含擴編人形、守衛）彼此 450 內連在一起的人形算同一群
+   精銳會選一群跟著行動：成員越多、擴編人形越多越優先，離自己越遠越扣分；
+   群體的「帶頭者」＝群裡的玩家或普通 AI（擴編最多的）；整群都是精銳時，由擴編最多的精銳帶頭（帶頭者照原本的邏輯行動） */
+const vsClonesOf = (u) => u === player ? clones.filter((c) => !c.nightAlly).length : (u.clones || []).length;
+function vsEliteGroup(f) {
+  const all = vsFriendsOf(f).filter((u) => !u.isClone && !u.clone && !u.guard && vsAlive(u)); if (!all.includes(f)) all.push(f);
+  const left = all.slice(), groups = [];
+  while (left.length) { const g = [left.pop()]; for (let i = 0; i < g.length; i++) for (let j = left.length - 1; j >= 0; j--) if (Math.hypot(left[j].x - g[i].x, left[j].y - g[i].y) < 450) g.push(left.splice(j, 1)[0]); groups.push(g); }
+  let best = null, bs = -Infinity;
+  for (const g of groups) {
+    const others = g.filter((u) => u !== f); if (!others.length) continue;
+    const cx = g.reduce((a, u) => a + u.x, 0) / g.length, cy = g.reduce((a, u) => a + u.y, 0) / g.length;
+    const sc = others.reduce((a, u) => a + 1 + vsClonesOf(u) * 1.5, 0) - Math.hypot(cx - f.x, cy - f.y) / 500;
+    if (sc > bs) { bs = sc; best = { members: g, others, cx, cy }; }
+  }
+  if (!best) return null;
+  const rank = (u) => vsClonesOf(u) * 10 + (u === player || u.remote ? 5 : 0) + (ROLE_OF[vsUnitDef(u).weapon.class] === 'support' ? -3 : 0) + ((u.seed || 0) % 1);   // 輔助不當帶頭者
+  const lead = best.members.filter((u) => u.level !== 'elite').sort((a, b) => rank(b) - rank(a))[0] || best.members.slice().sort((a, b) => rank(b) - rank(a))[0];
+  best.leader = lead; return best;
+}
+function vsGroupGoal(f, grp, tgt, goal, role, range, dirX, dpsF) {
+  const L = grp.leader; if (L === f) return goal;
+  const side = Math.sin(f.seed || 0);
+  // 輔助（精銳蜂鳥等）：跟在輸出身邊（優先擴編多的輸出）
+  if (role === 'support') {
+    const d = dpsF.slice().sort((a, b) => vsClonesOf(b) - vsClonesOf(a) || Math.hypot(a.x - f.x, a.y - f.y) - Math.hypot(b.x - f.x, b.y - f.y))[0] || L;
+    if (tgt) { const ad = Math.hypot(tgt.x - d.x, tgt.y - d.y) || 1; return { x: d.x + (tgt.x - d.x) / ad * 60 - (tgt.y - d.y) / ad * side * 40, y: d.y + (tgt.y - d.y) / ad * 60 + (tgt.x - d.x) / ad * side * 40 }; }
+    return { x: d.x - dirX * 60, y: d.y + side * 70 };
+  }
+  if (!tgt) {   // 沒有目標：在帶頭者附近依定位站好（前排在前、輸出在中間偏後）
+    if (role === 'front') return { x: L.x + dirX * 130, y: L.y + side * 90 };
+    return { x: L.x - dirX * 50, y: L.y + side * 110 };
+  }
+  if (!goal) return goal;
+  const gx = goal.x - L.x, gy = goal.y - L.y, gd = Math.hypot(gx, gy), R = 380;   // 有目標：照原本的走位，但不離開群體 380 以外
+  return gd > R ? { x: L.x + gx / gd * R, y: L.y + gy / gd * R } : goal;
+}
+// 精銳蜂鳥：看附近最多的槍種決定要給的效果（1 隻＝傷害、2 隻＝射速、3 隻＝暴擊），已經有這個效果（剩 2 秒以上）的人超過一半就換下一個
+const HB_PRIO = { RF: ['rate', 'crit', 'dmg'], AR: ['crit', 'dmg', 'rate'], MG: ['crit', 'dmg', 'rate'], HG: ['crit', 'dmg', 'rate'], SMG: ['crit', 'rate', 'dmg'], SG: ['crit', 'rate', 'dmg'] };
+const HB_BIRDS = { dmg: 1, rate: 2, crit: 3 };
+function hbEliteWant(f, sk, friends) {
+  const near = [f, ...friends].filter((u) => !u.guard && Math.hypot(u.x - f.x, u.y - f.y) <= sk.radius);
+  if (near.length < 2) return 0;
+  if (!(f.target || near.some((u) => u.target && vsAlive(u.target)))) return 0;   // 沒人在打就先存著
+  const cnt = {}; for (const u of near) { const c = vsUnitDef(u).weapon.class; cnt[c] = (cnt[c] || 0) + 1; }
+  const top = Object.keys(cnt).sort((a, b) => cnt[b] - cnt[a])[0], prio = HB_PRIO[top] || HB_PRIO.AR;
+  const lacking = (k) => { const id = sk.effects[HB_BIRDS[k]].id; return near.filter((u) => (u.effects || []).some((x) => x.id === id && x.t > 2)).length < near.length / 2; };
+  for (const k of prio) if (lacking(k) && HB_BIRDS[k] >= f.birds) return HB_BIRDS[k];   // 要的效果還等得到（或剛好）
+  const cur = Object.keys(HB_BIRDS).find((k) => HB_BIRDS[k] === f.birds);
+  return cur && lacking(cur) ? f.birds : 0;
+}
 function vsThink(f) {
   const D = f.def, elite = f.level === 'elite', E = elite ? (VS_ELITE[D.id] || VS_ELITE_DEFAULT) : null, range = vsRange(D);
   const foes = vsFoesOf(f);
@@ -3103,9 +3156,12 @@ function vsThink(f) {
   // 角色定位
   const friends = vsFriendsOf(f).filter((u) => u !== f && !u.isClone && !u.clone && !u.guard && Math.hypot(u.x - f.x, u.y - f.y) < 700);
   const roleOf = (u) => ROLE_OF[vsUnitDef(u).weapon.class];
-  const fronts = friends.filter((u) => roleOf(u) === 'front'), dpsF = friends.filter((u) => roleOf(u) === 'dps');
+  // 精銳：知道自己要跟的「群體」，前排／輸出／輔助都以群體成員來判斷
+  const grp = elite && !vs.night ? vsEliteGroup(f) : null; f.group = grp;
+  const pool = grp ? grp.others : friends;
+  const fronts = pool.filter((u) => roleOf(u) === 'front'), dpsF = pool.filter((u) => roleOf(u) === 'dps');
   let role = ROLE_OF[D.weapon.class];
-  if (role === 'front' && !friends.length) role = 'dps';
+  if (role === 'front' && !pool.length) role = 'dps';
   if (role === 'support' && !fronts.length) role = 'front';
   if (E && E.collectUntil != null) role = f.clones.length < E.collectUntil ? 'collect' : 'dps';
   // 正在交戰的隊友（目標在自己射程附近）
@@ -3181,6 +3237,7 @@ function vsThink(f) {
     if ((f.idleT || 0) > 3) { f.idleT = 0; f.flankSide = -f.flankSide; f.flankT = 3; }
     if (!(E && E.flank) && f.flankT > 0) { f.flankT = Math.max(0, f.flankT - 0.2); const a = Math.atan2(uy, ux) + f.flankSide * 1.1; goal = { x: tgt.x + Math.cos(a) * keep, y: tgt.y + Math.sin(a) * keep }; }
   }
+  if (grp && !(goal && goal.item)) goal = vsGroupGoal(f, grp, tgt, goal, role, range, dirX, dpsF);   // 精銳：跟著群體行動（補血、撿零件等更優先的事除外）
   if (gameTime < (f.detourUntil || 0)) goal = f.detour;   // 卡住時的繞路點
   if (vs.night) goal = nightLeash(f, tgt, goal);   // 夜戰隊友：跟著玩家
   if (goal) { goal.x = clamp(goal.x, -MAPGEN.hw + 60, MAPGEN.hw - 60); goal.y = clamp(goal.y, -MAPGEN.hh + 60, MAPGEN.hh - 60); }
@@ -3402,7 +3459,8 @@ function vsMaybeSkill(f, tgt, vis, force) {
       f.stacks = Math.min(3, f.stacks + 1); f.skillCd = sk.cooldown; break;
     }
     case 'resonance': {
-      if (force ? f.birds < 1 : (f.birds < sk.maxBirds || !tgt)) return;
+      if (E && D.id === 'hummingbird' && !force) { const want = hbEliteWant(f, sk, friends); if (!want || f.birds !== want) return; }   // 精銳蜂鳥：照附近的槍種挑效果
+      else if (force ? f.birds < 1 : (f.birds < sk.maxBirds || !tgt)) return;
       const eff = sk.effects[f.birds];
       for (const u of [f, ...friends]) if (Math.hypot(u.x - f.x, u.y - f.y) <= sk.radius) addEffect(u, eff, f);
       rings.push({ x: f.x, y: f.y, r: sk.radius, life: 0.7, max: 0.7, color: eff.color });
@@ -3615,6 +3673,7 @@ function vsGuardTick(g, dt) {
     const d = Math.hypot(u.x - g.x, u.y - g.y); if (d < bd) { bd = d; tgt = u; }
   }
   g.target = tgt;
+  if (B.ai === 'typhon') { vsTyphonGuard(g, dt, tgt, bd); return; }   // 提豐守衛
   const atk = g.atkDownT > 0 ? 1 - (g.atkDownPct || 0.5) : 1;
   // 榴彈齊射
   if (g.special && B.hydra) {
@@ -3779,7 +3838,8 @@ function vsGuardDown(g) {
   burst(g.x, g.y, '#ffb347', 30); sfx.boom(); vsSync();
 }
 function drawGuard(g) {
-  if (g.B.hydra) {
+  if (g.B.ai === 'typhon') drawTyphon(g);
+  else if (g.B.hydra) {
     // 九頭蛇守衛：地面圈＋動畫
     const q0 = proj(g.x, g.y); ground(q0, g.x, g.y);
     ctx.fillStyle = 'rgba(4,18,26,0.35)'; ctx.beginPath(); ctx.ellipse(g.x, g.y + 4, g.r * 0.9, g.r * 0.35, 0, 0, Math.PI * 2); ctx.fill();
@@ -3788,7 +3848,7 @@ function drawGuard(g) {
     drawHydraImg(g, hydraKey(g, g.special ? g.special.t : null, moving, gameTime - (g.lastShot ?? -9), g.reloadT > 0));
   } else drawGreatsword(g);
   const q = proj(g.x, g.y); upright(q, g.x, g.y);
-  const w = 60, y = g.y - (g.B.barY || 118), col = VS_TEAMCOL[g.vsTeam];
+  const w = 60, y = g.y - (g.B.barY || (g.B.ai === 'typhon' ? 100 : 118)), col = VS_TEAMCOL[g.vsTeam];
   ctx.fillStyle = '#26343b'; ctx.fillRect(g.x - w / 2, y, w, 5);
   ctx.fillStyle = col; ctx.fillRect(g.x - w / 2, y, w * Math.max(0, g.hp) / g.maxHp, 5);
   if (g.shield > 0) { ctx.fillStyle = '#8fd0ff'; ctx.fillRect(g.x - w / 2, y - 4, w * Math.min(1, g.shield / g.T.shield), 3); }
@@ -4035,7 +4095,8 @@ function netUnitRow(uid, u, kind) {
   const flags = (u.moving ? 1 : 0) | (u.aiming ? 2 : 0) | (u.faceLeft ? 4 : 0) | (u.dead ? 8 : 0) | (u.isClone || u.clone ? 16 : 0) | (u.level === 'elite' ? 32 : 0) | (u.invT > 0 ? 64 : 0) | (u.remote || u === player ? 128 : 0) | (u.rest ? 256 : 0) | (u.arForm ? 512 : 0);
   const team = u.vsTeam || vs.myTeam;
   const row = [uid, kind, kind === 'g' ? u.id : D.id, team === 'blue' ? 0 : 1, netR(u.x), netR(u.y), netR((u.angle || 0) * 100), Math.ceil(Math.max(0, u.hp)), netR(u.maxHp), flags, netR((u.shot || 0) * 100), netR((u.dodgeT || 0) * 100), netR((u.prone || 0) * 100), netR(u.shield || 0), netR(goldSum(u))];
-  if (kind === 'g') { const S = u.special; row.push(u.mode === 'walk' ? 1 : u.mode === 'stopping' ? 2 : u.mode === 'starting' ? 3 : 0, netR((u.shiftT || 0) * 100), u.lastShot != null ? netR((gameTime - u.lastShot) * 100) : 999, S ? netR(S.t * 100) : -1, S && S.flat ? 1 : 0, S ? netR((S.fa || 0) * 100) : 0, netR((u.reloadT || 0) * 10)); }
+  if (kind === 'g' && u.B.ai === 'typhon') row.push(100 + TYP_MODES.indexOf(u.mode || 'hover'), netR((u.t || 0) * 100), netR(((u.mode === 'fire' ? u.beam : u.aim) || 0) * 100), 0, 0, 0, 0);
+  else if (kind === 'g') { const S = u.special; row.push(u.mode === 'walk' ? 1 : u.mode === 'stopping' ? 2 : u.mode === 'starting' ? 3 : 0, netR((u.shiftT || 0) * 100), u.lastShot != null ? netR((gameTime - u.lastShot) * 100) : 999, S ? netR(S.t * 100) : -1, S && S.flat ? 1 : 0, S ? netR((S.fa || 0) * 100) : 0, netR((u.reloadT || 0) * 10)); }
   else if (kind === 'f' || kind === 'p') row.push(u === player ? (netName() || '房主') : u.name);
   return row;
 }
@@ -4115,7 +4176,8 @@ function netApply(dt) {
       const shot = r[10] / 100; if (shot > (o.shot || 0) + 0.02 && o.def) { const dd = Math.hypot(o.x - player.x, o.y - player.y), vol = 0.45 * (1 - dd / 1300); if (vol > 0.04 && !o.isClone) playShot(o.def.weapon.class, vol); }
       o.shot = shot; o.shotMax = o.def ? o.def.weapon.anim : 0.3; o.dodgeT = r[11] / 100; o.prone = r[12] / 100; o.shield = r[13]; o.gold = r[14] ? [{ v: r[14], t: 1 }] : [];
       o.vsTeam = r[3] ? 'red' : 'blue';
-      if (o.guard) { o.mode = ['stand', 'walk', 'stopping', 'starting'][r[15]] || 'stand'; o.shiftT = r[16] / 100; o.lastShot = r[17] >= 999 ? -9 : gameTime - r[17] / 100; o.special = r[18] >= 0 ? { t: r[18] / 100, flat: !!r[19], fa: r[20] / 100 } : null; o.reloadT = r[21] / 10; }
+      if (o.guard && r[15] >= 100) { const pm = o.mode; o.mode = TYP_MODES[r[15] - 100] || 'hover'; o.t = r[16] / 100; o.beam = o.aim = r[17] / 100; if (o.mode !== pm) { if (o.mode === 'charge') typSfx(o, 'charge'); else if (o.mode === 'fire') typSfx(o, 'fire'); else typSfxStop(o); } }   // 提豐守衛
+      else if (o.guard) { o.mode = ['stand', 'walk', 'stopping', 'starting'][r[15]] || 'stand'; o.shiftT = r[16] / 100; o.lastShot = r[17] >= 999 ? -9 : gameTime - r[17] / 100; o.special = r[18] >= 0 ? { t: r[18] / 100, flat: !!r[19], fa: r[20] / 100 } : null; o.reloadT = r[21] / 10; }
       else if (r[15]) o.name = r[15];
       seen.add(r[0]);
     }
@@ -4544,7 +4606,7 @@ const pickBoss = (pool) => {
   const L = pool === 'elite' ? ELITE_POOL : Array.isArray(pool) ? pool : ELITE_POOL.filter((id) => BOSSES[id].tier === pool.tier);
   return L[Math.floor(Math.random() * L.length)];
 };
-let boss = null, bossSpawned = false, phaseAdvT = 0;   // phaseAdvT：Boss 倒下後，等多久進入下一階段（>0 代表正在等）
+let boss = null, bossSpawned = false, phaseAdvT = 0, drawMiniBossLater = [];   // phaseAdvT：Boss 倒下後，等多久進入下一階段（>0 代表正在等）
 const CHUNK = 420;
 // 偽 3D：地面向後傾斜。squash＝地面壓扁程度，depth＝透視強度（越小越強），anchor＝玩家在畫面的高度比例
 const VIEW3D = { squash: 0.78, depth: 2.2, anchor: 0.58, haze: 0.5 };
@@ -5486,13 +5548,11 @@ function buildTestPanel() {
     add(name, '', () => (pid ? ensurePack(pid) : Promise.resolve()).then(() => { if (state === 'play') testSpawn(getT()); }).catch(() => floatText(player.x, player.y - 50, '載入失敗', '#ff8f83')));
   for (const id of ELITE_POOL)
     add(BOSSES[id].name + '（精英）', 'elite', () => {
-      if (boss) { floatText(player.x, player.y - 50, '一次只能有一隻精英', '#ffd0d0'); return; }
-      ensurePack(packOf(BOSSES[id].assets)).then(() => { if (state === 'play' && !boss) spawnBoss(id); }).catch(() => floatText(player.x, player.y - 50, '載入失敗', '#ff8f83'));
+      ensurePack(packOf(BOSSES[id].assets)).then(() => { if (state === 'play') spawnBoss(id); }).catch(() => floatText(player.x, player.y - 50, '載入失敗', '#ff8f83'));
     });
   for (const id of Object.keys(BOSSES).filter((k) => BOSSES[k].rank === 'boss'))
     add(BOSSES[id].name + '（Boss）', 'elite', () => {
-      if (boss) { floatText(player.x, player.y - 50, '一次只能有一隻精英', '#ffd0d0'); return; }
-      ensurePack(packOf(BOSSES[id].assets)).then(() => { if (state === 'play' && !boss) spawnBoss(id); }).catch(() => floatText(player.x, player.y - 50, '載入失敗', '#ff8f83'));
+      ensurePack(packOf(BOSSES[id].assets)).then(() => { if (state === 'play') spawnBoss(id); }).catch(() => floatText(player.x, player.y - 50, '載入失敗', '#ff8f83'));
     });
   add('回滿生命', 'heal', () => { if (state !== 'play') return; player.hp = player.maxHp; updateHp(); burst(player.x, player.y, '#7dff9a', 14); floatText(player.x, player.y - 50, '生命回滿', '#7dff9a'); });
   add('清除所有敵人', 'clear', () => { enemies = []; boss = null; $('bossBar').hidden = true; bullets = bullets.filter((b) => b.team === 'p'); missiles = []; jamWaves = []; homers = []; shockWaves = []; });
@@ -7205,15 +7265,33 @@ function spawnBoss(id) {
   if (selectedLevel === 'war' || selectedLevel === 'night' || selectedLevel === 'duel') bgmBoss();   // Boss／菁英出現：一般音樂淡出，改播 Boss 歌單
   const a = rand(0, Math.PI * 2), d = 420;
   const bp = nightSpot(player.x + Math.cos(a) * d, player.y + Math.sin(a) * d, B.radius || 30);
+  const test = !!(phase && phase.test), b0 = boss;
   boss = { boss: true, B, id, x: bp.x, y: bp.y, r: B.radius, hp: B.hp, maxHp: B.hp,
     ammo: B.magazine, reloadT: 0, magsDone: 0, special: null, cool: 0.8, barrel: 0, angle: 0, strafe: 1, strafeT: 0, jinkT: 0, jx: 0, jy: 0, vx: 0, vy: 0,
     touchCd: 0, debuffT: 0, faceLeft: true, aiming: false, shot: 0, phase: 0 };
   // Boss 圍欄：把玩家與 Boss 框在同一個圓形場地裡，避免打帶跑把 Boss 耗死
   //   中心在兩者中間；半徑＝Boss 的鎖敵距離 + 300
-  boss.arena = { x: (player.x + boss.x) / 2, y: (player.y + boss.y) / 2, r: B.lockRange + ARENA.pad, t: 0 };
+  if (!test) boss.arena = { x: (player.x + boss.x) / 2, y: (player.y + boss.y) / 2, r: B.lockRange + ARENA.pad, t: 0 };   // 測試場：沒有圍欄
   enemies.push(boss);
+  if (test && b0) { const nb = boss; boss = b0; testPrimary(); floatText(player.x, player.y - 60, B.name + ' 出現！', '#ff6b6b'); return nb; }   // 測試場可以同時好幾隻
   $('bossName').textContent = B.name + (sc ? '（強化：' + scaleText(sc) + '）' : ''); $('bossBar').hidden = false; updateBossBar();
-  floatText(player.x, player.y - 60, B.name + ' 出現！', '#ff6b6b'); floatText(player.x, player.y - 82, '圍欄啟動', '#ff9a8f'); shake = Math.max(shake, 6);
+  floatText(player.x, player.y - 60, B.name + ' 出現！', '#ff6b6b'); if (!test) floatText(player.x, player.y - 82, '圍欄啟動', '#ff9a8f'); shake = Math.max(shake, 6);
+}
+// 測試場：大血條顯示離玩家最近的精英／Boss，其他的在頭上顯示小血條
+const BOSS_DRAW = { quail: drawQuail, dreamer: drawDreamer, scarecrow: drawScarecrow, interferer: drawInterferer, architect: drawArchitect, judge: drawJudge, lycaon: drawLycaon, ti: drawTi, greatsword: drawGreatsword, minotaur: drawMinotaur, agent: drawAgent, paladin: drawPaladin, typhon: drawTyphon };
+function testPrimary() {
+  if (!(phase && phase.test)) return;
+  let best = null, bd = Infinity; for (const e of enemies) { if (!e.boss || e.hp <= 0) continue; const d = Math.hypot(e.x - player.x, e.y - player.y); if (d < bd) { bd = d; best = e; } }
+  if (best !== boss || (best && $('bossBar').hidden)) { boss = best; if (boss) { $('bossName').textContent = boss.B.name; $('bossBar').hidden = false; updateBossBar(); } else $('bossBar').hidden = true; }
+}
+function drawMiniBossHp(e) {
+  const q = proj(e.x, e.y); upright(q, e.x, e.y);
+  const w = 70, y = e.y - (e.B.barY || Math.max(90, (e.r || 30) * 2.4));
+  ctx.fillStyle = 'rgba(0,0,0,0.55)'; ctx.fillRect(e.x - w / 2 - 1, y - 1, w + 2, 7);
+  ctx.fillStyle = '#ff5b6b'; ctx.fillRect(e.x - w / 2, y, w * Math.max(0, e.hp) / e.maxHp, 5);
+  ctx.font = '700 10px system-ui, sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'bottom'; ctx.strokeStyle = 'rgba(0,0,0,0.6)'; ctx.lineWidth = 3;
+  ctx.strokeText(e.B.name, e.x, y - 3); ctx.fillStyle = '#ffd0d0'; ctx.fillText(e.B.name, e.x, y - 3); ctx.textAlign = 'left'; ctx.textBaseline = 'alphabetic';
+  ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
 }
 const ARENA = { pad: 300 };   // 圍欄半徑＝鎖敵距離 + 300
 const arena = () => (boss && boss.arena) || null;
@@ -7873,53 +7951,69 @@ function minoNoticeSkill() {
 /* ───────── 帕拉丁：重裝近戰機甲；揮砍 2 輪 → 舉盾鎖定 → 直線衝撞 ───────── */
 const ppKey = (seq, tt, pre) => { const T = seq.dur, x = tt % (2 * T); return pickFrame(seq, Math.min(T - 0.001, x > T ? 2 * T - x : x), pre); };   // 來回播放（待機、舉盾）
 /* ───────── 提豐：重型主戰坦克（四階 Boss） ─────────
-   浮空移動 → 到鎖敵距離停下 → 車體降到地面（2.6 秒，抬升動畫倒著播）→ 蓄力 2 秒 → 激光 5 秒（偏移追蹤）→ 冷卻 10 秒
+   浮空移動 → 到鎖敵距離停下 → 車體降到地面（2.6 秒，抬升動畫倒著播）→ 蓄力 2 秒 → 激光 5 秒（偏移追蹤）→ 冷卻 8 秒
    冷卻中目標還在範圍內就原地等待；跑出範圍外就抬升（1.4 秒）再移動 */
-function updateTyphon(e, dt, toward, dist) {
+const TYP_MODES = ['hover', 'lower', 'ground', 'lift', 'charge', 'fire'];
+function updateTyphon(e, dt, toward, dist) { typhonCore(e, dt, toward, toward, dist, true); bossTail(e, dt, dist); }
+// 提豐守衛：只在自己大本營的巡邏帶裡浮空移動；大本營內（或外圍）有敵人就降下來開砲
+function vsTyphonGuard(g, dt, tgt, bd) {
+  if (!TYP_MODES.includes(g.mode)) { g.mode = 'hover'; g.t = 0; }   // 剛生成／重生：先浮空
+  const PL = vsPatrol(g.vsTeam), inBand = (p) => PL.horiz ? { x: clamp(p.x, PL.f0, PL.f1), y: clamp(p.y, PL.a0, PL.a1) } : { x: clamp(p.x, PL.a0, PL.a1), y: clamp(p.y, PL.f0, PL.f1) };
+  let dest;
+  if (tgt) dest = inBand(tgt);
+  else { g.wanderT = (g.wanderT || 0) - dt; if (!g.wander || g.wanderT <= 0 || Math.hypot(g.wander.x - g.x, g.wander.y - g.y) < 40) { g.wander = vsGuardPoint(g.vsTeam); g.wanderT = rand(3, 6); } dest = g.wander; }
+  const dd = Math.hypot(dest.x - g.x, dest.y - g.y), mv = Math.atan2(dest.y - g.y, dest.x - g.x), aim = tgt ? Math.atan2(tgt.y - g.y, tgt.x - g.x) : mv;
+  typhonCore(g, dt, mv, aim, tgt ? (dd < 30 ? Math.min(bd, g.B.lockRange) : bd) : Infinity, dd > 25);
+  if (PL.horiz) { g.x = clamp(g.x, PL.f0, PL.f1); g.y = clamp(g.y, PL.a0, PL.a1); } else { g.y = clamp(g.y, PL.f0, PL.f1); g.x = clamp(g.x, PL.a0, PL.a1); }
+}
+function typhonCore(e, dt, toward, aimTo, dist, canMove) {
   const B = e.B, L = B.laser;
-  e.phase += dt; e.angle = toward; e.t = (e.t || 0) + dt; e.mode = e.mode || 'hover'; e.cd = Math.max(0, (e.cd || 0) - dt); e.moving = false;
+  e.phase = (e.phase || 0) + dt; e.angle = aimTo; e.t = (e.t || 0) + dt; e.mode = e.mode || 'hover'; e.cd = Math.max(0, (e.cd || 0) - dt); e.moving = false;
   const go = (m) => { e.mode = m; e.t = 0; };
   const front = (a) => { const f = e.faceLeft ? Math.PI : 0; let d = Math.atan2(Math.sin(a - f), Math.cos(a - f)); d = clamp(d, -L.arc, L.arc); return f + d; };   // 光束只能朝車頭前方
   if (e.mode === 'hover') {
     e.faceLeft = Math.cos(toward) < 0;
-    if (dist > B.lockRange * 0.92) { e.moving = true; moveWithCover(e, Math.cos(toward) * B.speed * dt, Math.sin(toward) * B.speed * dt); }
-    else go('lower');
+    if (dist > B.lockRange * 0.92 && canMove) { e.moving = true; moveWithCover(e, Math.cos(toward) * B.speed * dt, Math.sin(toward) * B.speed * dt); }
+    else if (dist <= B.lockRange * 0.92) go('lower');
   } else if (e.mode === 'lower') { if (e.t >= B.lower) go('ground'); }
   else if (e.mode === 'ground') {
     if (dist > B.lockRange) go('lift');
-    else if (e.cd <= 0) { go('charge'); e.faceLeft = Math.cos(toward) < 0; e.aim = front(toward); typSfx(e, 'charge'); }
+    else if (e.cd <= 0) { go('charge'); e.faceLeft = Math.cos(aimTo) < 0; e.aim = front(aimTo); typSfx(e, 'charge'); }
   } else if (e.mode === 'lift') { if (e.t >= B.lift) go('hover'); }
   else if (e.mode === 'charge') {
-    e.aim = front(toward);
+    e.aim = front(aimTo);
     if (e.t >= L.charge) { go('fire'); e.beam = e.aim; /* 從警示線最後的位置開始發射 */ e.tickT = 0; typSfx(e, 'fire'); shake = Math.max(shake, 6); }
   } else if (e.mode === 'fire') {
-    const want = front(toward); let d = Math.atan2(Math.sin(want - e.beam), Math.cos(want - e.beam)); e.beam += clamp(d, -L.turn * dt, L.turn * dt);   // 偏移追蹤：慢慢轉向目標
+    const want = front(aimTo); let d = Math.atan2(Math.sin(want - e.beam), Math.cos(want - e.beam)); e.beam += clamp(d, -L.turn * dt, L.turn * dt);   // 偏移追蹤：慢慢轉向目標
     if (e.t >= L.fire) { go('ground'); e.cd = L.cooldown; typSfxStop(e); }
   }
   if (e.kvx || e.kvy) { e.kvx = e.kvy = 0; }   // 重型坦克：不會被擊退
-  bossTail(e, dt, dist);
 }
 // 砲口位置（地面座標＋高度）；光束從砲口拉到 650 外
 function typMuzzle(e) { const m = e.B.assets.meta, sc = m.scale, dx = (m.muzzle[0] - m.cx) * sc * (e.faceLeft ? 1 : -1), h = (m.muzzle[1] - m.cy) * sc; return { x: e.x + dx, y: e.y, h }; }
 function typBeamSeg(e) { const M = typMuzzle(e), R = e.B.laser.range, a = e.beam; return { M, E: { x: M.x + Math.cos(a) * R, y: M.y + Math.sin(a) * R } }; }
 const segDist = (px, py, ax, ay, bx, by) => { const vx = bx - ax, vy = by - ay, L2 = vx * vx + vy * vy || 1, t = clamp(((px - ax) * vx + (py - ay) * vy) / L2, 0, 1); return Math.hypot(px - ax - vx * t, py - ay - vy * t); };
+const typUnits = () => [...enemies.filter((e) => e.boss && e.B.ai === 'typhon'), ...(vs && vs.guards ? vs.guards.filter((g) => !g.dead && g.B.ai === 'typhon') : []), ...(net && net.units ? [...net.units.values()].filter((o) => o.guard && o.B && o.B.ai === 'typhon') : [])];
 function tickTyphonBeams(dt) {
-  for (const e of typSnd.slice()) if (!enemies.includes(e) || (e.mode !== 'fire' && e.mode !== 'charge')) typSfxStop(e);   // Boss 倒下或停火：音效停止
-  for (const e of enemies) {
-    if (!e.boss || e.B.ai !== 'typhon') continue;
+  const TU = typUnits();
+  for (const e of typSnd.slice()) if (!TU.includes(e) || (e.mode !== 'fire' && e.mode !== 'charge')) typSfxStop(e);   // Boss 倒下或停火：音效停止
+  for (const e of TU) {
     if (e.mode === 'fire' && !e.sfxH) typSfx(e, 'fire', e.B.laser.fire - e.t);   // 暫停回來後補上音效
     if (e.mode !== 'fire') continue;
     const L = e.B.laser, { M, E } = typBeamSeg(e);
     if (Math.random() < 0.9) for (let k = 0; k < 3; k++) particles.push({ x: E.x + rand(-6, 6), y: E.y + rand(-6, 6), vx: rand(-70, 70) + Math.cos(e.beam) * 40, vy: rand(-70, 70) + Math.sin(e.beam) * 40, life: rand(0.25, 0.55), max: 0.55, color: Math.random() < 0.5 ? '#7ff6ff' : '#d8ffff' });   // 末端粒子消散
     e.tickT -= dt; if (e.tickT > 0) continue; e.tickT += L.tick;
+    if (e.guard) {   // 對戰守衛：打敵隊的人形與擴編人形
+      if (!netGuest()) for (const u of vsGuardFoes(e.vsTeam)) if (segDist(u.x, u.y, M.x, M.y, E.x, E.y) < L.width / 2 + u.r) { vsHurt(u, L.dmg, e); burst(u.x, u.y, '#7ff6ff', 3); }
+      continue;
+    }
     if (segDist(player.x, player.y, M.x, M.y, E.x, E.y) < L.width / 2 + player.r && !vsDead()) { damage(L.dmg); burst(player.x, player.y, '#7ff6ff', 4); }
     for (const c of clones.slice()) if (segDist(c.x, c.y, M.x, M.y, E.x, E.y) < L.width / 2 + c.r) { damageClone(c, L.dmg); burst(c.x, c.y, '#7ff6ff', 3); }
   }
 }
 function drawTyphonBeams() {
-  if (!enemies.length) return;
-  for (const e of enemies) {
-    if (!e.boss || e.B.ai !== 'typhon' || (e.mode !== 'fire' && e.mode !== 'charge')) continue;
+  for (const e of typUnits()) {
+    if (e.mode !== 'fire' && e.mode !== 'charge') continue;
     const L = e.B.laser, M = typMuzzle(e), a = e.mode === 'fire' ? e.beam : e.aim, E = { x: M.x + Math.cos(a) * L.range, y: M.y + Math.sin(a) * L.range };
     const qa = proj(M.x, M.y), qb = proj(E.x, E.y), ax = qa.x, ay = qa.y + M.h * qa.k, bx = qb.x, by = qb.y + M.h * qb.k;
     ctx.save(); ctx.globalCompositeOperation = 'lighter'; ctx.lineCap = 'round';
@@ -7944,7 +8038,7 @@ function drawTyphonBeams() {
 function drawTyphon(e) {
   const B = e.B, m = B.assets.meta, q = proj(e.x, e.y), t = gameTime + e.phase;
   ground(q, e.x, e.y); ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
-  drawBossGround(e, q, 62, 18);
+  if (!e.guard) drawBossGround(e, q, 62, 18); else { ground(q, e.x, e.y); ctx.fillStyle = 'rgba(4,18,26,0.35)'; ctx.beginPath(); ctx.ellipse(e.x, e.y + 4, e.r * 0.9, e.r * 0.35, 0, 0, Math.PI * 2); ctx.fill(); ctx.setTransform(DPR, 0, 0, DPR, 0, 0); }
   const pp = (S, tt, pre) => { const T = S.dur, x = tt % (2 * T), u = x > T ? 2 * T - x : x; return pre + String(Math.min(S.n, 1 + Math.floor(u / T * S.n))).padStart(3, '0'); };
   const at = (S, k, pre) => pre + String(clamp(1 + Math.floor(k * S.n), 1, S.n)).padStart(3, '0');
   let key;
@@ -9285,7 +9379,7 @@ function killEnemy(e) {
   if (e.fighter) { vsFighterDown(e, vsHitBy && vsHitBy.guard ? null : vsHitBy && vsHitBy.fighter ? (vsHitBy.lead || vsHitBy) : player); return; }
   const i = enemies.indexOf(e); if (i < 0) return;
   if (e.boss) {
-    enemies.splice(i, 1); score += 2000; boss = null; $('bossBar').hidden = true;
+    enemies.splice(i, 1); score += 2000; if (e === boss) { boss = null; $('bossBar').hidden = true; } testPrimary();
     if (selectedLevel === 'war' || selectedLevel === 'night' || selectedLevel === 'duel') bgmBossDown();   // Boss 音樂淡出
     if (!(phase && phase.test)) phaseAdvT = 1e-6;   // 先排好進入下一階段（後面的特效、獎勵就算出錯也不會卡關）
     $('score').textContent = score;
@@ -9533,7 +9627,8 @@ function update(dt) {
     }
     if (boss) { $('phaseTime').textContent = 'BOSS'; }
     // 保險：Boss 生命歸零卻沒被結算、或 Boss 已經不在場上卻沒排進下一階段 → 補上
-    if (boss && boss.hp <= 0 && enemies.includes(boss)) killEnemy(boss);
+    for (const e of enemies.filter((x) => x.boss && x.hp <= 0)) killEnemy(e);
+    testPrimary();
     if (bossSpawned && !boss && !phaseAdvT && !phase.test && phase.bossPool) phaseAdvT = 1e-6;
     if (phaseAdvT > 0) { phaseAdvT += dt; if (phaseAdvT >= 1.5) { phaseAdvT = 0; nextPhase(); } }
   }
@@ -10030,9 +10125,9 @@ function draw(t) {
   drawArena(); drawShockWaves();
   for (const pt of parts) drawPart(pt);
   for (const m of medkits) drawMedkit(m);
-  if (boss && !boss.B.ai) drawBossTargets(boss);
+  for (const e of enemies) if (e.boss && !e.B.ai) drawBossTargets(e);
   const actors = [...mapActors(), ...nightActors(), ...covers().map((it) => ({ it, k: 'c' })), ...enemies.map((it) => ({ it, k: 'e' })), ...aiAllies.map((it) => ({ it, k: 'a' })), ...(player && state !== 'menu' && !vsDead() ? [{ it: player, k: 'p' }, ...clones.map((it) => ({ it, k: 'm' }))] : [])].sort((a, b) => a.it.y - b.it.y);
-  drawLater = [];
+  drawLater = []; drawMiniBossLater = [];
   for (const { it, k } of actors) {
     const q = proj(it.x, it.y);
     if (!onScreen(q, 120 * q.k)) continue;
@@ -10047,7 +10142,7 @@ function draw(t) {
     if (k === 'k') { drawCamp(it); continue; }
     if (k === 'f') { drawFlag(it); continue; }
     if (k === 'c') drawCrate(it);
-    else if (k === 'e' && it.boss) ({ quail: drawQuail, dreamer: drawDreamer, scarecrow: drawScarecrow, interferer: drawInterferer, architect: drawArchitect, judge: drawJudge, lycaon: drawLycaon, ti: drawTi, greatsword: drawGreatsword, minotaur: drawMinotaur, agent: drawAgent, paladin: drawPaladin, typhon: drawTyphon }[it.B.ai] || drawBoss)(it);
+    else if (k === 'e' && it.boss) { if (it !== boss && phase && phase.test) drawMiniBossLater.push(it); (BOSS_DRAW[it.B.ai] || drawBoss)(it); }
     else if (k === 'm') {
       // 擴編分身
       ctx.save(); drawCharacter(it, false); ctx.restore(); drawSakura(it); drawHuntAim(it);
@@ -10107,7 +10202,8 @@ function draw(t) {
     }
   }
   ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
-  for (const e of drawLater) { if (e.marked) drawDeterMark(e); if (e.atkDownT > 0) drawAtkDownMark(e); }   // 威懾印記：被標記的敵人頭上畫灰色準星
+  for (const e of drawLater) { if (e.marked) drawDeterMark(e); if (e.atkDownT > 0) drawAtkDownMark(e); }
+  for (const e of drawMiniBossLater) drawMiniBossHp(e);   // 測試場：不是最近的那隻精英／Boss，頭上顯示小血條   // 威懾印記：被標記的敵人頭上畫灰色準星
   for (const b of bullets) {
     const q = proj(b.x, b.y), lift = 7 * Math.sin(Math.min(1, b.age / (b.maxLife || b.life + b.age)) * Math.PI);
     ctx.fillStyle = 'rgba(4,24,32,0.4)'; ctx.beginPath(); ctx.ellipse(q.x + 3 * q.k, q.y + 5 * q.k, 6 * q.k, 3 * q.k * VIEW3D.squash, 0, 0, Math.PI * 2); ctx.fill();
