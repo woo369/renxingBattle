@@ -2003,7 +2003,7 @@ const HIND = { ...LION,
   magazine: 20, reload: 10,  // 彈匣 20 發，換彈 10 秒
   reloadStill: true,         // 填裝時停在靜止畫面
   dropParts: 2 };            // 擊殺獲得 2 個零件
-// 蠍甲獸：三階普通敵人，鐵血工造自產的四足機甲，只有一門主砲（正規軍的九頭蛇就是買入蠍甲獸後改造而成）。行為同鋼獅：停下／起步要時間，只在站定時開火；沒有彈匣
+// 蠍甲獸：三階普通敵人，鐵血工造自產的四足機甲，只有一門主砲（正規軍的九頭蛇就是買入蠍甲獸後改造而成）。行為同鋼獅：停下／起步要時間，只在站定時開火
 const SCORP = { ...LION,
   name: '蠍甲獸',
   sprite: 'scorp',           // 蠍甲獸的動畫
@@ -2011,9 +2011,9 @@ const SCORP = { ...LION,
   hp: 270, armor: 10, evade: 0,
   speed: 85, radius: 30,
   lockRange: 300,
-  bulletDmg: 20, bulletR: 7, bulletSpeed: 300,
-  fireCooldown: 2,           // 主砲每秒 0.5 發
-  magazine: 0,               // 沒有彈匣：不用換彈
+  bulletDmg: 5, bulletR: 7, bulletSpeed: 300,
+  fireCooldown: 1 / 3,       // 主砲每秒 3 發
+  magazine: 3, reload: 3,    // 彈匣 3 發，填裝 3 秒
   dropParts: 2,              // 擊殺獲得 2 個零件
   barY: 66,
   contactDmg: 12 };
@@ -5372,7 +5372,7 @@ const ENEMY_CODEX = () => [
     desc: '鋼獅的改進型機甲，護甲高達 20，兩門機砲輪流開火。和鋼獅一樣笨重，停下與重新起步都要時間，只在站定時射擊；彈匣打空後要換彈 10 秒。擊敗後可以獲得 2 個零件。',
     where: '出現：戰事（第三階段）' },
   { id: 'scorp', rank: 'normal', T: SCORP, name: '蠍甲獸', weapon: '主砲', img: ASSETS.ui.codex_scorp,
-    desc: '鐵血工造自產的四足重型機甲，只裝了一門主砲。和鋼獅一樣停下、起步都要時間，只在站定時開火；主砲射得慢（每 2 秒 1 發）但一發很痛，而且不用換彈。擊敗後可以獲得 2 個零件。',
+    desc: '鐵血工造自產的四足重型機甲，只裝了一門主砲。和鋼獅一樣停下、起步都要時間，只在站定時開火；主砲每秒 3 發，3 發打完要填裝 3 秒。擊敗後可以獲得 2 個零件。',
     where: '出現：無' },
   { id: 'hydra', rank: 'normal', T: HYDRA, name: '九頭蛇', weapon: '主砲、高速機槍 ×2', img: ASSETS.ui.codex_hydra,
     desc: '正規軍買入鐵血工造的蠍甲獸後改造而成的四足重型機甲，護甲 15。和鋼獅一樣停下、起步都要時間，只在站定時用主砲開火（每秒 1 發，彈匣 4 發，填裝 2 秒）。擊敗後可以獲得 3 個零件。',
@@ -8001,7 +8001,7 @@ const ENEMY_SFX_BOSS = {
   ouroboros: { b: 'ACL', m: 'MSL' }, ouroboros_elite: { b: 'ACL', m: 'MSL' }, judge: { b: 'AR' }, lycaon: { b: 'MG' }, interferer: { b: 'MG' },
   architect: { b: 'AR', m: 'CAN' }, dreamer: { b: 'RF' }, greatsword: { b: 'ACS', m: 'RKT' }, minotaur: { m: 'RKT' }, agent: { b: 'AR' }, ladon: { b: 'ACL' },   // 拉冬：連射與電磁炮彈都用大口徑機砲的聲音
 };
-const ENEMY_SFX_SPRITE = { hydra: { b: 'ACS', c: 'MCN' }, ripper: { b: 'HG' }, striker: { b: 'MG' }, dino: { b: 'HG' }, scorp: { b: 'ACS' },   // 切割者：雙手槍；痛擊者：加特林   // 九頭蛇：主砲＝中口徑火炮、掃射＝機槍
+const ENEMY_SFX_SPRITE = { hydra: { b: 'ACS', c: 'MCN' }, ripper: { b: 'HG' }, striker: { b: 'MG' }, dino: { b: 'HG' }, scorp: { b: 'ACL' },   // 蠍甲獸：大口徑機砲   // 切割者：雙手槍；痛擊者：加特林   // 九頭蛇：主砲＝中口徑火炮、掃射＝機槍
   wasp: { b: 'AR' }, cyc: { b: 'AR' }, ceye: { b: 'MG' }, meye: { b: 'SG' }, scout: { b: 'ACS' }, hind: { b: 'ACL' }, lion: { b: 'ACL' }, aeq: { h: 'MSL' } };
 const ENEMY_SFX_VOL = 0.2;    // 敵人槍聲整體音量（相對玩家）
 function enemyShotSfx(e, nb0, nm0, nh0) {
