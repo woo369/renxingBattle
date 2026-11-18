@@ -414,7 +414,7 @@ body.touch #testPanel{max-height:38vh}   /* 手機：不要擋到左下的移動
   <div class="hud-block" id="phaseBlock" hidden><span class="hud-label" id="phaseName">第一階段</span><span class="hud-num" id="phaseTime">3:00</span>
 </div>
   <div class="hud-block" id="partsBlock" hidden><span class="hud-label">零件</span><span class="hud-num" id="partsNum">0</span></div>
-  <div class="hud-block" id="defBlock" hidden><span class="hud-label">電池</span><span class="hud-num" id="battNum">0</span><span class="hud-label">核心</span><span class="hud-num" id="coreNum">0</span><span class="hud-label">控制室</span><span class="hud-num" id="ctrlNum">1000</span></div>
+  <div class="hud-block" id="defBlock" hidden><span class="hud-label">電池</span><span class="hud-num" id="battNum">0</span><span class="hud-label">核心</span><span class="hud-num" id="coreNum">0</span><span class="hud-label">數據機</span><span class="hud-num" id="ctrlNum">1000</span></div>
   <div class="hud-block" id="hudHp">
     <div id="hpText"><span>生命</span><span><span id="hpNum">150 / 150</span><span id="shieldNum"></span><span id="goldNum"></span></span></div>
     <div id="hpTrack"><div id="hpFill"></div><div class="shield-fill" id="shieldFill"></div><div class="shield-fill" id="shieldFill2"></div><div class="shield-fill" id="goldFill"></div></div>
@@ -1879,7 +1879,7 @@ const LEVELS = [
   { id: 'war', name: '戰事', open: true, desc: '三階段的戰事，敵人會階段性地變強，每個階段末尾都會出現 Boss，擊敗第三階段的 Boss 即過關。' },
   { id: 'duel', name: '菁英對決', open: true, desc: '入場 5 秒後出現一名隨機精英敵人，擊敗它即可過關。精英以三階的強度為基準，一階、二階精英會依類型強化到相同水準。場上會定時出現零件與醫療箱。' },
   { id: 'night', name: '夜戰', open: true, desc: '在漆黑的野外作戰，分成三個階段，跟戰事一樣每階段末尾會出現 Boss。每名人形都有自己的視野：手槍 500，其他槍種只有 200（隊伍裡有手槍人形時提高到 450），且每名手槍人形讓全隊命中 +20%；所有單位迴避率 +20%。只能帶一名人形出擊，撿到通訊器後可以呼叫遠處的友方人形支援，最多再帶三名隊友，並且可以切換操控；零件全隊共用，改用來強化目前操控的人形（子彈傷害、生命 ×1.2，最多 5 次）。前 3 分鐘是準備階段，敵人很少。' },
-  { id: 'defense', name: '保衛戰', open: true, desc: '（開發中：目前做到第一時段）帶最多 3 名隊友（在下方小隊加入普通或精銳 AI）駐守網路操作站，在 16 分鐘內摧毀遠處的木星砲。0:00～2:00 是準備時段：到基地外蒐集零件和核心，同時會有少量鐵血工造的一階敵人出現，有的追擊在外的隊員、有的從基地左右兩側進攻。基地每 30 秒產出 3 零件、1 電池，花 5 核心可以升級產出速度（+20%）。到佈告欄（B）可以安排 AI 隊友的工作，到復活台可以花核心復活倒下的隊友；20 零件可以強化全隊（最多 5 次）。基地裡迴避率 +20%；控制室有 1000 生命，被摧毀就失敗。' },
+  { id: 'defense', name: '保衛戰', open: true, desc: '（開發中：目前做到第一時段）帶最多 3 名隊友（在下方小隊加入普通或精銳 AI）駐守網路操作站，在 16 分鐘內摧毀遠處的木星砲。0:00～2:00 是準備時段：到基地外蒐集零件和核心，同時會有少量鐵血工造的一階敵人出現，有的追擊在外的隊員、有的從基地左右兩側進攻。基地每 30 秒產出 3 零件、1 電池，花 5 核心可以升級產出速度（+20%）。到佈告欄（B）可以安排 AI 隊友的工作，到復活台可以花核心復活倒下的隊友；20 零件可以強化全隊（最多 5 次）。基地裡迴避率 +20%；營區中間的數據機有 1000 生命，被摧毀就失敗。' },
   { id: 'test', name: '測試模式', open: true, desc: '不會自動出怪，可以自選召喚任何敵人或精英，零件無限。' },
   { id: 'battle', name: '戰局', open: true, desc: '（開發中）100×100 格的大地圖，之後會做成 7 打 7 的戰局。地圖上有三個佔領點，站在點上就能佔領；山、房屋、樹木會擋路與子彈，樹林會遮擋視線。左上角是小地圖，按 M 或點小地圖可以打開全圖（單位會變成點）。' },
   { id: 'versus', name: '雲圖對戰', open: true, desc: '（開發中）5 打 5 的團隊對戰，所有人形的生命都是原本的 3 倍，60×30 格的長條地圖，藍隊、紅隊的大本營在左右兩側。擊倒敵方人形本體得 1 分，先到 30 分獲勝；初始零件 10，地圖中間會出現零件和醫療包，擊倒敵人可拿走對方 50% 的零件。可以加入普通或精銳 AI，倒下 5 秒後重生。大本營有會無限重生的守衛，會攻擊太靠近的敵人。' },
@@ -2624,7 +2624,7 @@ let MAPGEN = BATTLE_MAP, VERSUS_MAP = null;   // 目前使用的地圖（對戰�
 // 某個位置（半徑 r）有沒有撞到地形。bullet＝子彈：湖擋不住子彈
 function mapSolidAt(x, y, r, bullet) {
   if (isDef()) { const B = DEF.bounds; if (x - r < B.x0 || x + r > B.x1 || y - r < B.y0 || y + r > B.y1) return DEF_EDGE; }   // 保衛戰：地圖邊界
-  if (isDef()) for (const o of DEF.walls) if (o.w ? Math.abs(x - o.x) < o.w / 2 + r && Math.abs(y - o.y) < o.h / 2 + r : (x - o.x) ** 2 + (y - o.y) ** 2 < (o.r + r) ** 2) return o;   // 保衛戰：基地的後牆、半圓圍欄、沙包（擋人也擋子彈）
+  if (isDef()) for (const o of DEF.walls) if (!(bullet && (o.kind === 'fence' || o.kind === 'prop'))) if (o.w ? Math.abs(x - o.x) < o.w / 2 + r && Math.abs(y - o.y) < o.h / 2 + r : (x - o.x) ** 2 + (y - o.y) ** 2 < (o.r + r) ** 2) return o;   // 保衛戰：基地的後牆、半圓圍欄、沙包（擋人也擋子彈）
   for (const o of MAPGEN.near(x, y)) {
     if (o.kind === 'forest' || (bullet && (o.kind === 'lake' || o.kind === 'river' || o.kind === 'lowrock'))) continue;   // 子彈可以飛過湖、河、半磚掩體   // 子彈可以飛過湖和河
     if (bullet && o.kind === 'tent') continue;   // 帳篷是布：擋人不擋子彈
@@ -4958,7 +4958,7 @@ let best = Number(store.get('rxxlc-best')) || 0;
    每個人形／敵人的動畫圖放在 assets/<素材包>.json；網頁本身只帶設定（meta）與介面圖（ui）。
    離線單檔版會把圖片直接打包進網頁，這時就不用另外下載。 */
 const ASSET_BASE = 'assets/';
-const ASSET_VER = {"triple_crown":"42a6eaf59e","hk433":"df9cc9f7f7","type82":"19d6eb08aa","mh":"d23c2759a3","ouro":"ab4a21e936","cyc":"e3e7f09e34","meye":"a41da84ea9","hb":"dba320370d","dreamer":"87285c47db","scarecrow":"498db0f898","xm":"08da1bca4f","wasp":"0d68029acb","beast":"c322e71a84","lion":"3c116d5e13","intr":"e0de4d19e7","ceye":"82a6aca9a7","cent":"c58be64dbf","sws":"54ff5cb0d8","ouroE":"28421ec974","arch":"fcf8a15108","judge":"0904b780f7","lycan":"21ec39a3b9","aegis":"722f1b93d1","scep":"80de946a2c","hind":"a262c79af5","ti":"07477aefc9","lcan":"5b4b46404f","aeq":"3b96bb238d","scout":"cd3b141af2","hammer":"b9220bbb9f","gsw":"43b26bea32","mino":"169c3bf368","agent":"462fa8a126","de":"a0d77eed11","vhs":"48d898f5b3","sp9":"d43d1c3717","sat8":"59d571a15b","m110":"12ad1ce260","kord":"f4dbe7d0e1","t561":"5c635a3d9d","rpk":"29db8d90a9","x95":"7e54a51692","carc":"e53118059f","hydra":"b369a4278c","quail":"5bc9991ecd","wb":"a1920ee4d7","aa12":"c0b5a9004a","t100":"63d9404ba2","mg4":"b55fb8363b","an94":"3070abd310","m950":"e7757f6551","ntw":"7b558a5c50","dp12":"02850f045c","pal":"c6a4206a6c","typ":"fc83ca75b5","ladon":"c871fa41a6","ripper":"0177fde288","striker":"a53db882b5","guard":"40371cd495","dino":"7ccee24d47","scorp":"3fd7432e18","jaeg":"5a8356a33b","dragoon":"2e490725b9","jaguar":"70994c9621","goliath":"a619ae409b","gfac":"c2d3a20712","jupiter":"9825161850","defbase":"3a314ceb33","night":"71559edb8d","class_SG":"431e39b392","class_AR":"f86d58b274","class_SMG":"fceb08bbb1","class_RF":"c107da1c64","class_HG":"f6305e910b","class_MG":"be1790479a","codex_enemy":"cd9afd3fb8"};   // 素材檔的內容雜湊（拆檔版）：網址帶版本，更新後不會吃到瀏覽器裡的舊快取
+const ASSET_VER = {"triple_crown":"42a6eaf59e","hk433":"df9cc9f7f7","type82":"19d6eb08aa","mh":"d23c2759a3","ouro":"ab4a21e936","cyc":"e3e7f09e34","meye":"a41da84ea9","hb":"dba320370d","dreamer":"87285c47db","scarecrow":"498db0f898","xm":"08da1bca4f","wasp":"0d68029acb","beast":"c322e71a84","lion":"3c116d5e13","intr":"e0de4d19e7","ceye":"82a6aca9a7","cent":"c58be64dbf","sws":"54ff5cb0d8","ouroE":"28421ec974","arch":"fcf8a15108","judge":"0904b780f7","lycan":"21ec39a3b9","aegis":"722f1b93d1","scep":"80de946a2c","hind":"a262c79af5","ti":"07477aefc9","lcan":"5b4b46404f","aeq":"3b96bb238d","scout":"cd3b141af2","hammer":"b9220bbb9f","gsw":"43b26bea32","mino":"169c3bf368","agent":"462fa8a126","de":"a0d77eed11","vhs":"48d898f5b3","sp9":"d43d1c3717","sat8":"59d571a15b","m110":"12ad1ce260","kord":"f4dbe7d0e1","t561":"5c635a3d9d","rpk":"29db8d90a9","x95":"7e54a51692","carc":"e53118059f","hydra":"b369a4278c","quail":"5bc9991ecd","wb":"a1920ee4d7","aa12":"c0b5a9004a","t100":"63d9404ba2","mg4":"b55fb8363b","an94":"3070abd310","m950":"e7757f6551","ntw":"7b558a5c50","dp12":"02850f045c","pal":"c6a4206a6c","typ":"fc83ca75b5","ladon":"c871fa41a6","ripper":"0177fde288","striker":"a53db882b5","guard":"40371cd495","dino":"7ccee24d47","scorp":"3fd7432e18","jaeg":"5a8356a33b","dragoon":"2e490725b9","jaguar":"70994c9621","goliath":"a619ae409b","gfac":"c2d3a20712","jupiter":"9825161850","defbase":"9924debe0b","night":"71559edb8d","class_SG":"431e39b392","class_AR":"f86d58b274","class_SMG":"fceb08bbb1","class_RF":"c107da1c64","class_HG":"f6305e910b","class_MG":"be1790479a","codex_enemy":"cd9afd3fb8"};   // 素材檔的內容雜湊（拆檔版）：網址帶版本，更新後不會吃到瀏覽器裡的舊快取
 const assetUrl = (name) => ASSET_BASE + name + '.json' + (ASSET_VER[name] ? '?v=' + ASSET_VER[name] : '');
 const packOf = (assets) => Object.keys(ASSETS).find((k) => ASSETS[k] === assets);
 const packBox = {};                                  // 素材包 → 解碼後的圖片放在 imgs 的哪一格
@@ -6164,14 +6164,29 @@ const DEF = { bounds: { x0: -1900, x1: 1900, y0: -2800, y1: 1100 },   // 地圖�
   prodEvery: 30, prodParts: 3, prodBatt: 1, upCost: 5, upMul: 0.2, enhCost: 20, time: 960, ctrlHp: 1000, baseEv: 0.2,
   revWait: 15, revCost: 2, revCostGold: 3,
   fieldParts: 14, fieldCores: 4, coreChance: 0.28, itemEvery: 4, itemMin: 650, itemMax: 2100, detect: 420, imgFloor: 52 };
-DEF.gateY = DEF.yb + Math.sin(DEF.gap) * DEF.R * 0.5;
-// 牆：後方一道直牆＋前方半圓圍欄（一串小圓），左右兩端留缺口
-DEF.walls = [{ kind: 'wall', x: 0, y: DEF.yb - 6, w: DEF.x1 - DEF.x0, h: 14 }];
-DEF.fence = [];
-{ const n = 46; for (let i = 0; i <= n; i++) { const a = DEF.gap + (Math.PI - 2 * DEF.gap) * i / n; const p = { x: Math.cos(a) * (DEF.R + 6), y: DEF.yb + Math.sin(a) * (DEF.R + 6) }; DEF.fence.push(p); DEF.walls.push({ kind: 'wall', x: p.x, y: p.y, r: 22 }); } }
-// 下半部營區的沙包掩體（擋人也擋子彈）
-DEF.covers = [[0.62, 330], [1.05, 360], [2.09, 360], [2.52, 330], [1.35, 440], [1.79, 440], [0.42, 420], [2.72, 420]].map(([a, r]) => ({ kind: 'sandbag', x: Math.cos(a) * r, y: DEF.yb + Math.sin(a) * r, r: 26 }));
-DEF.walls.push(...DEF.covers);
+// 出入口：左右兩端＋下半弧兩個（角度從 +x 軸往下量）
+DEF.gates = [0.135, 1.047, 2.094, Math.PI - 0.135];
+DEF.gateY = DEF.yb + Math.sin(0.135) * DEF.R;
+DEF.modem = { x: 0, y: DEF.yb + 350, r: 40, w: 86 };   // 數據機：敵人進到營區後的攻擊目標
+// 牆：後方一道厚牆（擋人也擋子彈，避免高速子彈穿過）＋前方半圓圍欄（擋人、不擋子彈），留出 4 個出入口
+DEF.walls = [{ kind: 'wall', x: 0, y: DEF.yb - 30, w: DEF.x1 - DEF.x0 + 40, h: 64 }];
+DEF.fenceSeg = [];
+{ const hole = (a) => Math.abs(a - DEF.gates[1]) < 0.11 || Math.abs(a - DEF.gates[2]) < 0.11, n = 60, pt = (a) => ({ x: Math.cos(a) * (DEF.R + 6), y: DEF.yb + Math.sin(a) * (DEF.R + 6) });
+  let prev = null;
+  for (let i = 0; i <= n; i++) {
+    const a = DEF.gap + (Math.PI - 2 * DEF.gap) * i / n; if (hole(a)) { prev = null; continue; }
+    const p = pt(a); DEF.walls.push({ kind: 'fence', x: p.x, y: p.y, r: 20 }); if (prev) DEF.fenceSeg.push([prev, p]); prev = p;
+  } }
+// 下半部營區的掩體（三種雜物堆輪流，擋人也擋子彈）
+DEF.covers = [[0.45, 420], [0.78, 300], [1.33, 455], [1.81, 455], [2.36, 300], [2.69, 420]].map(([a, r], i) => ({ kind: 'cover', img: 'cov' + (i % 3 + 1), x: Math.cos(a) * r, y: DEF.yb + Math.sin(a) * r, r: 30, w: 92 }));
+// 營區中間的物件（擋人、不擋子彈）
+DEF.props = [
+  { img: 'wrack', x: -150, y: DEF.yb + 26, w: 46, r: 16 }, { img: 'wrack', x: 150, y: DEF.yb + 26, w: 46, r: 16 },   // 武器架（操作站前的兩側）
+  { img: 'kit', x: 118, y: DEF.yb + 205, w: 58, r: 18 },                                                              // 攝影機與筆電箱
+  { img: 'water', x: -118, y: DEF.yb + 330, w: 66, r: 22 }, { img: 'ammo', x: 112, y: DEF.yb + 330, w: 50, r: 20 },   // 數據機兩側：瓶裝水、彈藥箱
+  { img: 'cov2', x: -235, y: DEF.yb + 215, w: 70, r: 22 }, { img: 'ammo', x: 240, y: DEF.yb + 200, w: 46, r: 18 },
+].map((o) => ({ kind: 'prop', ...o }));
+DEF.walls.push(...DEF.covers, ...DEF.props, { kind: 'modem', x: DEF.modem.x, y: DEF.modem.y, r: DEF.modem.r });
 const DEF_EDGE = { kind: 'wall', x: 0, y: 0, w: 1, h: 1, edge: true };
 const defClamp = (p, m = 60) => { const B = DEF.bounds; return { x: clamp(p.x, B.x0 + m, B.x1 - m), y: clamp(p.y, B.y0 + m, B.y1 - m) }; };
 let defSquad = [], defPicked = false, defState = null, defCores = [], defDead = [], defSpec = null;
@@ -6179,8 +6194,9 @@ const isDef = () => !!(phase && phase.defense);
 const DEF_MID = () => DEF.gateY;
 const inBase = (p) => p.y > DEF.yb && p.x * p.x + (p.y - DEF.yb) ** 2 < DEF.R * DEF.R;
 const inSafe = (p) => Math.abs(p.x) < DEF.safe && p.y > DEF.yb - 10 && p.y < DEF.yb + DEF.depth + 10;
-const gatePt = (s, out) => ({ x: s * (DEF.R + (out ? 70 : -70)), y: DEF.gateY });
-const nearGate = (p) => [-1, 1].some((s) => Math.hypot(p.x - s * DEF.R, p.y - DEF.gateY) < 110);
+const gatePt = (i, out) => { const a = DEF.gates[i], r = DEF.R + (out ? 70 : -70); return { x: Math.cos(a) * r, y: DEF.yb + Math.sin(a) * r }; };
+const nearestGate = (p) => { let bi = 0, bd = Infinity; DEF.gates.forEach((a, i) => { const d = Math.hypot(p.x - Math.cos(a) * DEF.R, p.y - DEF.yb - Math.sin(a) * DEF.R); if (d < bd) { bd = d; bi = i; } }); return bi; };
+const nearGate = (p) => DEF.gates.some((a) => Math.hypot(p.x - Math.cos(a) * DEF.R, p.y - DEF.yb - Math.sin(a) * DEF.R) < 110);
 const defEv = (u) => (isDef() && u && inBase(u) ? DEF.baseEv : 0);   // 基地裡迴避率 +20%
 const revCost = (u) => (u.eliteAI || u.level === 'elite' ? DEF.revCostGold : DEF.revCost);   // 復活：一般 2 核心、王牌（精銳 AI）3 核心
 const DEF_JOBS = [['guard', '駐守基地'], ['follow', '跟隨玩家'], ['collect', '外出蒐集']];
@@ -6210,8 +6226,8 @@ function defSpawnItem() {
 function defHitCtrl(dmg) {
   const S = defState; if (!S || S.ctrl <= 0) return;
   S.ctrl = Math.max(0, S.ctrl - dmg); updDefHud(); S.ctrlHitT = 0.25;
-  if (Math.random() < 0.3) floatText(rand(-120, 120), DEF.yb + 40, '-' + Math.round(dmg), '#ff8f83');
-  if (S.ctrl <= 0) { floatText(0, DEF.yb + 60, '控制室被摧毀', '#ff6b6b'); S.lost = true; }
+  if (Math.random() < 0.35) floatText(DEF.modem.x + rand(-30, 30), DEF.modem.y - 90, '-' + Math.round(dmg), '#ff8f83');
+  if (S.ctrl <= 0) { floatText(DEF.modem.x, DEF.modem.y - 100, '數據機被摧毀', '#ff6b6b'); S.lost = true; }
 }
 function defTick(dt) {
   const S = defState; if (!S) return;
@@ -6332,7 +6348,7 @@ function defEnhance() {
 function defRoute(f, g) {
   if (!g) return g;
   const fi = inBase(f), gi = inBase(g); if (fi === gi) return g;
-  const s = (fi ? g.x : f.x) < 0 ? -1 : 1, gin = gatePt(s, false), gout = gatePt(s, true);
+  const gi_ = nearestGate(fi ? g : f), gin = gatePt(gi_, false), gout = gatePt(gi_, true);
   if (fi) return Math.hypot(f.x - gin.x, f.y - gin.y) < 50 ? { x: gout.x, y: gout.y, item: g.item } : { x: gin.x, y: gin.y, item: g.item };
   return Math.hypot(f.x - gout.x, f.y - gout.y) < 50 ? { x: gin.x, y: gin.y } : { x: gout.x, y: gout.y };
 }
@@ -6367,16 +6383,17 @@ function defEnemyTarget(e) {
   const eIn = inBase(e) || nearGate(e), R = e.dGoal === 'hunt' ? Infinity : Math.max(DEF.detect, lr + 150);
   let best = null, bd = Infinity;
   for (const u of [player, ...nightAllies()]) {
-    if (u.hp <= 0 || u.defDown || inSafe(u) || (inBase(u) && !eIn)) continue;
+    if (u.hp <= 0 || u.defDown || inSafe(u) || (inBase(u) && !eIn) || (e.y < DEF.yb && u.y > DEF.yb - 10)) continue;   // 基地北面的敵人隔著後牆打不到裡面
     const d = Math.hypot(u.x - e.x, u.y - e.y) * (u === player ? 1 : 1.1); if (d < R && d < bd) { bd = d; best = u; }
   }
   if (best) { e.ntg = best; return best; }
   const P = e.wp || (e.wp = { r: 14, hp: 1, maxHp: 1, invT: 99, fake: true, effects: [], def: cfg, vx: 0, vy: 0, clone: true });
-  if (inBase(e)) {   // 攻擊控制室：瞄準操作站靠自己這一側的邊緣
-    P.ctrl = true; P.x = Math.sign(e.x || 1) * (DEF.safe - 30); P.y = clamp(e.y, DEF.yb + 30, DEF.yb + DEF.depth - 20); e.ntg = P; return P;
+  if (inBase(e)) {   // 進到營區：攻擊數據機
+    P.ctrl = true; P.x = DEF.modem.x; P.y = DEF.modem.y; e.ntg = P; return P;
   }
   P.ctrl = false;
-  const side = e.side || (e.side = e.x < 0 ? -1 : 1), go = gatePt(side, true), gi = gatePt(side, false);
+  if (e.gate == null) e.gate = nearestGate(e);
+  const go = gatePt(e.gate, true), gi = gatePt(e.gate, false);
   const w = Math.hypot(e.x - go.x, e.y - go.y) < 60 ? gi : go;
   const L = lr + 70, d = Math.hypot(w.x - e.x, w.y - e.y) || 1;
   P.x = e.x + (w.x - e.x) / d * L; P.y = e.y + (w.y - e.y) / d * L; e.ntg = P; return P;
@@ -6441,30 +6458,28 @@ function renderDefPick() {
   $('defPickTxt').textContent = '出擊人形：' + CHARACTERS[selectedId].name + '　已選 ' + defSquad.length + ' / 3' + (defSquad.length ? '：' + defSquad.map((id) => CHARACTERS[id].name).join('、') : '');
   $('defPickGo').disabled = defSquad.length !== 3;
 }
-// 基地：半圓形地板（世界座標）＋立起來的基地圖（網路操作站＋左右營區）
+// 基地：半圓形地板＋立起來的基地圖。地板每個頂點都用 proj() 投影（大範圍用局部變換會因為透視而錯位）
+function defPoly(pts) { ctx.beginPath(); pts.forEach(([x, y], i) => { const q = proj(x, y); if (i) ctx.lineTo(q.x, q.y); else ctx.moveTo(q.x, q.y); }); }
 function drawDefBase() {
-  const box = imgs[packBox.defbase] || {}, im = box.base, x0 = DEF.x0, w = DEF.x1 - DEF.x0, R = DEF.R;
-  const q0 = proj(0, DEF.yb); ground(q0, 0, DEF.yb);
-  ctx.fillStyle = '#55524b'; ctx.beginPath(); ctx.moveTo(-R, DEF.yb); ctx.arc(0, DEF.yb, R, Math.PI, 0, true); ctx.closePath(); ctx.fill();
-  ctx.save(); ctx.clip();
-  ctx.strokeStyle = 'rgba(0,0,0,0.16)'; ctx.lineWidth = 1;
-  for (let x = -R; x <= R; x += 44) { ctx.beginPath(); ctx.moveTo(x, DEF.yb); ctx.lineTo(x, DEF.yb + R); ctx.stroke(); }
-  for (let y = DEF.yb; y <= DEF.yb + R; y += 44) { ctx.beginPath(); ctx.moveTo(-R, y); ctx.lineTo(R, y); ctx.stroke(); }
-  ctx.restore();
-  ctx.fillStyle = '#3d4046'; ctx.fillRect(-DEF.safe, DEF.yb, DEF.safe * 2, DEF.depth);   // 網路操作站的地板
-  ctx.strokeStyle = 'rgba(249,207,112,0.55)'; ctx.setLineDash([10, 8]); ctx.lineWidth = 2;
-  ctx.beginPath(); ctx.moveTo(-DEF.safe, DEF.yb); ctx.lineTo(-DEF.safe, DEF.yb + DEF.depth); ctx.lineTo(DEF.safe, DEF.yb + DEF.depth); ctx.lineTo(DEF.safe, DEF.yb); ctx.stroke(); ctx.setLineDash([]);
-  for (const [P, col] of [[DEF.board, '249,207,112'], [DEF.rev, '127,212,255']]) {
-    const near = !player.defDown && Math.hypot(player.x - P.x, player.y - P.y) < DEF.useR;
-    ctx.strokeStyle = 'rgba(' + col + ',' + (near ? 0.9 : 0.3 + 0.2 * Math.sin(gameTime * 3)) + ')'; ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(P.x, P.y, 34, 0, Math.PI * 2); ctx.stroke();
-  }
+  const box = imgs[packBox.defbase] || {}, im = box.base, x0 = DEF.x0, w = DEF.x1 - DEF.x0, R = DEF.R, yb = DEF.yb;
   ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
-  const yI = DEF.yb + DEF.imgFloor / VIEW3D.squash;   // 圖裡畫的地板對齊世界的地板後半段
-  if (im) { const q = proj(0, yI); upright(q, 0, yI); ctx.imageSmoothingEnabled = true; ctx.imageSmoothingQuality = 'high'; const h = w * im.height / im.width; ctx.drawImage(im, x0, yI - h, w, h);
-    // 控制室生命條
-    const S = defState; if (S) { const bw = 220, k = S.ctrl / DEF.ctrlHp, by = yI - h * 0.86; ctx.fillStyle = 'rgba(0,0,0,0.6)'; ctx.fillRect(-bw / 2 - 2, by - 2, bw + 4, 12); ctx.fillStyle = S.ctrlHitT > 0 ? '#ffffff' : k > 0.5 ? '#6fe39a' : k > 0.25 ? '#ffd27a' : '#ff6b6b'; ctx.fillRect(-bw / 2, by, bw * k, 8);
-      ctx.font = '800 12px sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'bottom'; ctx.fillStyle = '#e8eef2'; ctx.fillText('控制室 ' + Math.ceil(S.ctrl) + ' / ' + DEF.ctrlHp, 0, by - 3); }
-    ctx.setTransform(DPR, 0, 0, DPR, 0, 0); }
+  const semi = []; for (let i = 0; i <= 64; i++) { const a = Math.PI * i / 64; semi.push([Math.cos(a) * R, yb + Math.sin(a) * R]); }
+  ctx.fillStyle = '#55524b'; defPoly(semi); ctx.closePath(); ctx.fill();
+  ctx.save(); defPoly(semi); ctx.closePath(); ctx.clip();
+  ctx.strokeStyle = 'rgba(0,0,0,0.16)'; ctx.lineWidth = 1;
+  for (let x = -R; x <= R; x += 44) { defPoly([[x, yb], [x, yb + R]]); ctx.stroke(); }
+  for (let y = yb; y <= yb + R; y += 44) { defPoly([[-R, y], [R, y]]); ctx.stroke(); }
+  ctx.restore();
+  const S0 = DEF.safe, D0 = DEF.depth;
+  ctx.fillStyle = '#3d4046'; defPoly([[-S0, yb], [S0, yb], [S0, yb + D0], [-S0, yb + D0]]); ctx.closePath(); ctx.fill();   // 網路操作站的地板
+  ctx.strokeStyle = 'rgba(249,207,112,0.55)'; ctx.setLineDash([10, 8]); ctx.lineWidth = 2; defPoly([[-S0, yb], [-S0, yb + D0], [S0, yb + D0], [S0, yb]]); ctx.stroke(); ctx.setLineDash([]);
+  for (const [P, col] of [[DEF.board, '249,207,112'], [DEF.rev, '127,212,255']]) {
+    const near = !player.defDown && Math.hypot(player.x - P.x, player.y - P.y) < DEF.useR, c = [];
+    for (let i = 0; i <= 24; i++) { const a = Math.PI * 2 * i / 24; c.push([P.x + Math.cos(a) * 34, P.y + Math.sin(a) * 34]); }
+    ctx.strokeStyle = 'rgba(' + col + ',' + (near ? 0.9 : 0.3 + 0.2 * Math.sin(gameTime * 3)) + ')'; ctx.lineWidth = 2; defPoly(c); ctx.stroke();
+  }
+  const yI = yb + DEF.imgFloor / VIEW3D.squash;   // 圖裡畫的地板對齊世界的地板後半段
+  if (im) { const q = proj(0, yI); upright(q, 0, yI); ctx.imageSmoothingEnabled = true; ctx.imageSmoothingQuality = 'high'; const h = w * im.height / im.width; ctx.drawImage(im, x0, yI - h, w, h); ctx.setTransform(DPR, 0, 0, DPR, 0, 0); }
   ctx.font = '800 13px sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
   for (const [P, name, col] of [[DEF.board, '佈告欄', '#ffe2a0'], [DEF.rev, '復活台', '#bfeaff']]) {
     const near = !player.defDown && Math.hypot(player.x - P.x, player.y - P.y) < DEF.useR;
@@ -6473,19 +6488,27 @@ function drawDefBase() {
 }
 // 半圓圍欄的一段（每段依前後排序）
 function drawDefFence(i) {
-  const a = DEF.fence[i], b = DEF.fence[i + 1]; if (!b) return;
-  const q = proj(a.x, a.y), qb = proj(b.x, b.y), h = 26;
+  const [a, b] = DEF.fenceSeg[i]; const q = proj(a.x, a.y), qb = proj(b.x, b.y), h = 26;
   ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
   for (const [lw, col] of [[5, '#1c1f24'], [3, '#8b939c']]) { ctx.strokeStyle = col; ctx.lineWidth = lw; ctx.beginPath(); for (const hh of [h * 0.85, h * 0.35]) { ctx.moveTo(q.x, q.y - hh * q.k); ctx.lineTo(qb.x, qb.y - hh * qb.k); } ctx.stroke(); }
-  if (i % 2 === 0) { ctx.fillStyle = '#1c1f24'; ctx.fillRect(q.x - 3, q.y - h * q.k - 2, 6, h * q.k + 2); ctx.fillStyle = '#9aa2ab'; ctx.fillRect(q.x - 2, q.y - h * q.k - 1, 4, h * q.k); }
+  const post = (qq) => { ctx.fillStyle = '#1c1f24'; ctx.fillRect(qq.x - 3, qq.y - h * qq.k - 2, 6, h * qq.k + 2); ctx.fillStyle = '#9aa2ab'; ctx.fillRect(qq.x - 2, qq.y - h * qq.k - 1, 4, h * qq.k); };
+  if (i % 2 === 0) post(q);
+  const nx = DEF.fenceSeg[i + 1], pv = DEF.fenceSeg[i - 1];
+  if (!pv || pv[1] !== a) post(q);           // 出入口旁的柱子
+  if (!nx || nx[0] !== b) post(qb);
 }
-// 下半部營區的沙包掩體
-function drawDefSandbag(o) {
-  const q = proj(o.x, o.y); if (!onScreen(q, 60)) return;
-  ground(q, o.x, o.y); ctx.fillStyle = 'rgba(4,18,26,0.35)'; ctx.beginPath(); ctx.ellipse(o.x, o.y + 4, o.r + 6, (o.r + 6) * 0.5, 0, 0, Math.PI * 2); ctx.fill();
-  upright(q, o.x, o.y);
-  const bags = [[-18, 0], [0, 0], [18, 0], [-9, -11], [9, -11], [0, -22]];
-  for (const [dx, dy] of bags) { ctx.fillStyle = '#b9ad8f'; ctx.strokeStyle = '#4a4436'; ctx.lineWidth = 1.5; ctx.beginPath(); ctx.ellipse(o.x + dx, o.y - 7 + dy, 11, 7, 0, 0, Math.PI * 2); ctx.fill(); ctx.stroke(); ctx.strokeStyle = 'rgba(74,68,54,0.5)'; ctx.beginPath(); ctx.moveTo(o.x + dx - 6, o.y - 7 + dy); ctx.lineTo(o.x + dx + 6, o.y - 7 + dy); ctx.stroke(); }
+// 掩體、物件、數據機：立起來的圖
+function drawDefThing(o) {
+  const q = proj(o.x, o.y); if (!onScreen(q, 140)) return;
+  const im = (imgs[packBox.defbase] || {})[o.img]; if (!im) return;
+  ground(q, o.x, o.y); ctx.fillStyle = 'rgba(4,18,26,0.32)'; ctx.beginPath(); ctx.ellipse(o.x, o.y + 2, o.w * 0.5, o.w * 0.2, 0, 0, Math.PI * 2); ctx.fill();
+  upright(q, o.x, o.y); ctx.imageSmoothingEnabled = true; ctx.imageSmoothingQuality = 'high';
+  const h = o.w * im.height / im.width; ctx.drawImage(im, o.x - o.w / 2, o.y + 6 - h, o.w, h);
+  if (o.modem && defState) {   // 數據機生命條
+    const bw = 90, k = defState.ctrl / DEF.ctrlHp, by = o.y + 6 - h - 18;
+    ctx.fillStyle = 'rgba(0,0,0,0.6)'; ctx.fillRect(o.x - bw / 2 - 2, by - 2, bw + 4, 10); ctx.fillStyle = defState.ctrlHitT > 0 ? '#ffffff' : k > 0.5 ? '#6fe39a' : k > 0.25 ? '#ffd27a' : '#ff6b6b'; ctx.fillRect(o.x - bw / 2, by, bw * k, 6);
+    ctx.font = '800 11px sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'bottom'; ctx.fillStyle = '#e8eef2'; ctx.fillText('數據機 ' + Math.ceil(defState.ctrl), o.x, by - 3);
+  }
   ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
 }
 let defCoreImg = null;
@@ -6566,8 +6589,9 @@ function nightActors() {
   if (station && station.ready) out.push({ it: station, k: 'n', y: station.y });
   if (isDef()) {
     out.push({ it: { x: 0, y: DEF.yb }, k: 'B', y: DEF.yb - 1 });
-    DEF.fence.forEach((p, i) => { if (i < DEF.fence.length - 1) out.push({ it: { x: p.x, y: p.y, i }, k: 'F', y: Math.max(p.y, DEF.fence[i + 1].y) + 4 }); });
-    for (const o of DEF.covers) out.push({ it: o, k: 'S', y: o.y });
+    DEF.fenceSeg.forEach(([a, b], i) => out.push({ it: { x: a.x, y: a.y, i }, k: 'F', y: Math.max(a.y, b.y) + 4 }));
+    for (const o of [...DEF.covers, ...DEF.props]) out.push({ it: o, k: 'S', y: o.y });
+    out.push({ it: { img: 'modem', modem: true, x: DEF.modem.x, y: DEF.modem.y, w: DEF.modem.w }, k: 'S', y: DEF.modem.y });
   }
   return out;
 }
@@ -10027,7 +10051,8 @@ function updateMissiles(dt) {
     missiles.splice(i, 1);
     if (ms.smoke) { smokes.push({ x: ms.tx, y: ms.ty, r: ms.smoke.r, life: ms.smoke.life, t: 0, eff: ms.smoke.eff, seed: Math.random() * 6 }); burst(ms.tx, ms.ty, '#cfd8dc', 14); continue; }   // 干擾煙霧彈
     // 落地爆炸：碰撞箱與爆炸範圍重疊就受傷（爆炸不能迴避，閃避無敵可以躲）
-    if (isDef() && inSafe({ x: ms.tx, y: ms.ty })) { defHitCtrl(ms.dmg); blasts.push({ x: ms.tx, y: ms.ty, r: ms.r, life: 0.4, max: 0.4, level: 0 }); burst(ms.tx, ms.ty, '#ff6b3d', 10); continue; }   // 保衛戰：落在網路操作站＝攻擊控制室
+    if (isDef() && inSafe({ x: ms.tx, y: ms.ty })) { blasts.push({ x: ms.tx, y: ms.ty, r: ms.r, life: 0.4, max: 0.4, level: 0 }); burst(ms.tx, ms.ty, '#ff6b3d', 10); continue; }   // 保衛戰：網路操作站裡不受傷
+    if (isDef() && Math.hypot(ms.tx - DEF.modem.x, ms.ty - DEF.modem.y) <= ms.r + DEF.modem.r) defHitCtrl(ms.dmg);   // 保衛戰：炸到數據機
     if (Math.hypot(player.x - ms.tx, player.y - ms.ty) <= ms.r + player.r && player.invT <= 0) { damage(ms.dmg); if (ms.burn) addBurn(player, ms.burn); if (ms.debuff) { addEffect(player, ms.debuff, null); floatText(player.x, player.y - 54, '射速 −15%', '#ff8f83'); } }
     for (const c of [...clones]) if (Math.hypot(c.x - ms.tx, c.y - ms.ty) <= ms.r + c.r && !(c.invT > 0)) { damageClone(c, ms.dmg); if (ms.burn && clones.includes(c)) addBurn(c, ms.burn); if (ms.debuff && clones.includes(c)) addEffect(c, ms.debuff, null); }
     blasts.push({ x: ms.tx, y: ms.ty, r: ms.r, life: 0.4, max: 0.4, level: 0 });
@@ -10902,8 +10927,9 @@ function update(dt) {
     b.age += dt; b.vy += 34 * dt; b.x += b.vx * dt; b.y += b.vy * dt; b.life -= dt;
     if (b.lacer) { const LD = b.def || (b.src && b.src.def) || cfg; b.dist += Math.hypot(b.vx, b.vy) * dt; if (!b.purple && b.dist >= LD.skill.purpleAfter) { b.purple = true; burst(b.x, b.y, '#b06bff', 3); } }
     if (b.life <= 0 || Math.hypot(b.x - player.x, b.y - player.y) > far) { bullets.splice(i, 1); continue; }
+    if (isDef() && b.team !== 'p' && Math.hypot(b.x - DEF.modem.x, b.y - DEF.modem.y) < DEF.modem.r + b.r) { defHitCtrl(b.dmg || 0); burst(b.x, b.y, '#ffb36b', 3); bullets.splice(i, 1); continue; }   // 保衛戰：敵人的子彈打到數據機
     if ((bigMap() || isNight()) && mapSolidAt(b.x, b.y, b.r, true)) { burst(b.x, b.y, '#c8c2b4', 3); bullets.splice(i, 1); continue; }   // 戰局：山、房屋、樹木擋子彈
-    if (isDef() && b.team !== 'p' && inSafe(b)) { defHitCtrl(b.dmg || 0); burst(b.x, b.y, '#ffb36b', 3); bullets.splice(i, 1); continue; }   // 保衛戰：敵人的子彈打到網路操作站＝攻擊控制室
+    if (isDef() && b.team !== 'p' && inSafe(b)) { bullets.splice(i, 1); continue; }   // 保衛戰：敵人的子彈打不進網路操作站
     if ((bigMap() || isNight()) && lowCoverAt(b.x, b.y)) { b.overX = b.x; b.overY = b.y; }   // 子彈剛飛過半磚掩體（記下位置，見 overProne）
     if (b.beam) b.vy -= 34 * dt;   // 光束：直線飛行
     if (b.home) {
@@ -11248,11 +11274,11 @@ function drawGround(t) {
   if (bigMap()) drawBigMapGround(x0, x1, y0, y1);
   if (isNight()) drawNightGround(x0, x1, y0, y1);
   if (isDef()) {   // 保衛戰：地圖邊界外變暗、畫一圈邊線
-    const B = DEF.bounds; ground(proj(0, 0), 0, 0);
-    ctx.fillStyle = 'rgba(6,14,12,0.72)'; const F = 20000;
-    ctx.fillRect(B.x0 - F, B.y0 - F, B.x1 - B.x0 + 2 * F, F); ctx.fillRect(B.x0 - F, B.y1, B.x1 - B.x0 + 2 * F, F); ctx.fillRect(B.x0 - F, B.y0, F, B.y1 - B.y0); ctx.fillRect(B.x1, B.y0, F, B.y1 - B.y0);
-    ctx.strokeStyle = 'rgba(255,214,120,0.55)'; ctx.lineWidth = 4; ctx.setLineDash([22, 14]); ctx.strokeRect(B.x0, B.y0, B.x1 - B.x0, B.y1 - B.y0); ctx.setLineDash([]);
+    const B = DEF.bounds, edge = [], seg = (x0, y0, x1, y1) => { for (let i = 0; i < 24; i++) edge.push([x0 + (x1 - x0) * i / 24, y0 + (y1 - y0) * i / 24]); };
+    seg(B.x0, B.y0, B.x1, B.y0); seg(B.x1, B.y0, B.x1, B.y1); seg(B.x1, B.y1, B.x0, B.y1); seg(B.x0, B.y1, B.x0, B.y0);
     ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+    ctx.fillStyle = 'rgba(6,14,12,0.72)'; ctx.beginPath(); ctx.rect(-50, -50, W + 100, H + 100); edge.forEach(([x, y], i) => { const q = proj(x, y); if (i) ctx.lineTo(q.x, q.y); else ctx.moveTo(q.x, q.y); }); ctx.closePath(); ctx.fill('evenodd');
+    ctx.strokeStyle = 'rgba(255,214,120,0.55)'; ctx.lineWidth = 4; ctx.setLineDash([22, 14]); defPoly(edge); ctx.closePath(); ctx.stroke(); ctx.setLineDash([]);
   }
   for (const c of chunks.values()) for (const d of c.details) {
     const q = proj(d.x, d.y);
@@ -11309,7 +11335,7 @@ function draw(t) {
   for (const { it, k } of actors) {
     if (k === 'B') { drawDefBase(); continue; }   // 保衛戰的基地（很寬：不做畫面外判斷）
     if (k === 'F') { drawDefFence(it.i); continue; }
-    if (k === 'S') { drawDefSandbag(it); continue; }
+    if (k === 'S') { drawDefThing(it); continue; }
     const q = proj(it.x, it.y);
     if (!onScreen(q, 120 * q.k)) continue;
     if (k === 'e' && (it.marked || it.atkDownT > 0)) drawLater.push(it);
