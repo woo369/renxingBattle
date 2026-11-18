@@ -347,6 +347,9 @@ body.touch #boardBtn{top:auto;width:54px;height:54px;padding:0;border-radius:50%
 .def-row{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
 .def-row b{min-width:110px}
 #specBanner{position:fixed;z-index:9;left:50%;top:76px;transform:translateX(-50%);padding:8px 14px;border-radius:12px;border:2px solid #7fd4ff;background:#0d1d26e6;color:#dff4ff;font-weight:800;font-size:14px;max-width:calc(100vw - 24px);text-align:center}
+#vsTeams .vs-name{background:none;border:none;color:inherit;font:inherit;font-weight:800;cursor:pointer;padding:0;text-align:left}
+#vsTeams .vs-name:hover{text-decoration:underline}
+#vsTeams .vs-note{display:block;margin-top:6px;color:#9fb0bb;font-size:12px}
 #defPickGrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(96px,1fr));gap:6px}
 #defPickGrid button{display:flex;flex-direction:column;align-items:center;gap:2px;padding:6px 4px;font-size:13px}
 #defPickGrid button small{font-size:11px;color:#9fb0bb;font-weight:600}
@@ -431,7 +434,7 @@ body.touch #testPanel{max-height:38vh}   /* 手機：不要擋到左下的移動
 
 <button id="boardBtn" type="button" hidden title="佈告欄（B）">佈告欄<small class="only-mouse">B</small></button>
 <div id="defBoard" class="def-panel" hidden><h3>佈告欄</h3><div class="sub">安排 AI 隊友的工作（真人玩家不受影響）。駐守基地：守在左右出入口的掩體；跟隨玩家：跟著你行動；外出蒐集：到基地外撿零件和核心。</div><div id="defJobs"></div><div class="def-row"><span id="defUpTxt"></span><button id="defUpBtn" type="button">升級基地（5 核心）</button></div><div class="def-row"><button id="defBoardClose" type="button">關閉（B）</button></div></div>
-<div id="defRev" class="def-panel" hidden><h3>復活台</h3><div class="sub">倒下 15 秒後可以花核心復活：一般人形 2 核心、王牌（金色）人形 3 核心。打開「自動復活 AI」後，有 AI 倒下時其他 AI 會自己來這裡幫忙復活。</div><div id="defRevList"></div><div class="def-row"><span id="defRevTxt" class="sub"></span></div><div class="def-row"><button id="defAutoBtn" type="button">自動復活 AI：關</button><button id="defRevClose" type="button">關閉（B）</button></div></div>
+<div id="defRev" class="def-panel" hidden><h3>復活台</h3><div class="sub">倒下 15 秒後可以花核心復活：一般 2 核心、王牌（精銳 AI）3 核心。打開「自動復活 AI」後，有 AI 倒下時其他 AI 會自己來這裡幫忙復活。</div><div id="defRevList"></div><div class="def-row"><span id="defRevTxt" class="sub"></span></div><div class="def-row"><button id="defAutoBtn" type="button">自動復活 AI：關</button><button id="defRevClose" type="button">關閉（B）</button></div></div>
 <div id="specBanner" hidden></div>
 <div id="defPick" class="def-panel" hidden><h3>保衛戰：挑選 3 名 AI 隊友</h3><div class="sub" id="defPickTxt"></div><div id="defPickGrid"></div><div class="def-row"><button id="defPickRand" type="button">隨機挑選</button><button id="defPickGo" type="button">出擊</button><button id="defPickCancel" type="button">取消</button></div></div>
 <button id="commBtn" type="button" hidden title="使用通訊器（C）">通訊器<small id="commNum">×1</small><small class="only-mouse">C</small></button>
@@ -1876,7 +1879,7 @@ const LEVELS = [
   { id: 'war', name: '戰事', open: true, desc: '三階段的戰事，敵人會階段性地變強，每個階段末尾都會出現 Boss，擊敗第三階段的 Boss 即過關。' },
   { id: 'duel', name: '菁英對決', open: true, desc: '入場 5 秒後出現一名隨機精英敵人，擊敗它即可過關。精英以三階的強度為基準，一階、二階精英會依類型強化到相同水準。場上會定時出現零件與醫療箱。' },
   { id: 'night', name: '夜戰', open: true, desc: '在漆黑的野外作戰，分成三個階段，跟戰事一樣每階段末尾會出現 Boss。每名人形都有自己的視野：手槍 500，其他槍種只有 200（隊伍裡有手槍人形時提高到 450），且每名手槍人形讓全隊命中 +20%；所有單位迴避率 +20%。只能帶一名人形出擊，撿到通訊器後可以呼叫遠處的友方人形支援，最多再帶三名隊友，並且可以切換操控；零件全隊共用，改用來強化目前操控的人形（子彈傷害、生命 ×1.2，最多 5 次）。前 3 分鐘是準備階段，敵人很少。' },
-  { id: 'defense', name: '保衛戰', open: true, desc: '（開發中：目前做到第一時段）帶 3 名 AI 隊友駐守網路操作站，在 16 分鐘內摧毀遠處的木星砲。0:00～2:00 是準備時段：到基地外蒐集零件和核心，同時會有少量鐵血工造的一階敵人出現，有的追擊在外的隊員、有的從基地左右兩側進攻。基地每 30 秒產出 3 零件、1 電池，花 5 核心可以升級產出速度（+20%）。到佈告欄（B）可以安排 AI 隊友的工作，到復活台可以花核心復活倒下的隊友；20 零件可以強化全隊（最多 5 次）。基地裡迴避率 +20%；控制室有 1000 生命，被摧毀就失敗。' },
+  { id: 'defense', name: '保衛戰', open: true, desc: '（開發中：目前做到第一時段）帶最多 3 名隊友（在下方小隊加入普通或精銳 AI）駐守網路操作站，在 16 分鐘內摧毀遠處的木星砲。0:00～2:00 是準備時段：到基地外蒐集零件和核心，同時會有少量鐵血工造的一階敵人出現，有的追擊在外的隊員、有的從基地左右兩側進攻。基地每 30 秒產出 3 零件、1 電池，花 5 核心可以升級產出速度（+20%）。到佈告欄（B）可以安排 AI 隊友的工作，到復活台可以花核心復活倒下的隊友；20 零件可以強化全隊（最多 5 次）。基地裡迴避率 +20%；控制室有 1000 生命，被摧毀就失敗。' },
   { id: 'test', name: '測試模式', open: true, desc: '不會自動出怪，可以自選召喚任何敵人或精英，零件無限。' },
   { id: 'battle', name: '戰局', open: true, desc: '（開發中）100×100 格的大地圖，之後會做成 7 打 7 的戰局。地圖上有三個佔領點，站在點上就能佔領；山、房屋、樹木會擋路與子彈，樹林會遮擋視線。左上角是小地圖，按 M 或點小地圖可以打開全圖（單位會變成點）。' },
   { id: 'versus', name: '雲圖對戰', open: true, desc: '（開發中）5 打 5 的團隊對戰，所有人形的生命都是原本的 3 倍，60×30 格的長條地圖，藍隊、紅隊的大本營在左右兩側。擊倒敵方人形本體得 1 分，先到 30 分獲勝；初始零件 10，地圖中間會出現零件和醫療包，擊倒敵人可拿走對方 50% 的零件。可以加入普通或精銳 AI，倒下 5 秒後重生。大本營有會無限重生的守衛，會攻擊太靠近的敵人。' },
@@ -4995,7 +4998,7 @@ function phasePacks(i) {
 function packsFor(charId, level) {
   const list = teamIds().map((id) => packOf(CHARACTERS[id].assets));
   if (LEVEL_PHASES[level]) list.push(...phasePacks(0));
-  if (level === 'defense') list.push(...defSquad.map((id) => packOf(CHARACTERS[id].assets)));   // 保衛戰：3 名 AI 隊友
+  if (level === 'defense') list.push(...(defLobby || (defLobby = defDefaultLobby())).slots.map((x) => packOf(CHARACTERS[x.id].assets)));   // 保衛戰：大廳裡的 AI 隊友
   if (level === 'versus') { vsGuardId = VS_GUARD_POOL[Math.floor(Math.random() * VS_GUARD_POOL.length)]; list.push(...vsLobbyPacks(), packOf(vsGuardB(vsGuardId).assets)); }   // 雲圖對戰：大廳裡所有 AI 的角色＋這場抽到的守衛
   return [...new Set(list)];
 }
@@ -5316,7 +5319,10 @@ function updatePick() {
     ensureClass(w.class).then(() => { if ((slot === 'main' ? selectedId : subId) === def.id) im.src = previewOf(def); }).catch(() => {});
   }
   $('teamNote').hidden = !team_;
-  $('vsLobby').hidden = selectedLevel !== 'versus'; if (selectedLevel === 'versus') buildLobby();
+  $('vsLobby').hidden = selectedLevel !== 'versus' && selectedLevel !== 'defense'; if (selectedLevel === 'versus') buildLobby(); else if (selectedLevel === 'defense') buildDefLobby();
+  { const dz = selectedLevel === 'defense' && !net;   // 保衛戰：代碼連線還在製作中（先只能加 AI）
+    for (const id of ['vsHostBtn', 'vsJoinBtn', 'vsCode']) $(id).disabled = dz;
+    if (dz) netStatus('保衛戰的代碼連線還在製作中，目前先加入 AI 隊友；連線遊玩請先用雲圖對戰。'); else if (selectedLevel === 'versus' && !net && /保衛戰/.test($('vsNetStatus').textContent)) netStatus('建立房間會得到一組代碼，朋友輸入代碼就能加入（需要在網站版）。'); }
   if (netHosting()) netLobbyChanged();
   if (netGuest() && net.conn && net.conn.open && net.sentChar !== selectedId) { net.sentChar = selectedId; net.conn.send({ t: 'char', charId: selectedId }); }
   const lv = LEVELS.find((l) => l.id === selectedLevel); $('levelDesc').textContent = lv ? lv.desc : '';
@@ -5835,7 +5841,7 @@ function setLoadingTips(on, ids = ['startTip', 'retryTip']) {
 }
 let gameLoading = false;
 function startGame() {
-  if (selectedLevel === 'defense' && !defPicked && state !== 'over') { openDefPick(); return; }   // 保衛戰：先挑 3 名 AI 隊友（重新開始沿用上一次的隊友）
+  if (selectedLevel === 'defense') { defLobby = defLobby || defDefaultLobby(); defLobby.slots = defLobby.slots.filter((x) => CHARACTERS[x.id]); defSquad = defLobby.slots.map((x) => x.id); }   // 保衛戰：大廳裡的 AI 隊友
   for (const k in capBlock) delete capBlock[k]; smoothT = 0; perfMs = perfN = 0;   // 自動畫質：每次開局都重新往上試
   if (gameLoading) return;
   audio();
@@ -6172,14 +6178,14 @@ const inSafe = (p) => Math.abs(p.x) < DEF.safe && p.y > DEF.yb - 10 && p.y < DEF
 const gatePt = (s, out) => ({ x: s * (DEF.R + (out ? 70 : -70)), y: DEF.gateY });
 const nearGate = (p) => [-1, 1].some((s) => Math.hypot(p.x - s * DEF.R, p.y - DEF.gateY) < 110);
 const defEv = (u) => (isDef() && u && inBase(u) ? DEF.baseEv : 0);   // 基地裡迴避率 +20%
-const revCost = (u) => (expandCost(u.def) === PARTS.goldCost ? DEF.revCostGold : DEF.revCost);   // 復活：一般 2 核心、王牌（金色人形）3 核心
+const revCost = (u) => (u.eliteAI || u.level === 'elite' ? DEF.revCostGold : DEF.revCost);   // 復活：一般 2 核心、王牌（精銳 AI）3 核心
 const DEF_JOBS = [['guard', '駐守基地'], ['follow', '跟隨玩家'], ['collect', '外出蒐集']];
 function defBegin() {
   defState = { prodT: 0, lv: 0, batt: 0, cores: 0, itemT: 0, enh: 0, ctrl: DEF.ctrlHp, autoRev: false }; defCores = []; defDead = []; defSpec = null;
   player.x = 0; player.y = DEF.yb + 150; player.defDown = false;
-  defSquad.forEach((id, i) => {
-    const u = makePlayer(CHARACTERS[id]); u.x = -60 + i * 60; u.y = DEF.yb + 200;
-    Object.assign(u, { clone: true, nightAlly: true, slot: CLONE_SLOTS[i % 4], invT: 0.6, moving: false, aiming: false, shot: 0, trail: [], job: i === 0 ? 'collect' : 'guard', post: i === 2 ? 1 : 0 });
+  (defLobby ? defLobby.slots : defSquad.map((id) => ({ id, level: 'normal' }))).forEach((sl, i) => {
+    const u = makePlayer(CHARACTERS[sl.id]); u.x = -60 + i * 60; u.y = DEF.yb + 200;
+    Object.assign(u, { clone: true, nightAlly: true, eliteAI: sl.level === 'elite', level: sl.level === 'elite' ? 'elite' : 'normal', slot: CLONE_SLOTS[i % 4], invT: 0.6, moving: false, aiming: false, shot: 0, trail: [], job: i === 0 ? 'collect' : 'guard', post: i === 2 ? 1 : 0 });
     clones.push(u); nightOrder(); nightTeam.push(u);
   });
   for (let i = 0; i < 8; i++) defSpawnItem();
@@ -6371,13 +6377,55 @@ function defEnemyTarget(e) {
   const L = lr + 70, d = Math.hypot(w.x - e.x, w.y - e.y) || 1;
   P.x = e.x + (w.x - e.x) / d * L; P.y = e.y + (w.y - e.y) / d * L; e.ntg = P; return P;
 }
-// 挑選 AI 隊友
+// 保衛戰大廳：跟雲圖對戰一樣的介面——你＋最多 3 名隊友（普通／精銳 AI；點名字可以換人）
+let defLobby = null, defPickSlot = null;
+function defDefaultLobby() { const ids = Object.keys(CHARACTERS).filter((id) => id !== selectedId); const out = []; while (out.length < 3 && ids.length) out.push({ id: ids.splice(Math.floor(Math.random() * ids.length), 1)[0], level: 'normal' }); return { slots: out }; }
+function buildDefLobby() {
+  const L = defLobby || (defLobby = defDefaultLobby()), box = $('vsTeams'); box.textContent = '';
+  const col = document.createElement('div'); col.className = 'vs-team blue';
+  const h = document.createElement('div'); h.className = 'vs-head'; const nm = document.createElement('b'); nm.textContent = '防守小隊（' + (L.slots.length + 1) + '/4）'; h.appendChild(nm); col.appendChild(h);
+  const row = (tag, cls, name, onName, onX) => {
+    const r = document.createElement('div'); r.className = 'vs-row';
+    const g = document.createElement('span'); g.className = 'vs-tag ' + cls; g.textContent = tag;
+    const b = document.createElement(onName ? 'button' : 'b'); b.textContent = name;
+    if (onName) { b.type = 'button'; b.className = 'vs-name'; b.title = '點一下更換人形'; b.addEventListener('click', onName); }
+    r.append(g, b);
+    if (onX) { const x = document.createElement('button'); x.type = 'button'; x.className = 'vs-x'; x.textContent = '✕'; x.setAttribute('aria-label', '移除'); x.addEventListener('click', onX); r.appendChild(x); }
+    col.appendChild(r);
+  };
+  row('你', 'me', (netName() ? netName() + '・' : '') + (CHARACTERS[selectedId]?.name || ''));
+  L.slots.forEach((sl, i) => row(sl.level === 'elite' ? '精銳' : '普通', sl.level, CHARACTERS[sl.id].name + ' ▾', () => { defPickSlot = i; openDefPick(); }, () => { L.slots.splice(i, 1); buildDefLobby(); }));
+  const add = document.createElement('div'); add.className = 'vs-add';
+  for (const [lv, label] of [['normal', '＋普通 AI'], ['elite', '＋精銳 AI']]) {
+    const b = document.createElement('button'); b.type = 'button'; b.className = 'btn'; b.textContent = label; b.disabled = L.slots.length >= 3;
+    b.addEventListener('click', () => { if (L.slots.length >= 3) return; const used = new Set([selectedId, ...L.slots.map((x) => x.id)]), pool = Object.keys(CHARACTERS).filter((id) => !used.has(id)); L.slots.push({ id: pool[Math.floor(Math.random() * pool.length)] || vsRandId(), level: lv }); buildDefLobby(); prefetch(); });
+    add.appendChild(b);
+  }
+  col.appendChild(add);
+  const note = document.createElement('small'); note.className = 'vs-note'; note.textContent = '精銳 AI 反應更快、會預判；倒下後復活要 3 核心（普通 2 核心）。'; col.appendChild(note);
+  box.appendChild(col);
+}
+// 挑選 AI 隊友（大廳裡點名字：換掉那一格的人形）
 function openDefPick() {
   defSquad = defSquad.filter((id) => id !== selectedId && CHARACTERS[id]);
   $('defPick').hidden = false; renderDefPick();
 }
 function renderDefPick() {
   const g = $('defPickGrid'); g.textContent = '';
+  if (defPickSlot != null && defLobby && defLobby.slots[defPickSlot]) {
+    const sl = defLobby.slots[defPickSlot];
+    $('defPick').querySelector('h3').textContent = '更換隊友（' + (sl.level === 'elite' ? '精銳' : '普通') + ' AI）';
+    for (const id of Object.keys(CHARACTERS)) {
+      if (id === selectedId) continue;
+      const D = CHARACTERS[id], b = document.createElement('button'); b.type = 'button';
+      b.innerHTML = '<span></span><small></small>'; b.firstChild.textContent = D.name; b.lastChild.textContent = CLASS_NAMES[D.weapon.class];
+      if (sl.id === id) b.className = 'on';
+      b.addEventListener('click', () => { sl.id = id; $('defPick').hidden = true; defPickSlot = null; buildDefLobby(); prefetch(); });
+      g.appendChild(b);
+    }
+    $('defPickTxt').textContent = '點一下人形就會換上。'; $('defPickGo').hidden = true; $('defPickRand').hidden = true; return;
+  }
+  $('defPickGo').hidden = false; $('defPickRand').hidden = false;
   for (const id of Object.keys(CHARACTERS)) {
     if (id === selectedId) continue;
     const D = CHARACTERS[id], b = document.createElement('button'); b.type = 'button';
@@ -6786,7 +6834,7 @@ $('defAutoBtn').addEventListener('click', () => { if (!defState) return; defStat
 $('defUpBtn').addEventListener('click', defUpgrade);
 $('defPickRand').addEventListener('click', () => { const pool = Object.keys(CHARACTERS).filter((id) => id !== selectedId); defSquad = []; while (defSquad.length < 3 && pool.length) defSquad.push(pool.splice(Math.floor(Math.random() * pool.length), 1)[0]); renderDefPick(); });
 $('defPickGo').addEventListener('click', () => { if (defSquad.length !== 3) return; $('defPick').hidden = true; defPicked = true; startGame(); });
-$('defPickCancel').addEventListener('click', () => { $('defPick').hidden = true; });
+$('defPickCancel').addEventListener('click', () => { $('defPick').hidden = true; defPickSlot = null; });
 /* 手機：按住移動搖桿（另一根手指）時，click 事件不會觸發 → 觸控改用 pointerdown，滑鼠維持 click */
 function tapBtn(el, fn) {
   el.addEventListener('pointerdown', (e) => { if (e.pointerType === 'mouse') return; e.preventDefault(); el._tapT = performance.now(); fn(); });
