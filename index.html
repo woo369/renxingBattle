@@ -4704,7 +4704,7 @@ const BOSSES = {
     where: '無',
     weapon: '巨型主砲',
     desc: '鐵血工造的巨型砲台，平時砲管收起處於待機，有目標進入 850 範圍就會啟動。遠距離用高射模式把砲彈拋到目標頭上，近距離改用平射模式直接轟擊；每一發都是範圍 75、100 點的爆炸。之後會是保衛戰模式的勝利目標。',
-    specialDesc: '雙模式主砲：目標在 450 以外（最遠 850）用高射模式——蓄力 1.8 秒，拋出砲彈 1 秒後落地（地上有落點紅圈），不消耗彈匣，每 5 秒一發；目標在 450 以內改用平射模式——蓄力 0.8 秒（地上有瞄準線），射出 3 倍速度的砲彈，每 1.2 秒一發，彈匣 3 發、打完換彈 12 秒。切換模式要 0.6 秒（砲管轉動）。',
+    specialDesc: '雙模式主砲：目標在 450 以外（最遠 850）用高射模式——蓄力 1.8 秒，拋出砲彈 0.6 秒後落地（地上有落點紅圈），不消耗彈匣，每 5 秒一發；目標在 450 以內改用平射模式——蓄力 0.8 秒（地上有瞄準線），射出 3 倍速度的砲彈，每 1.2 秒一發，彈匣 3 發、打完換彈 12 秒。切換模式要 0.6 秒（砲管轉動）。',
     hp: 2000, armor: 10,
     evade: 0,
     speed: 0,
@@ -4712,7 +4712,7 @@ const BOSSES = {
     bulletDmg: 100,              // 圖鑑用：爆炸傷害
     boom: { r: 75, dmg: 100 },   // 每發砲彈：範圍 75、100 點爆炸傷害
     magazine: 3, reload: 12,     // 平射：彈匣 3 發，換彈 12 秒
-    high: { charge: 1.8, flight: 1, every: 5, peak: 260 },        // 高射：蓄力 1.8 秒、飛行 1 秒、每 5 秒一發、不消耗彈匣
+    high: { charge: 1.8, flight: 0.6, every: 5, peak: 220 },      // 高射：蓄力 1.8 秒、飛行 0.6 秒、每 5 秒一發、不消耗彈匣
     flat: { charge: 0.8, every: 1.2, speed: 900, range: 560 },    // 平射：蓄力 0.8 秒、3 倍速砲彈（一般砲彈 300）、每 1.2 秒一發
     swap: 0.6,                   // 切換模式 0.6 秒
     wake: 0.8,                   // 啟動（砲管從收起轉到平射）0.8 秒
@@ -8984,13 +8984,13 @@ function updateJupiter(e, dt, toward, dist) {
   }
   if (e.jCharge) {
     const C = e.jCharge; C.t += dt;
-    if (C.mode === 'flat' && C.t < C.T - 0.2) C.a = Math.atan2(player.y - e.y, player.x - e.x);   // 平射：最後 0.2 秒鎖定方向
+    if (C.mode === 'flat') { const mz0 = spritePoint(e, m, m.muzzleF); C.ox = mz0.x; C.oy = e.y + 2; C.h = e.y - mz0.y; if (C.t < C.T - 0.2) { C.a = Math.atan2(player.y - C.oy, player.x - C.ox); C.d = Math.max(60, Math.hypot(player.x - C.ox, player.y - C.oy)); } }   // 平射：從砲口正下方瞄準（瞄準線＝砲彈的軌跡），最後 0.2 秒鎖定方向
     if (C.mode === 'high' && C.t < C.T - 0.3) { C.tx = player.x; C.ty = player.y; }               // 高射：最後 0.3 秒鎖定落點
     if (C.t >= C.T) {
       const mz = spritePoint(e, m, C.mode === 'flat' ? m.muzzleF : m.muzzleH), X = B.boom;
       if (C.mode === 'flat') {
-        const a = Math.atan2(e.y + Math.sin(C.a) * 300 - e.y, e.x + Math.cos(C.a) * 300 - e.x);
-        bullets.push({ x: mz.x, y: e.y + 2, vx: Math.cos(a) * F.speed, vy: Math.sin(a) * F.speed, age: 0, life: F.range / F.speed, r: 9, team: 'e', dmg: 0, boss: true, jupShell: true, boom: { r: X.r, dmg: X.dmg * atkMulNow }, h: e.y - mz.y });
+        const a = C.a;   // 沿著瞄準線發射：砲彈在地面上的軌跡就是瞄準線，畫面上畫在砲口的高度
+        bullets.push({ x: C.ox, y: C.oy, vx: Math.cos(a) * F.speed, vy: Math.sin(a) * F.speed, age: 0, life: F.range / F.speed, r: 9, team: 'e', dmg: 0, boss: true, jupShell: true, boom: { r: X.r, dmg: X.dmg * atkMulNow }, h0: C.h, d0: C.d || 300, sx: C.ox, sy: C.oy });
         e.ammo--; if (e.ammo <= 0) e.reloadT = B.reload; e.jCd = F.every;
       } else {
         missiles.push({ sx: e.x, sy: e.y, h0: e.y - mz.y, hx: mz.x - e.x, tx: C.tx, ty: C.ty, t: 0, T: H.flight, r: X.r, dmg: X.dmg * atkMulNow, jupLob: true, peak: H.peak });
@@ -9010,6 +9010,8 @@ function updateJupiter(e, dt, toward, dist) {
   }
   bossTail(e, dt, dist);
 }
+// 平射砲彈的飛行高度：從砲口的高度斜斜往下，到目標的距離時剛好在人形身體的高度（28），之後繼續往下到地面附近
+const jupH = (h0, d0, d) => Math.max(6, h0 + (28 - h0) * d / d0);
 // 木星砲的平射砲彈：直線飛行；碰到人形、障礙物或飛到終點就爆炸（範圍 75、100 點）。回傳 true 表示要移除
 function jupiterShell(b, dt) {
   b.age += dt; b.x += b.vx * dt; b.y += b.vy * dt; b.life -= dt;
@@ -9034,7 +9036,12 @@ function drawJupiter(e) {
     // 平射瞄準線（最後 0.2 秒鎖定：變粗、變實線）
     const locked = C.t >= C.T - 0.2, L = B.flat.range;
     ctx.strokeStyle = locked ? 'rgba(255,90,70,0.9)' : 'rgba(255,140,100,0.5)'; ctx.lineWidth = locked ? 5 : 2; if (!locked) ctx.setLineDash([12, 8]);
-    ctx.beginPath(); ctx.moveTo(e.x, e.y); ctx.lineTo(e.x + Math.cos(C.a) * L, e.y + Math.sin(C.a) * L); ctx.stroke(); ctx.setLineDash([]);
+    const ox = C.ox ?? e.x, oy = C.oy ?? e.y, d0 = C.d || 300;
+    // 瞄準線畫在砲口的高度：從砲口出發，砲彈就沿著這條線飛（地上另有淡淡的投影）
+    ctx.save(); ctx.globalAlpha = 0.35; ctx.beginPath(); ctx.moveTo(ox, oy); ctx.lineTo(ox + Math.cos(C.a) * L, oy + Math.sin(C.a) * L); ctx.stroke(); ctx.restore();
+    ctx.save(); ctx.setTransform(DPR, 0, 0, DPR, 0, 0); ctx.beginPath();
+    for (let k = 0; k <= 12; k++) { const px = ox + Math.cos(C.a) * L * k / 12, py = oy + Math.sin(C.a) * L * k / 12, qq = proj(px, py); const hh = jupH(C.h || 0, d0, L * k / 12); if (k) ctx.lineTo(qq.x, qq.y - hh * qq.k); else ctx.moveTo(qq.x, qq.y - hh * qq.k); }
+    ctx.stroke(); ctx.restore(); ctx.setLineDash([]);
   } else if (C && C.mode === 'high') {
     // 高射：蓄力時落點先出現虛線圈（最後 0.3 秒鎖定）
     const locked = C.t >= C.T - 0.3;
@@ -11370,8 +11377,9 @@ function draw(t) {
     const q = proj(b.x, b.y), lift = 7 * Math.sin(Math.min(1, b.age / (b.maxLife || b.life + b.age)) * Math.PI);
     ctx.fillStyle = 'rgba(4,24,32,0.4)'; ctx.beginPath(); ctx.ellipse(q.x + 3 * q.k, q.y + 5 * q.k, 6 * q.k, 3 * q.k * VIEW3D.squash, 0, 0, Math.PI * 2); ctx.fill();
     if (b.jupShell) {
-      // 木星砲的平射砲彈：大顆砲彈＋橘色拖尾
-      const y = q.y - 8 * q.k, a = Math.atan2(b.vy * VIEW3D.squash, b.vx), L = 30 * q.k, Wd = 14 * q.k;
+      // 木星砲的平射砲彈：大顆砲彈＋橘色拖尾（畫在砲口的高度，地上有影子對齊瞄準線）
+      ctx.save(); ctx.fillStyle = 'rgba(0,0,0,0.3)'; ctx.beginPath(); ctx.ellipse(q.x, q.y, 9 * q.k, 4 * q.k, 0, 0, Math.PI * 2); ctx.fill(); ctx.restore();
+      const y = q.y - jupH(b.h0, b.d0, Math.hypot(b.x - b.sx, b.y - b.sy)) * q.k, a = Math.atan2(b.vy * VIEW3D.squash, b.vx), L = 30 * q.k, Wd = 14 * q.k;
       ctx.save(); ctx.globalAlpha = 0.5; ctx.strokeStyle = '#ffb066'; ctx.lineCap = 'round'; ctx.lineWidth = 6 * q.k;
       ctx.beginPath(); ctx.moveTo(q.x - Math.cos(a) * 40 * q.k, y - Math.sin(a) * 40 * q.k); ctx.lineTo(q.x, y); ctx.stroke(); ctx.globalAlpha = 1;
       ctx.translate(q.x, y); ctx.rotate(a); ctx.drawImage(BULLET_SPR.shell, -L * 0.95, -Wd / 2, L, Wd); ctx.restore();
