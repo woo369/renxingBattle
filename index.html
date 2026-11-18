@@ -2628,7 +2628,7 @@ function nightChunk(cx, cy) {
     for (let i = 0, n = Math.floor(h(60) * 3); i < n; i++) { const [x, y] = P(61 + i * 2, 62 + i * 2); if (clear(x, y, 30) && solid.every((o) => Math.hypot(o.x - x, o.y - y) > (o.r || 20) + 60)) { const sz = 0.9 + h(70 + i) * 0.4; solid.push({ kind: 'tree', x, y, sz, r: 16 * sz }); } }
   }
   if (isDef()) {   // 保衛戰：基地周圍不長樹、不放岩石
-    const ok = (o) => { const r = o.r || 0, B = DEF.bounds; if (o.x < B.x0 - 120 || o.x > B.x1 + 120 || o.y < B.y0 - 120 || o.y > B.y1 + 120) return false; return !(o.x + r > DEF.x0 - 300 && o.x - r < DEF.x1 + 300 && o.y + r > DEF.yb - 320 && o.y - r < DEF.yb + DEF.R + 300); };
+    const ok = (o) => { const r = o.r || 0, B = DEF.bounds; if (o.x < B.x0 - 120 || o.x > B.x1 + 120 || o.y < B.y0 - 120 || o.y > B.y1 + 120) return false; if (Math.hypot(o.x - DEF.jupiter.x, o.y - DEF.jupiter.y) < 420 + (o.w || 2 * r)) return false; return !(o.x + r > DEF.x0 - 300 && o.x - r < DEF.x1 + 300 && o.y + r > DEF.yb - 320 && o.y - r < DEF.yb + DEF.R + 300); };
     c = { solid: solid.filter(ok), ground: ground.filter(ok) };
   } else c = { solid, ground };
   if (nightChunks.size > 600) { nightChunks.clear(); nightNear.clear(); }
@@ -5878,7 +5878,7 @@ function addEnemy() {
   const T = phase ? pickSpawn(phase.spawnTable) : ENEMY;
   if (!T) return;   // 這次抽到「不出怪」
   let sp0 = nightSpot(player.x + ca * d, player.y + sa * d, T.radius || 20), dGoal;
-  if (isDef()) { const r = rand(1400, 2100), w = defClamp({ x: Math.cos(a) * r, y: DEF.yb + DEF.depth / 2 + Math.sin(a) * r }, 100); sp0 = nightSpot(w.x, w.y, T.radius || 20); dGoal = Math.random() < 0.5 ? 'base' : 'hunt'; }   // 保衛戰：在基地外圍出現；一半進攻基地、一半追擊在外的隊員
+  if (isDef()) { const ea = Math.random() < 0.75 ? rand(-1.2, 1.2) : a, r = rand(1400, 2100), w = defClamp({ x: Math.cos(ea) * r, y: DEF.yb + DEF.depth / 2 + Math.sin(ea) * r }, 100); sp0 = nightSpot(w.x, w.y, T.radius || 20); dGoal = Math.random() < 0.5 ? 'base' : 'hunt'; }   // 保衛戰：在基地外圍出現；一半進攻基地、一半追擊在外的隊員
   enemies.push({ dGoal, T, x: sp0.x, y: sp0.y, r: T.radius, hp: T.hp, ammo: T.magazine, angle: 0, cool: rand(1.2, 2), touchCd: 0, def: cfg, shot: 0, moving: true, phase: rand(0, 6) });
 }
 /* ───────── 載入素材時輪播的人形小資訊 ───────── */
@@ -6240,7 +6240,8 @@ function nightAfterEnemies(dt) {
    基地（網路操作站＋左右營區）在地圖中心：後方是一道直牆（y=−100），前方是半圓形的圍欄（半徑 536），只有左右兩端的缺口可以進出。
    中間的網路操作站（x −176～176）是安全區：敵人不會鎖定裡面的人形；控制室有 1000 生命，敵人要進到基地裡才能攻擊它。
    基地裡的人形迴避率 +20%。左營區的佈告欄安排 AI 隊友的工作；右營區的復活台可以花核心復活倒下的隊友 */
-const DEF = { bounds: { x0: -1900, x1: 1900, y0: -2800, y1: 1100 },   // 地圖範圍（有限大小）：木星砲之後放在北邊遠處，正規軍單位在基地和木星砲之間
+const DEF = { bounds: { x0: -1800, x1: 6200, y0: -1700, y1: 1500 },   // 地圖範圍（有限大小、橫向長）：基地在西側，鐵血工造的木星砲據點預設在東方遠處，正規軍單位在基地和木星砲之間
+  jupiter: { x: 5400, y: -100 },   // 木星砲據點的預設位置（東方）
   yb: -100, R: 536, depth: 260, x0: -536, x1: 536, safe: 176, gap: 0.27,
   board: { x: -220, y: -80 }, rev: { x: 292, y: -80 }, useR: 110,
   posts: [{ x: -440, y: -20 }, { x: 440, y: -20 }],            // 駐守點：左右出入口內側
