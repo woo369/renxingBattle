@@ -1879,7 +1879,7 @@ const LEVELS = [
   { id: 'war', name: '戰事', open: true, desc: '三階段的戰事，敵人會階段性地變強，每個階段末尾都會出現 Boss，擊敗第三階段的 Boss 即過關。' },
   { id: 'duel', name: '菁英對決', open: true, desc: '入場 5 秒後出現一名隨機精英敵人，擊敗它即可過關。精英以三階的強度為基準，一階、二階精英會依類型強化到相同水準。場上會定時出現零件與醫療箱。' },
   { id: 'night', name: '夜戰', open: true, desc: '在漆黑的野外作戰，分成三個階段，跟戰事一樣每階段末尾會出現 Boss。每名人形都有自己的視野：手槍 500，其他槍種只有 200（隊伍裡有手槍人形時提高到 450），且每名手槍人形讓全隊命中 +20%；所有單位迴避率 +20%。只能帶一名人形出擊，撿到通訊器後可以呼叫遠處的友方人形支援，最多再帶三名隊友，並且可以切換操控；零件全隊共用，改用來強化目前操控的人形（子彈傷害、生命 ×1.2，最多 5 次）。前 3 分鐘是準備階段，敵人很少。' },
-  { id: 'defense', name: '保衛戰', open: true, desc: '（開發中：目前做到第二時段）帶最多 4 名隊友（在下方小隊加入普通或精銳 AI）駐守網路操作站，在 16 分鐘內摧毀遠處的木星砲。0:00～2:00 是準備時段：到基地外蒐集零件和核心，同時會有少量鐵血工造的一階敵人出現，有的追擊在外的隊員、有的從基地的出入口進攻；2:00～6:00 是第二時段，開始出現鐵血工造的二階敵人，出怪也更頻繁。基地每 30 秒產出 3 零件、1 電池，花 5 核心可以升級產出速度（+20%）。到佈告欄（B）可以安排 AI 隊友的工作，到復活台可以花核心復活倒下的隊友；20 零件可以強化全隊（最多 5 次）。基地裡迴避率 +20%；營區中間的數據機有 1000 生命，被摧毀就失敗。' },
+  { id: 'defense', name: '保衛戰', open: true, desc: '（開發中：目前做到第二時段）帶最多 4 名隊友（在下方小隊加入普通或精銳 AI）駐守網路操作站，在 16 分鐘內摧毀東方鐵血工造營地裡的木星砲。0:00～2:00 是準備時段：到基地外蒐集零件和核心，同時會有少量鐵血工造的一階敵人出現，有的追擊在外的隊員、有的從基地的出入口進攻；2:00～6:00 是第二時段，開始出現鐵血工造的二階敵人，出怪也更頻繁。基地每 30 秒產出 3 零件、1 電池，花 5 核心可以升級產出速度（+20%）。到佈告欄（B）可以安排 AI 隊友的工作，到復活台可以花核心復活倒下的隊友；20 零件可以強化全隊（最多 5 次）。基地裡迴避率 +20%；營區中間的數據機有 1000 生命，被摧毀就失敗。' },
   { id: 'test', name: '測試模式', open: true, desc: '不會自動出怪，可以自選召喚任何敵人或精英，零件無限。' },
   { id: 'battle', name: '戰局', open: true, desc: '（開發中）100×100 格的大地圖，之後會做成 7 打 7 的戰局。地圖上有三個佔領點，站在點上就能佔領；山、房屋、樹木會擋路與子彈，樹林會遮擋視線。左上角是小地圖，按 M 或點小地圖可以打開全圖（單位會變成點）。' },
   { id: 'versus', name: '雲圖對戰', open: true, desc: '（開發中）5 打 5 的團隊對戰，所有人形的生命都是原本的 3 倍，60×30 格的長條地圖，藍隊、紅隊的大本營在左右兩側。擊倒敵方人形本體得 1 分，先到 30 分獲勝；初始零件 10，地圖中間會出現零件和醫療包，擊倒敵人可拿走對方 50% 的零件。可以加入普通或精銳 AI，倒下 5 秒後重生。大本營有會無限重生的守衛，會攻擊太靠近的敵人。' },
@@ -2472,7 +2472,7 @@ const DEFENSE_PHASES = [
   { name: '準備時段', end: 120, spawnTable: DEF_T1, initial: 2, spawn: { every: 9, min: 7, max: 6 }, prep: true },   // 0:00～2:00：少量敵人，時間到進入下一時段
   { name: '第二時段', end: 240, spawnTable: DEF_T2, initial: 2, spawn: { every: 5, min: 3, max: 12 } },              // 2:00～6:00：出現二階敵人，出怪更頻繁
   { name: '第三時段（製作中）', end: 600, spawnTable: DEF_T2, initial: 0, spawn: { every: 5, min: 3, max: 12 } },     // 之後的時段還沒做：暫時沿用第二時段；16:00 時間到＝任務失敗
-].map((p) => ({ ...p, packs: ['dino', 'jaguar', 'wasp', 'ripper', 'beast', 'lion', 'striker', 'jaeg', 'dragoon', 'guard', 'night', 'defbase'], night: true, defense: true, day: true, bossPool: null, medkitEvery: 30, medkitHeal: 10 }));
+].map((p) => ({ ...p, packs: ['dino', 'jaguar', 'wasp', 'ripper', 'beast', 'lion', 'striker', 'jaeg', 'dragoon', 'guard', 'jupiter', 'night', 'defbase'], night: true, defense: true, day: true, bossPool: null, medkitEvery: 30, medkitHeal: 10 }));
 const LEVEL_PHASES = { defense: DEFENSE_PHASES, night: NIGHT_PHASES, war: WAR_PHASES, duel: DUEL_PHASES, test: TEST_PHASES, battle: BATTLE_PHASES, versus: VERSUS_PHASES };   // 有分階段的關卡
 const levelPhases = () => LEVEL_PHASES[selectedLevel] || null;
 let phase = null, phaseIdx = 0, phaseStart = 0, spawnIdx = 0;   // 目前階段、階段開始時間、輪到第幾種敵人
@@ -5012,7 +5012,7 @@ let best = Number(store.get('rxxlc-best')) || 0;
    每個人形／敵人的動畫圖放在 assets/<素材包>.json；網頁本身只帶設定（meta）與介面圖（ui）。
    離線單檔版會把圖片直接打包進網頁，這時就不用另外下載。 */
 const ASSET_BASE = 'assets/';
-const ASSET_VER = {"triple_crown":"42a6eaf59e","hk433":"df9cc9f7f7","type82":"19d6eb08aa","mh":"d23c2759a3","ouro":"ab4a21e936","cyc":"e3e7f09e34","meye":"a41da84ea9","hb":"dba320370d","dreamer":"87285c47db","scarecrow":"498db0f898","xm":"08da1bca4f","wasp":"0d68029acb","beast":"c322e71a84","lion":"3c116d5e13","intr":"e0de4d19e7","ceye":"82a6aca9a7","cent":"c58be64dbf","sws":"54ff5cb0d8","ouroE":"28421ec974","arch":"fcf8a15108","judge":"0904b780f7","lycan":"21ec39a3b9","aegis":"722f1b93d1","scep":"80de946a2c","hind":"a262c79af5","ti":"07477aefc9","lcan":"5b4b46404f","aeq":"3b96bb238d","scout":"cd3b141af2","hammer":"b9220bbb9f","gsw":"43b26bea32","mino":"169c3bf368","agent":"462fa8a126","de":"a0d77eed11","vhs":"48d898f5b3","sp9":"d43d1c3717","sat8":"59d571a15b","m110":"12ad1ce260","kord":"f4dbe7d0e1","t561":"5c635a3d9d","rpk":"29db8d90a9","x95":"7e54a51692","carc":"e53118059f","hydra":"b369a4278c","quail":"5bc9991ecd","wb":"a1920ee4d7","aa12":"c0b5a9004a","t100":"63d9404ba2","mg4":"b55fb8363b","an94":"3070abd310","m950":"e7757f6551","ntw":"7b558a5c50","dp12":"02850f045c","pal":"c6a4206a6c","typ":"fc83ca75b5","ladon":"c871fa41a6","ripper":"0177fde288","striker":"a53db882b5","guard":"40371cd495","dino":"7ccee24d47","scorp":"3fd7432e18","jaeg":"5a8356a33b","dragoon":"2e490725b9","jaguar":"70994c9621","goliath":"a619ae409b","gfac":"c2d3a20712","jupiter":"9825161850","defbase":"9924debe0b","night":"71559edb8d","lancer":"38f55fae5b","glad":"e0c43bf51c","class_SG":"431e39b392","class_AR":"f86d58b274","class_SMG":"fceb08bbb1","class_RF":"c107da1c64","class_HG":"f6305e910b","class_MG":"be1790479a","codexf_sf":"6362888e2d","codexf_kcco":"975523a4f6","codexf_paradeus":"5fb98fc068","codex_menu":"b74f26d585"};   // 素材檔的內容雜湊（拆檔版）：網址帶版本，更新後不會吃到瀏覽器裡的舊快取
+const ASSET_VER = {"triple_crown":"42a6eaf59e","hk433":"df9cc9f7f7","type82":"19d6eb08aa","mh":"d23c2759a3","ouro":"ab4a21e936","cyc":"e3e7f09e34","meye":"a41da84ea9","hb":"dba320370d","dreamer":"87285c47db","scarecrow":"498db0f898","xm":"08da1bca4f","wasp":"0d68029acb","beast":"c322e71a84","lion":"3c116d5e13","intr":"e0de4d19e7","ceye":"82a6aca9a7","cent":"c58be64dbf","sws":"54ff5cb0d8","ouroE":"28421ec974","arch":"fcf8a15108","judge":"0904b780f7","lycan":"21ec39a3b9","aegis":"722f1b93d1","scep":"80de946a2c","hind":"a262c79af5","ti":"07477aefc9","lcan":"5b4b46404f","aeq":"3b96bb238d","scout":"cd3b141af2","hammer":"b9220bbb9f","gsw":"43b26bea32","mino":"169c3bf368","agent":"462fa8a126","de":"a0d77eed11","vhs":"48d898f5b3","sp9":"d43d1c3717","sat8":"59d571a15b","m110":"12ad1ce260","kord":"f4dbe7d0e1","t561":"5c635a3d9d","rpk":"29db8d90a9","x95":"7e54a51692","carc":"e53118059f","hydra":"b369a4278c","quail":"5bc9991ecd","wb":"a1920ee4d7","aa12":"c0b5a9004a","t100":"63d9404ba2","mg4":"b55fb8363b","an94":"3070abd310","m950":"e7757f6551","ntw":"7b558a5c50","dp12":"02850f045c","pal":"c6a4206a6c","typ":"fc83ca75b5","ladon":"c871fa41a6","ripper":"0177fde288","striker":"a53db882b5","guard":"40371cd495","dino":"7ccee24d47","scorp":"3fd7432e18","jaeg":"5a8356a33b","dragoon":"2e490725b9","jaguar":"70994c9621","goliath":"a619ae409b","gfac":"c2d3a20712","jupiter":"9825161850","defbase":"5a5122b6be","night":"71559edb8d","lancer":"38f55fae5b","glad":"e0c43bf51c","class_SG":"431e39b392","class_AR":"f86d58b274","class_SMG":"fceb08bbb1","class_RF":"c107da1c64","class_HG":"f6305e910b","class_MG":"be1790479a","codexf_sf":"6362888e2d","codexf_kcco":"975523a4f6","codexf_paradeus":"5fb98fc068","codex_menu":"b74f26d585"};   // 素材檔的內容雜湊（拆檔版）：網址帶版本，更新後不會吃到瀏覽器裡的舊快取
 const assetUrl = (name) => ASSET_BASE + name + '.json' + (ASSET_VER[name] ? '?v=' + ASSET_VER[name] : '');
 const packOf = (assets) => Object.keys(ASSETS).find((k) => ASSETS[k] === assets);
 const packBox = {};                                  // 素材包 → 解碼後的圖片放在 imgs 的哪一格
@@ -6271,6 +6271,16 @@ DEF.props = [
   { img: 'cov2', x: -235, y: DEF.yb + 215, w: 70, r: 22 }, { img: 'ammo', x: 240, y: DEF.yb + 200, w: 46, r: 18 },
 ].map((o) => ({ kind: 'prop', ...o }));
 DEF.walls.push(...DEF.covers, ...DEF.props, { kind: 'modem', x: DEF.modem.x, y: DEF.modem.y, r: DEF.modem.r });
+// 木星砲營地（鐵血工造色系的機械物件，擋人、不擋子彈）：後方是控制機櫃、天線、雷達和發電機，兩側是導彈架與裝填機械臂，前方一排沙包
+DEF.jcamp = [
+  ['j_rack', -150, -205, 46, 18], ['j_rack', -105, -212, 46, 18], ['j_antenna', -35, -235, 78, 24], ['j_radar', 70, -232, 70, 18], ['j_gen', 150, -190, 70, 26], ['j_gen', 215, -130, 70, 26],
+  ['j_missile', -250, -110, 130, 30], ['j_arm', -175, -150, 78, 24], ['j_torpedo', -265, -10, 130, 30], ['j_arm', 175, -45, 78, 24],
+  ['j_tanker', 275, 40, 130, 34], ['j_cases', 260, 140, 84, 28], ['j_boxes', -275, 120, 84, 28], ['j_ammo', 205, 205, 58, 22], ['j_wrack', -330, -170, 44, 16],
+  ['j_sandbag', -150, 215, 96, 32], ['j_sandpile', 10, 250, 96, 32], ['j_sandbag', 165, 230, 96, 32],
+  ['j_wall', -345, 40, 120, 30], ['j_wall', 350, -60, 120, 30],
+  ['j_lamp', -300, -250, 28, 8], ['j_lamp', 300, -250, 28, 8], ['j_lamp', -310, 250, 28, 8], ['j_lamp', 310, 250, 28, 8],
+].map(([img, dx, dy, w, r]) => ({ kind: 'prop', img, x: DEF.jupiter.x + dx, y: DEF.jupiter.y + dy, w, r }));
+DEF.walls.push(...DEF.jcamp);
 // 駐守巡邏路線：右出口 → 繞過掩體 → 數據機下方 → 左出口，來回走
 DEF.patrol = [[462, -37], [330, -20], [290, 275], [-290, 275], [-330, -20], [-462, -37]].map(([x, y]) => ({ x, y }));
 const defCoverProne = (u) => isDef() && (u.prone || 0) >= 0.6 && DEF.covers.some((o) => Math.hypot(u.x - o.x, u.y - o.y) < o.r + 50);
@@ -6296,6 +6306,9 @@ function defBegin() {
     clones.push(u); nightOrder(); nightTeam.push(u);
   });
   for (let i = 0; i < 8; i++) defSpawnItem();
+  { const B = BOSSES.jupiter;   // 木星砲：東方營地中央，平時待機，有目標靠近才啟動；摧毀它就完成任務
+    enemies.push({ boss: true, B, id: 'jupiter', defJup: true, x: DEF.jupiter.x, y: DEF.jupiter.y, r: B.radius, hp: B.hp, maxHp: B.hp, ammo: B.magazine, reloadT: 0, magsDone: 0, special: null, cool: 0.8, angle: 0,
+      touchCd: 0, debuffT: 0, faceLeft: true, aiming: false, shot: 0, phase: 0 }); }
   $('defBlock').hidden = false; $('defBoard').hidden = true; $('defRev').hidden = true; $('specBanner').hidden = true; updDefHud(); updateSwap();
 }
 function updDefHud() { $('battNum').textContent = defState.batt; $('coreNum').textContent = defState.cores; $('ctrlNum').textContent = Math.ceil(defState.ctrl); }
@@ -6319,6 +6332,9 @@ function defHitCtrl(dmg) {
 function defTick(dt) {
   const S = defState; if (!S) return;
   if (S.lost) { endGame(false); return; }
+  if (S.winT != null) { S.winT -= dt; if (S.winT <= 0) { S.winT = null; endGame(true); return; } }
+  { const j = enemies.find((x) => x.defJup), near = j && j.jMode && j.jMode !== 'off' && Math.hypot(j.x - player.x, j.y - player.y) < 1300;   // 木星砲啟動後，靠近時顯示上方血條
+    if (near) { const b0 = boss; boss = j; $('bossName').textContent = j.B.name; $('bossBar').hidden = false; updateBossBar(); boss = b0; } else if (!boss) $('bossBar').hidden = true; }
   S.ctrlHitT = Math.max(0, (S.ctrlHitT || 0) - dt);
   S.prodT += dt * (1 + DEF.upMul * S.lv);
   if (S.prodT >= DEF.prodEvery) {
@@ -6574,6 +6590,28 @@ function drawDefBase() {
   }
 }
 // 半圓圍欄的一段（每段依前後排序）
+// 木星砲營地的地面：八角形鋼板平台、鋼板接縫、砲台周圍的黃黑警示環、紅色導引線，平台外有焦黑的砲擊痕跡
+const JUP_SCORCH = [[-470, -120, 70], [-420, 210, 55], [440, 260, 80], [520, -90, 60], [-90, 420, 65], [210, -420, 50], [-300, -380, 45], [620, 150, 40]];
+function drawJupPad() {
+  const J = DEF.jupiter; if (Math.abs(cam.x - J.x) > 1700 || Math.abs(cam.y - J.y) > 1400) return;
+  ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+  const ring = (R, n = 48, r0 = 0) => { const p = []; for (let i = 0; i <= n; i++) { const a = r0 + Math.PI * 2 * i / n; p.push([J.x + Math.cos(a) * R, J.y + Math.sin(a) * R]); } return p; };
+  for (const [dx, dy, r] of JUP_SCORCH) { ctx.fillStyle = 'rgba(22,20,18,0.42)'; defPoly(ring(r, 20).map(([x, y]) => [x + dx, y + dy])); ctx.fill(); ctx.fillStyle = 'rgba(12,10,9,0.4)'; defPoly(ring(r * 0.5, 16).map(([x, y]) => [x + dx, y + dy])); ctx.fill(); }
+  const oct = ring(390, 8, Math.PI / 8);
+  ctx.fillStyle = '#1b1c20'; defPoly(ring(402, 8, Math.PI / 8)); ctx.fill();
+  ctx.fillStyle = '#383a40'; defPoly(oct); ctx.fill();
+  ctx.save(); defPoly(oct); ctx.clip();
+  ctx.strokeStyle = 'rgba(0,0,0,0.28)'; ctx.lineWidth = 1.2;
+  for (let x = -420; x <= 420; x += 70) { defPoly([[J.x + x, J.y - 420], [J.x + x, J.y + 420]]); ctx.stroke(); }
+  for (let y = -420; y <= 420; y += 70) { defPoly([[J.x - 420, J.y + y], [J.x + 420, J.y + y]]); ctx.stroke(); }
+  ctx.strokeStyle = 'rgba(160,30,30,0.7)'; ctx.lineWidth = 3;
+  for (let k = 0; k < 4; k++) { const a = Math.PI / 4 + k * Math.PI / 2; defPoly([[J.x + Math.cos(a) * 165, J.y + Math.sin(a) * 165], [J.x + Math.cos(a) * 380, J.y + Math.sin(a) * 380]]); ctx.stroke(); }
+  ctx.restore();
+  ctx.fillStyle = '#2a2b30'; defPoly(ring(150)); ctx.fill();
+  ctx.lineWidth = 7; ctx.strokeStyle = '#151515'; defPoly(ring(142)); ctx.stroke();
+  ctx.strokeStyle = '#e0b43a'; ctx.setLineDash([16, 16]); defPoly(ring(142, 96)); ctx.stroke(); ctx.setLineDash([]);
+  ctx.strokeStyle = 'rgba(200,40,40,0.55)'; ctx.lineWidth = 2; defPoly(ring(390, 8, Math.PI / 8)); ctx.stroke();
+}
 function drawDefFence(i) {
   const [a, b] = DEF.fenceSeg[i]; const q = proj(a.x, a.y), qb = proj(b.x, b.y), h = 26;
   ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
@@ -6679,6 +6717,7 @@ function nightActors() {
     DEF.fenceSeg.forEach(([a, b], i) => out.push({ it: { x: a.x, y: a.y, i }, k: 'F', y: Math.max(a.y, b.y) + 4 }));
     for (const o of [...DEF.covers, ...DEF.props]) out.push({ it: o, k: 'S', y: o.y });
     out.push({ it: { img: 'modem', modem: true, x: DEF.modem.x, y: DEF.modem.y, w: DEF.modem.w }, k: 'S', y: DEF.modem.y });
+    if (Math.abs(cam.x - DEF.jupiter.x) < 1500) for (const o of DEF.jcamp) out.push({ it: o, k: 'S', y: o.y });   // 木星砲營地
   }
   return out;
 }
@@ -6799,7 +6838,7 @@ function endGame(cleared) {
   }
   $('overBoard').hidden = true;
   const warClear = cleared && (selectedLevel === 'war' || selectedLevel === 'night');   // 戰事通關：恭喜通關＋通關時間與分數
-  $('overTitle').textContent = warClear ? '恭喜通關！' : cleared ? (phase ? phase.name : '') + '完成！' : '本回合結束';
+  $('overTitle').textContent = warClear ? '恭喜通關！' : cleared && isDef() ? '任務完成：木星砲已摧毀！' : cleared ? (phase ? phase.name : '') + '完成！' : '本回合結束';
   $('clearBanner').hidden = !warClear; $('clearBanner').textContent = '戰事 全三階段完成';
   $('scoreLabel').textContent = warClear ? '通關分數' : '你的最終得分';
   $('bossBar').hidden = true;
@@ -10781,7 +10820,8 @@ function killEnemy(e) {
   if (e.boss) {
     enemies.splice(i, 1); score += 2000; if (e === boss) { boss = null; $('bossBar').hidden = true; } testPrimary();
     if (selectedLevel === 'war' || selectedLevel === 'night' || selectedLevel === 'duel') bgmBossDown();   // Boss 音樂淡出
-    if (!(phase && phase.test)) phaseAdvT = 1e-6;   // 先排好進入下一階段（後面的特效、獎勵就算出錯也不會卡關）
+    if (isDef() && e.B.ai === 'jupiter' && defState) { defState.winT = 1.8; floatText(e.x, e.y - 90, '木星砲已摧毀', '#f9cf70'); }   // 保衛戰：摧毀木星砲＝任務完成
+    else if (!(phase && phase.test)) phaseAdvT = 1e-6;   // 先排好進入下一階段（後面的特效、獎勵就算出錯也不會卡關）
     $('score').textContent = score;
     burst(e.x, e.y, '#ff6b6b', 40); burst(e.x, e.y, '#f9cf70', 30); floatText(e.x, e.y - 60, '擊敗 ' + e.B.name + '！ +2000', '#f9cf70'); sfx.boom(); shake = 10;
     for (const d of enemies.filter((x) => x.owner === e)) { burst(d.x, d.y, '#ffb36b', 10); enemies.splice(enemies.indexOf(d), 1); }
@@ -11493,6 +11533,7 @@ function drawGround(t) {
   ctx.stroke();
   if (bigMap()) drawBigMapGround(x0, x1, y0, y1);
   if (isNight()) drawNightGround(x0, x1, y0, y1);
+  if (isDef()) drawJupPad();
   if (isDef()) {   // 保衛戰：地圖邊界外變暗、畫一圈邊線
     const B = DEF.bounds, edge = [], seg = (x0, y0, x1, y1) => { for (let i = 0; i < 24; i++) edge.push([x0 + (x1 - x0) * i / 24, y0 + (y1 - y0) * i / 24]); };
     seg(B.x0, B.y0, B.x1, B.y0); seg(B.x1, B.y0, B.x1, B.y1); seg(B.x1, B.y1, B.x0, B.y1); seg(B.x0, B.y1, B.x0, B.y0);
@@ -11569,7 +11610,7 @@ function draw(t) {
     if (k === 'k') { drawCamp(it); continue; }
     if (k === 'f') { drawFlag(it); continue; }
     if (k === 'c') drawCrate(it);
-    else if (k === 'e' && it.boss) { if (it !== boss && phase && phase.test) drawMiniBossLater.push(it); (BOSS_DRAW[it.B.ai] || drawBoss)(it); }
+    else if (k === 'e' && it.boss) { if (it !== boss && phase && (phase.test || it.defJup)) drawMiniBossLater.push(it); (BOSS_DRAW[it.B.ai] || drawBoss)(it); }
     else if (k === 'm') {
       // 擴編分身
       ctx.save(); drawCharacter(it, false); ctx.restore(); drawSakura(it); drawHuntAim(it);
