@@ -346,6 +346,8 @@ body.touch #boardBtn{top:auto;width:54px;height:54px;padding:0;border-radius:50%
 .def-panel button:disabled{opacity:.45;cursor:default}
 .def-row{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
 .def-row b{min-width:110px}
+#defFeed{position:fixed;z-index:9;right:12px;top:84px;display:flex;flex-direction:column;gap:6px;align-items:flex-end;pointer-events:none;max-width:min(360px,calc(100vw - 24px))}
+.def-note{padding:7px 12px;border-radius:10px;border:2px solid #7fd4ff;background:#0d1d26e6;color:#e8f4ff;font-weight:800;font-size:13px;transition:opacity .6s}.def-note.out{opacity:0}
 #specBanner{position:fixed;z-index:9;left:50%;top:76px;transform:translateX(-50%);padding:8px 14px;border-radius:12px;border:2px solid #7fd4ff;background:#0d1d26e6;color:#dff4ff;font-weight:800;font-size:14px;max-width:calc(100vw - 24px);text-align:center}
 #vsTeams .vs-name{background:none;border:none;color:inherit;font:inherit;font-weight:800;cursor:pointer;padding:0;text-align:left}
 #vsTeams .vs-name:hover{text-decoration:underline}
@@ -435,7 +437,7 @@ body.touch #testPanel{max-height:38vh}   /* 手機：不要擋到左下的移動
 <button id="boardBtn" type="button" hidden title="佈告欄（B）">佈告欄<small class="only-mouse">B</small></button>
 <div id="defBoard" class="def-panel" hidden><h3>佈告欄</h3><div class="sub">安排 AI 隊友的工作（真人玩家不受影響）。駐守基地：守在左右出入口的掩體；跟隨玩家：跟著你行動；外出蒐集：到基地外撿零件和核心。</div><div id="defJobs"></div><div class="def-row"><span id="defUpTxt"></span><button id="defUpBtn" type="button">升級基地（5 核心）</button></div><div class="def-row"><button id="defBoardClose" type="button">關閉（B）</button></div></div>
 <div id="defRev" class="def-panel" hidden><h3>復活台</h3><div class="sub">倒下 15 秒後可以花核心復活：一般 2 核心、王牌（精銳 AI）3 核心。打開「自動復活 AI」後，有 AI 倒下時其他 AI 會自己來這裡幫忙復活。</div><div id="defRevList"></div><div class="def-row"><span id="defRevTxt" class="sub"></span></div><div class="def-row"><button id="defAutoBtn" type="button">自動復活 AI：關</button><button id="defRevClose" type="button">關閉（B）</button></div></div>
-<div id="specBanner" hidden></div>
+<div id="specBanner" hidden></div><div id="defFeed"></div>
 <div id="defPick" class="def-panel" hidden><h3>滅星行動：挑選 4 名 AI 隊友</h3><div class="sub" id="defPickTxt"></div><div id="defPickGrid"></div><div class="def-row"><button id="defPickRand" type="button">隨機挑選</button><button id="defPickGo" type="button">出擊</button><button id="defPickCancel" type="button">取消</button></div></div>
 <button id="commBtn" type="button" hidden title="使用通訊器（C）">通訊器<small id="commNum">×1</small><small class="only-mouse">C</small></button>
 <div id="invitePanel" hidden><img id="inviteImg" alt=""><div class="inv-txt"><b id="inviteName"></b><span>請求加入你的隊伍</span></div><button id="inviteYes" type="button">邀請加入<small id="inviteCost" class="only-mouse">Z</small></button><button id="inviteNo" type="button">不邀請<small class="only-mouse">X</small></button></div>
@@ -4756,7 +4758,7 @@ const BOSSES = {
     tier: 3,
     ai: 'jupiter',
     building: true,
-    where: '滅星行動（鎖敵距離 1500）',
+    where: '滅星行動（鎖敵距離 1500、爆炸範圍 300）',
     weapon: '巨型主砲',
     desc: '鐵血工造的巨型砲台，平時砲管收起處於待機，有目標進入 850 範圍就會啟動。遠距離用高射模式把砲彈拋到目標頭上，近距離改用平射模式直接轟擊；每一發都是範圍 75、100 點的爆炸。之後會是滅星行動模式的勝利目標。',
     specialDesc: '雙模式主砲：目標在 450 以外（最遠 850）用高射模式——蓄力 1.8 秒，拋出砲彈 0.6 秒後落地（地上有落點紅圈），不消耗彈匣，每 5 秒一發；目標在 450 以內改用平射模式——蓄力 0.8 秒（地上有瞄準線），射出 3 倍速度的砲彈，每 1.2 秒一發，彈匣 3 發、打完換彈 12 秒。切換模式要 0.6 秒（砲管轉動）。',
@@ -6232,7 +6234,7 @@ function nightAfterEnemies(dt) {
     }
   }
   pushOut(player); for (const c of clones) pushOut(c);
-  if (isDef()) for (const c of clones) if (c.nightAlly && c.hp <= 0 && !c.defDown) { c.defDown = true; c.revTask = null; defDead.push({ u: c, t0: gameTime, wait: DEF.revWait }); floatText(c.x, c.y - 70, c.def.name + ' 倒下', '#ff8f83'); }   // 滅星行動：倒下的隊友可以在復活台復活
+  if (isDef()) for (const c of clones) if (c.nightAlly && c.hp <= 0) defAllyDown(c);   // 滅星行動：倒下的隊友可以在復活台復活
   if (clones.some((c) => c.nightAlly && c.hp <= 0)) { clones = clones.filter((c) => !(c.nightAlly && c.hp <= 0)); updateSwap(); }
   if (vsNades.length) { const V0 = vs; vs = NIGHT_VS; try { vsUpdateNades(dt); } finally { vs = V0; } }
 }
@@ -6298,6 +6300,7 @@ const defEv = (u) => (isDef() && u && inBase(u) ? DEF.baseEv : 0);   // 基地�
 const revCost = (u) => (u.eliteAI || u.level === 'elite' ? DEF.revCostGold : DEF.revCost);   // 復活：一般 2 核心、王牌（精銳 AI）3 核心
 const DEF_JOBS = [['guard', '駐守基地'], ['follow', '跟隨玩家'], ['collect', '外出蒐集']];
 function defBegin() {
+  $('defFeed').textContent = '';
   defState = { prodT: 0, lv: 0, batt: 0, cores: 0, itemT: 0, enh: 0, ctrl: DEF.ctrlHp, autoRev: false }; defCores = []; defDead = []; defSpec = null;
   player.x = 0; player.y = DEF.yb + 150; player.defDown = false;
   (defLobby ? defLobby.slots : defSquad.map((id) => ({ id, level: 'normal' }))).forEach((sl, i) => {
@@ -6306,7 +6309,7 @@ function defBegin() {
     clones.push(u); nightOrder(); nightTeam.push(u);
   });
   for (let i = 0; i < 8; i++) defSpawnItem();
-  { const B = { ...BOSSES.jupiter, lockRange: 1500 };   // 木星砲（滅星行動：鎖敵距離 1500）：東方營地中央，平時待機，有目標靠近才啟動；摧毀它就完成任務
+  { const B = { ...BOSSES.jupiter, lockRange: 1500, boom: { ...BOSSES.jupiter.boom, r: 300 } };   // 木星砲（滅星行動：鎖敵距離 1500、砲彈爆炸範圍 300）：東方營地中央，平時待機，有目標靠近才啟動；摧毀它就完成任務
     enemies.push({ boss: true, B, id: 'jupiter', defJup: true, x: DEF.jupiter.x, y: DEF.jupiter.y, r: B.radius, hp: B.hp, maxHp: B.hp, ammo: B.magazine, reloadT: 0, magsDone: 0, special: null, cool: 0.8, angle: 0,
       touchCd: 0, debuffT: 0, faceLeft: true, aiming: false, shot: 0, phase: 0 }); }
   $('defBlock').hidden = false; $('defBoard').hidden = true; $('defRev').hidden = true; $('specBanner').hidden = true; updDefHud(); updateSwap();
@@ -6381,6 +6384,20 @@ function defPlayerDown() {
   floatText(player.x, player.y - 80, cfg.name + ' 倒下', '#ff8f83'); defSpec = nightAllies()[0] || null; updateSwap();
 }
 function defSpecNext(dir) { const A = nightAllies(); if (!A.length) return; const i = A.indexOf(defSpec); defSpec = A[(i + dir + A.length) % A.length]; }
+// 滅星行動：隊友倒下 → 登記到復活台（佈告欄也看得到），並跳出通知
+function defAllyDown(c) {
+  if (c.defDown || defDead.some((d) => d.u === c)) return;
+  c.defDown = true; c.revTask = null; c.hp = 0; defDead.push({ u: c, t0: gameTime, wait: DEF.revWait });
+  floatText(c.x, c.y - 70, c.def.name + ' 倒下', '#ff8f83');
+  defNotice(c.def.name + ' 倒下了，' + DEF.revWait + ' 秒後可以在復活台復活', '#ff8f83');
+}
+// 滅星行動的通知：畫面右上角，幾秒後淡出
+function defNotice(text, col) {
+  const box = $('defFeed'); if (!box) return;
+  const el = document.createElement('div'); el.className = 'def-note'; el.textContent = text; el.style.borderColor = col || '#7fd4ff'; box.prepend(el);
+  while (box.children.length > 4) box.lastChild.remove();
+  setTimeout(() => { el.classList.add('out'); setTimeout(() => el.remove(), 600); }, 5000);
+}
 function defRevive(d) {
   const S = defState, u = d.u, cost = revCost(u);
   if (!defDead.includes(d) || S.cores < cost || d.wait > 0) return false;
@@ -6389,7 +6406,7 @@ function defRevive(d) {
   u.hp = u.maxHp; u.x = p.x; u.y = p.y; u.invT = 1.5; u.defDown = false; u.dodgeT = 0; u.trail = []; u.shot = 0; u.effects = (u.effects || []).filter((x) => x.perm);
   if (d.isP) { defSpec = null; cam = { x: u.x, y: u.y }; updateHp(); refreshCharHud(); }
   else { Object.assign(u, { clone: true, nightAlly: true, slot: CLONE_SLOTS[nightAllies().length % 4], moving: false, aiming: false, revTask: null, goal: null }); clones.push(u); if (!nightTeam.includes(u)) nightTeam.push(u); }
-  burst(u.x, u.y, '#7fd4ff', 20); floatText(u.x, u.y - 60, u.def.name + ' 復活（核心 −' + cost + '）', '#7fd4ff'); sfx.skill(); updateSwap();
+  burst(u.x, u.y, '#7fd4ff', 20); floatText(u.x, u.y - 60, u.def.name + ' 復活（核心 −' + cost + '）', '#7fd4ff'); defNotice(u.def.name + ' 已在復活台復活', '#7fd4ff'); sfx.skill(); updateSwap();
   return true;
 }
 function openDefPanel() { if (Math.hypot(player.x - DEF.board.x, player.y - DEF.board.y) < DEF.useR) { $('defBoard').hidden = false; renderDefBoard(true); } else { $('defRev').hidden = false; renderDefRev(true); } }
@@ -6412,10 +6429,17 @@ function renderDefRev(full) {
 }
 function renderDefBoard(full) {
   const S = defState, A = nightAllies(), box = $('defJobs');
-  const key = A.map((c) => c.def.id + c.job).join() + S.cores + S.lv;
+  const D = defDead.filter((d) => !d.isP);
+  const key = A.map((c) => c.def.id + c.job).join() + '|' + D.map((d) => d.u.def.id + Math.ceil(d.wait)).join() + S.cores + S.lv;
   if (!full && box.dataset.k === key) return; box.dataset.k = key;
   box.textContent = '';
-  if (!A.length) { box.textContent = '目前沒有 AI 隊友。'; }
+  if (!A.length && !D.length) { box.textContent = '目前沒有 AI 隊友。'; }
+  for (const d of D) {   // 倒下的隊友：顯示在最上面，提示去復活台
+    const row = document.createElement('div'); row.className = 'def-row';
+    const b = document.createElement('b'); b.textContent = d.u.def.name; b.style.color = '#ff8f83';
+    const t = document.createElement('span'); t.textContent = d.wait > 0 ? '倒下：' + Math.ceil(d.wait) + ' 秒後可以在復活台復活' : '倒下：可以在復活台復活（核心 ' + revCost(d.u) + '）';
+    row.append(b, t); box.appendChild(row);
+  }
   for (const c of A) {
     const row = document.createElement('div'); row.className = 'def-row';
     const b = document.createElement('b'); b.textContent = c.def.name; row.appendChild(b);
@@ -8152,6 +8176,7 @@ function damageClone(c, amount, pierce, armorPen = 0) {
   burst(c.x, c.y, '#53dfcb', 4);
   if (c.hp <= 0) {
     if (vs && c.lastHitBy && !c.lastHitBy.guard) { const K = c.lastHitBy.lead || c.lastHitBy; if (K.fighter && K.vsTeam !== vs.myTeam) { vsGiveParts(K, VS.cloneBounty); vsStat(K).ck++; } }   // 對戰：房主的擴編被擊殺 → 對方得 2 個零件
+    if (isDef() && c.nightAlly) defAllyDown(c);   // 滅星行動：隊友倒下要登記到復活台
     clones.splice(clones.indexOf(c), 1); player.cloneDeaths = (player.cloneDeaths || 0) + 1;   // 56-1式被動用
     // 剩下的分身補位
     clones.forEach((k, i) => { k.slot = CLONE_SLOTS[i]; });
