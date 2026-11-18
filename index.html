@@ -2574,7 +2574,7 @@ function nightChunk(cx, cy) {
     for (let i = 0, n = Math.floor(h(60) * 3); i < n; i++) { const [x, y] = P(61 + i * 2, 62 + i * 2); if (clear(x, y, 30) && solid.every((o) => Math.hypot(o.x - x, o.y - y) > (o.r || 20) + 60)) { const sz = 0.9 + h(70 + i) * 0.4; solid.push({ kind: 'tree', x, y, sz, r: 16 * sz }); } }
   }
   if (isDef()) {   // 保衛戰：基地周圍不長樹、不放岩石
-    const ok = (o) => { const r = o.r || 0; return !(o.x + r > DEF.x0 - 300 && o.x - r < DEF.x1 + 300 && o.y + r > DEF.yb - 320 && o.y - r < DEF.yb + DEF.R + 300); };
+    const ok = (o) => { const r = o.r || 0, B = DEF.bounds; if (o.x < B.x0 - 120 || o.x > B.x1 + 120 || o.y < B.y0 - 120 || o.y > B.y1 + 120) return false; return !(o.x + r > DEF.x0 - 300 && o.x - r < DEF.x1 + 300 && o.y + r > DEF.yb - 320 && o.y - r < DEF.yb + DEF.R + 300); };
     c = { solid: solid.filter(ok), ground: ground.filter(ok) };
   } else c = { solid, ground };
   if (nightChunks.size > 600) { nightChunks.clear(); nightNear.clear(); }
@@ -2623,6 +2623,7 @@ function drawNightGround(x0, x1, y0, y1) {
 let MAPGEN = BATTLE_MAP, VERSUS_MAP = null;   // 目前使用的地圖（對戰模式開局時換成對戰地圖）
 // 某個位置（半徑 r）有沒有撞到地形。bullet＝子彈：湖擋不住子彈
 function mapSolidAt(x, y, r, bullet) {
+  if (isDef()) { const B = DEF.bounds; if (x - r < B.x0 || x + r > B.x1 || y - r < B.y0 || y + r > B.y1) return DEF_EDGE; }   // 保衛戰：地圖邊界
   if (isDef()) for (const o of DEF.walls) if (o.w ? Math.abs(x - o.x) < o.w / 2 + r && Math.abs(y - o.y) < o.h / 2 + r : (x - o.x) ** 2 + (y - o.y) ** 2 < (o.r + r) ** 2) return o;   // 保衛戰：基地的後牆、半圓圍欄、沙包（擋人也擋子彈）
   for (const o of MAPGEN.near(x, y)) {
     if (o.kind === 'forest' || (bullet && (o.kind === 'lake' || o.kind === 'river' || o.kind === 'lowrock'))) continue;   // 子彈可以飛過湖、河、半磚掩體   // 子彈可以飛過湖和河
@@ -5794,7 +5795,7 @@ function addEnemy() {
   const T = phase ? pickSpawn(phase.spawnTable) : ENEMY;
   if (!T) return;   // 這次抽到「不出怪」
   let sp0 = nightSpot(player.x + ca * d, player.y + sa * d, T.radius || 20), dGoal;
-  if (isDef()) { const r = rand(1400, 2100); sp0 = nightSpot(Math.cos(a) * r, DEF.yb + DEF.depth / 2 + Math.sin(a) * r, T.radius || 20); dGoal = Math.random() < 0.5 ? 'base' : 'hunt'; }   // 保衛戰：在基地外圍出現；一半進攻基地、一半追擊在外的隊員
+  if (isDef()) { const r = rand(1400, 2100), w = defClamp({ x: Math.cos(a) * r, y: DEF.yb + DEF.depth / 2 + Math.sin(a) * r }, 100); sp0 = nightSpot(w.x, w.y, T.radius || 20); dGoal = Math.random() < 0.5 ? 'base' : 'hunt'; }   // 保衛戰：在基地外圍出現；一半進攻基地、一半追擊在外的隊員
   enemies.push({ dGoal, T, x: sp0.x, y: sp0.y, r: T.radius, hp: T.hp, ammo: T.magazine, angle: 0, cool: rand(1.2, 2), touchCd: 0, def: cfg, shot: 0, moving: true, phase: rand(0, 6) });
 }
 /* ───────── 載入素材時輪播的人形小資訊 ───────── */
@@ -6070,7 +6071,7 @@ function nightSwap(a, oldDead) {
   burst(player.x, player.y, '#9cc6ff', 14); floatText(player.x, player.y - 56, '操控：' + cfg.name, '#cfe3ff');
   refreshCharHud(); updateParts(); return true;
 }
-function nightSwapNext(dir = 1) { if (isDef() && player.defDown) { defSpecNext(dir); return true; } const t = nightStep(dir); if (!t || nightSwapCd > 0) return false; return nightSwap(t, false); }
+function nightSwapNext(dir = 1) { if (isDef()) { if (player.defDown) defSpecNext(dir); return !!player.defDown; } /* 保衛戰：不能切換到 AI 隊友身上 */ const t = nightStep(dir); if (!t || nightSwapCd > 0) return false; return nightSwap(t, false); }
 // 隊友 AI：用雲圖對戰的 AI（普通 AI／精銳 AI，含技能、躲子彈），在一個暫時的對戰沙盒裡跑
 const NIGHT_VS = { myTeam: 'blue', night: true, intel: {}, score: { blue: 0, red: 0 } };
 let nightProxy = null;
@@ -6156,7 +6157,8 @@ function nightAfterEnemies(dt) {
    基地（網路操作站＋左右營區）在地圖中心：後方是一道直牆（y=−100），前方是半圓形的圍欄（半徑 536），只有左右兩端的缺口可以進出。
    中間的網路操作站（x −176～176）是安全區：敵人不會鎖定裡面的人形；控制室有 1000 生命，敵人要進到基地裡才能攻擊它。
    基地裡的人形迴避率 +20%。左營區的佈告欄安排 AI 隊友的工作；右營區的復活台可以花核心復活倒下的隊友 */
-const DEF = { yb: -100, R: 536, depth: 260, x0: -536, x1: 536, safe: 176, gap: 0.27,
+const DEF = { bounds: { x0: -1900, x1: 1900, y0: -2800, y1: 1100 },   // 地圖範圍（有限大小）：木星砲之後放在北邊遠處，正規軍單位在基地和木星砲之間
+  yb: -100, R: 536, depth: 260, x0: -536, x1: 536, safe: 176, gap: 0.27,
   board: { x: -220, y: -80 }, rev: { x: 292, y: -80 }, useR: 110,
   posts: [{ x: -440, y: -20 }, { x: 440, y: -20 }],            // 駐守點：左右出入口內側
   prodEvery: 30, prodParts: 3, prodBatt: 1, upCost: 5, upMul: 0.2, enhCost: 20, time: 960, ctrlHp: 1000, baseEv: 0.2,
@@ -6170,6 +6172,8 @@ DEF.fence = [];
 // 下半部營區的沙包掩體（擋人也擋子彈）
 DEF.covers = [[0.62, 330], [1.05, 360], [2.09, 360], [2.52, 330], [1.35, 440], [1.79, 440], [0.42, 420], [2.72, 420]].map(([a, r]) => ({ kind: 'sandbag', x: Math.cos(a) * r, y: DEF.yb + Math.sin(a) * r, r: 26 }));
 DEF.walls.push(...DEF.covers);
+const DEF_EDGE = { kind: 'wall', x: 0, y: 0, w: 1, h: 1, edge: true };
+const defClamp = (p, m = 60) => { const B = DEF.bounds; return { x: clamp(p.x, B.x0 + m, B.x1 - m), y: clamp(p.y, B.y0 + m, B.y1 - m) }; };
 let defSquad = [], defPicked = false, defState = null, defCores = [], defDead = [], defSpec = null;
 const isDef = () => !!(phase && phase.defense);
 const DEF_MID = () => DEF.gateY;
@@ -6198,7 +6202,7 @@ function defSpawnItem() {
   for (let n = 0; n < 10; n++) {
     const a = rand(0, Math.PI * 2), r = rand(DEF.itemMin, DEF.itemMax), x = Math.cos(a) * r, y = DEF.yb + DEF.R * 0.4 + Math.sin(a) * r;
     if (y > DEF.yb - 160 && Math.hypot(x, y - DEF.yb) < DEF.R + 150) continue;
-    const p = nightSpot(x, y, 14);
+    const p = nightSpot(defClamp({ x, y }, 80).x, defClamp({ x, y }, 80).y, 14);
     (core ? defCores : parts).push({ x: p.x, y: p.y, ph: rand(0, 6) }); return;
   }
 }
@@ -6352,7 +6356,7 @@ function defJobGoal(f, tgt, goal) {
   f.goalItem = best;
   if (best) return { x: best.x, y: best.y, item: true };
   if (!f.wander || Math.hypot(f.wander.x - f.x, f.wander.y - f.y) < 40 || gameTime > (f.wanderUntil || 0)) {
-    const a = rand(0, Math.PI * 2), r = rand(800, 1600); f.wander = nightSpot(Math.cos(a) * r, DEF.yb + DEF.R * 0.4 + Math.sin(a) * r, 30); f.wanderUntil = gameTime + 8;
+    const a = rand(0, Math.PI * 2), r = rand(800, 1600); { const w = defClamp({ x: Math.cos(a) * r, y: DEF.yb + DEF.R * 0.4 + Math.sin(a) * r }, 120); f.wander = nightSpot(w.x, w.y, 30); } f.wanderUntil = gameTime + 8;
   }
   return { x: f.wander.x, y: f.wander.y };
 }
@@ -6653,6 +6657,7 @@ function updateSwap() {
   const b = $('swapBtn');
   if (!isNight() && $('swapKey').textContent !== 'F') { $('swapKey').textContent = 'F'; b.title = '切換角色（F）'; }
   if (isNight()) {
+    if (isDef() && !player.defDown) { b.hidden = true; return; }   // 保衛戰：只能控制自己選的人形（倒下觀戰時才用 F／G 換觀戰對象）
     const nx = nightStep(1); b.hidden = state !== 'play' || !nx; if (b.hidden) return;
     if ($('swapKey').textContent !== 'F 下一個G 上一個') { $('swapKey').innerHTML = 'F 下一個<br>G 上一個'; b.title = '切換下一個人形（F）／上一個人形（G）'; }   // 夜戰：電腦版兩個切換鍵
     const def = nx.def, im = $('swapImg'), src = previewOf(def); if (src && im.dataset.id !== def.id) { im.src = src; im.dataset.id = def.id; }
@@ -11242,6 +11247,13 @@ function drawGround(t) {
   ctx.stroke();
   if (bigMap()) drawBigMapGround(x0, x1, y0, y1);
   if (isNight()) drawNightGround(x0, x1, y0, y1);
+  if (isDef()) {   // 保衛戰：地圖邊界外變暗、畫一圈邊線
+    const B = DEF.bounds; ground(proj(0, 0), 0, 0);
+    ctx.fillStyle = 'rgba(6,14,12,0.72)'; const F = 20000;
+    ctx.fillRect(B.x0 - F, B.y0 - F, B.x1 - B.x0 + 2 * F, F); ctx.fillRect(B.x0 - F, B.y1, B.x1 - B.x0 + 2 * F, F); ctx.fillRect(B.x0 - F, B.y0, F, B.y1 - B.y0); ctx.fillRect(B.x1, B.y0, F, B.y1 - B.y0);
+    ctx.strokeStyle = 'rgba(255,214,120,0.55)'; ctx.lineWidth = 4; ctx.setLineDash([22, 14]); ctx.strokeRect(B.x0, B.y0, B.x1 - B.x0, B.y1 - B.y0); ctx.setLineDash([]);
+    ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+  }
   for (const c of chunks.values()) for (const d of c.details) {
     const q = proj(d.x, d.y);
     if (!onScreen(q, d.r * q.k + 20)) continue;
