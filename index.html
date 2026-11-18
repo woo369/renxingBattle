@@ -436,7 +436,7 @@ body.touch #testPanel{max-height:38vh}   /* 手機：不要擋到左下的移動
 <div id="defBoard" class="def-panel" hidden><h3>佈告欄</h3><div class="sub">安排 AI 隊友的工作（真人玩家不受影響）。駐守基地：守在左右出入口的掩體；跟隨玩家：跟著你行動；外出蒐集：到基地外撿零件和核心。</div><div id="defJobs"></div><div class="def-row"><span id="defUpTxt"></span><button id="defUpBtn" type="button">升級基地（5 核心）</button></div><div class="def-row"><button id="defBoardClose" type="button">關閉（B）</button></div></div>
 <div id="defRev" class="def-panel" hidden><h3>復活台</h3><div class="sub">倒下 15 秒後可以花核心復活：一般 2 核心、王牌（精銳 AI）3 核心。打開「自動復活 AI」後，有 AI 倒下時其他 AI 會自己來這裡幫忙復活。</div><div id="defRevList"></div><div class="def-row"><span id="defRevTxt" class="sub"></span></div><div class="def-row"><button id="defAutoBtn" type="button">自動復活 AI：關</button><button id="defRevClose" type="button">關閉（B）</button></div></div>
 <div id="specBanner" hidden></div>
-<div id="defPick" class="def-panel" hidden><h3>保衛戰：挑選 3 名 AI 隊友</h3><div class="sub" id="defPickTxt"></div><div id="defPickGrid"></div><div class="def-row"><button id="defPickRand" type="button">隨機挑選</button><button id="defPickGo" type="button">出擊</button><button id="defPickCancel" type="button">取消</button></div></div>
+<div id="defPick" class="def-panel" hidden><h3>滅星行動：挑選 4 名 AI 隊友</h3><div class="sub" id="defPickTxt"></div><div id="defPickGrid"></div><div class="def-row"><button id="defPickRand" type="button">隨機挑選</button><button id="defPickGo" type="button">出擊</button><button id="defPickCancel" type="button">取消</button></div></div>
 <button id="commBtn" type="button" hidden title="使用通訊器（C）">通訊器<small id="commNum">×1</small><small class="only-mouse">C</small></button>
 <div id="invitePanel" hidden><img id="inviteImg" alt=""><div class="inv-txt"><b id="inviteName"></b><span>請求加入你的隊伍</span></div><button id="inviteYes" type="button">邀請加入<small id="inviteCost" class="only-mouse">Z</small></button><button id="inviteNo" type="button">不邀請<small class="only-mouse">X</small></button></div>
 <button id="expandBtn" type="button" hidden title="擴編（E）">擴編<small>消耗 10 零件</small><small class="only-mouse">E</small></button>
@@ -477,7 +477,7 @@ body.touch #testPanel{max-height:38vh}   /* 手機：不要擋到左下的移動
       <div class="vs-teams" id="vsTeams"></div>
       <div class="vs-net"><b>代碼連線</b><input id="vsName" type="text" placeholder="你的名字" maxlength="8" autocomplete="off"><input id="vsCode" type="text" placeholder="輸入房間代碼" maxlength="8" autocomplete="off"><button class="btn" id="vsJoinBtn" type="button">加入</button><button class="btn" id="vsHostBtn" type="button">建立房間</button><button class="btn" id="vsLeaveBtn" type="button" hidden>離開房間</button><small id="vsNetStatus">建立房間會得到一組代碼，朋友輸入代碼就能加入（需要在網站版）。</small></div>
     </div>
-    <p class="team-note" id="teamNote" hidden>戰事可以帶兩名人形，遊戲中按「切換」換人，各自的生命、彈藥、技能冷卻分開保存。只有主人形擁有擴編能力，擴編出來的分身切換時也會留在場上；主人形倒下後，擴編能力會轉交給副人形。任何一名倒下後就不能再切換。</p>
+    <p class="team-note" id="teamNote" hidden>亂序戰事可以帶兩名人形，遊戲中按「切換」換人，各自的生命、彈藥、技能冷卻分開保存。只有主人形擁有擴編能力，擴編出來的分身切換時也會留在場上；主人形倒下後，擴編能力會轉交給副人形。任何一名倒下後就不能再切換。</p>
     <div class="menu-row">
       <button id="settingsBtn" class="btn" type="button">設定</button>
       <button id="codexBtn" class="btn" type="button">人形圖鑑</button>
@@ -1876,10 +1876,10 @@ const CLASS_NAMES = { AR: '突擊步槍', SMG: '衝鋒槍', HG: '手槍', RF: '�
 // 關卡：之後新增關卡就在這裡加
 const LEVELS = [
   { id: 'training', name: '訓練場', open: true, desc: '無限延伸的戰場，與跟你相同角色的影子敵人持續對戰，看能撐多久。' },
-  { id: 'war', name: '戰事', open: true, desc: '三階段的戰事，敵人會階段性地變強，每個階段末尾都會出現 Boss，擊敗第三階段的 Boss 即過關。' },
+  { id: 'war', name: '亂序戰事', open: true, desc: '三階段的亂序戰事，敵人會階段性地變強，每個階段末尾都會出現 Boss，擊敗第三階段的 Boss 即過關。' },
   { id: 'duel', name: '菁英對決', open: true, desc: '入場 5 秒後出現一名隨機精英敵人，擊敗它即可過關。精英以三階的強度為基準，一階、二階精英會依類型強化到相同水準。場上會定時出現零件與醫療箱。' },
-  { id: 'night', name: '夜戰', open: true, desc: '在漆黑的野外作戰，分成三個階段，跟戰事一樣每階段末尾會出現 Boss。每名人形都有自己的視野：手槍 500，其他槍種只有 200（隊伍裡有手槍人形時提高到 450），且每名手槍人形讓全隊命中 +20%；所有單位迴避率 +20%。只能帶一名人形出擊，撿到通訊器後可以呼叫遠處的友方人形支援，最多再帶三名隊友，並且可以切換操控；零件全隊共用，改用來強化目前操控的人形（子彈傷害、生命 ×1.2，最多 5 次）。前 3 分鐘是準備階段，敵人很少。' },
-  { id: 'defense', name: '保衛戰', open: true, desc: '（開發中：目前做到第二時段）帶最多 4 名隊友（在下方小隊加入普通或精銳 AI）駐守網路操作站，在 16 分鐘內摧毀東方鐵血工造營地裡的木星砲。0:00～2:00 是準備時段：到基地外蒐集零件和核心，同時會有少量鐵血工造的一階敵人出現，有的追擊在外的隊員、有的從基地的出入口進攻；2:00～6:00 是第二時段，開始出現鐵血工造的二階敵人，出怪也更頻繁。基地每 30 秒產出 3 零件、1 電池，花 5 核心可以升級產出速度（+20%）。到佈告欄（B）可以安排 AI 隊友的工作，到復活台可以花核心復活倒下的隊友；20 零件可以強化全隊（最多 5 次）。基地裡迴避率 +20%；營區中間的數據機有 1000 生命，被摧毀就失敗。' },
+  { id: 'night', name: '夜戰', open: true, desc: '在漆黑的野外作戰，分成三個階段，跟亂序戰事一樣每階段末尾會出現 Boss。每名人形都有自己的視野：手槍 500，其他槍種只有 200（隊伍裡有手槍人形時提高到 450），且每名手槍人形讓全隊命中 +20%；所有單位迴避率 +20%。只能帶一名人形出擊，撿到通訊器後可以呼叫遠處的友方人形支援，最多再帶三名隊友，並且可以切換操控；零件全隊共用，改用來強化目前操控的人形（子彈傷害、生命 ×1.2，最多 5 次）。前 3 分鐘是準備階段，敵人很少。' },
+  { id: 'defense', name: '滅星行動', open: true, desc: '（開發中：目前做到第二時段）帶最多 4 名隊友（在下方小隊加入普通或精銳 AI）駐守網路操作站，在 16 分鐘內摧毀東方鐵血工造營地裡的木星砲。0:00～2:00 是準備時段：到基地外蒐集零件和核心，同時會有少量鐵血工造的一階敵人出現，有的追擊在外的隊員、有的從基地的出入口進攻；2:00～6:00 是第二時段，開始出現鐵血工造的二階敵人，出怪也更頻繁。基地每 30 秒產出 3 零件、1 電池，花 5 核心可以升級產出速度（+20%）。到佈告欄（B）可以安排 AI 隊友的工作，到復活台可以花核心復活倒下的隊友；20 零件可以強化全隊（最多 5 次）。基地裡迴避率 +20%；營區中間的數據機有 1000 生命，被摧毀就失敗。' },
   { id: 'test', name: '測試模式', open: true, desc: '不會自動出怪，可以自選召喚任何敵人或精英，零件無限。' },
   { id: 'battle', name: '戰局', open: true, desc: '（開發中）100×100 格的大地圖，之後會做成 7 打 7 的戰局。地圖上有三個佔領點，站在點上就能佔領；山、房屋、樹木會擋路與子彈，樹林會遮擋視線。左上角是小地圖，按 M 或點小地圖可以打開全圖（單位會變成點）。' },
   { id: 'versus', name: '雲圖對戰', open: true, desc: '（開發中）5 打 5 的團隊對戰，所有人形的生命都是原本的 3 倍，60×30 格的長條地圖，藍隊、紅隊的大本營在左右兩側。擊倒敵方人形本體得 1 分，先到 30 分獲勝；初始零件 10，地圖中間會出現零件和醫療包，擊倒敵人可拿走對方 50% 的零件。可以加入普通或精銳 AI，倒下 5 秒後重生。大本營有會無限重生的守衛，會攻擊太靠近的敵人。' },
@@ -1891,10 +1891,10 @@ let selectedLevel = 'training';
 const ENEMY = { hp: 30, radius: 19, speed: 150, wobble: 17, lockRange: 225, stopRange: 200, fireCooldown: 1, evade: 0.05, bulletDmg: 10, bulletSpeed: 245, bulletLife: 2, bulletR: 5.5, contactDmg: 12, contactEvery: 0.6, initial: 3,
   magazine: 0, reload: 0 };   // magazine 0＝沒有彈匣限制
 
-/* 戰事的敵人種類
+/* 亂序戰事的敵人種類
    armor 護甲：傷害 ≤ 護甲時 60% 機率格擋（人形是 70%）、> 護甲時 50% 機率格擋；格擋後傷害 − 護甲值，最低剩 1
    pellets/spread：霰彈槍一次射出的彈丸數與散布角度 */
-// 胡蜂：一階普通敵人（戰事第一階段）
+// 胡蜂：一階普通敵人（亂序戰事第一階段）
 const WASP = { ...ENEMY,
   name: '胡蜂',
   sprite: 'wasp',            // 使用胡蜂的動畫
@@ -2392,7 +2392,7 @@ function scaleStats(T, sc) {
 const SCALE_LABEL = [['hp', '生命'], ['dmg', '攻擊'], ['armor', '護甲'], ['evade', '迴避'], ['speed', '移速'], ['rate', '射速'], ['lock', '鎖敵距離']];
 const scaleText = (sc) => !sc ? '' : SCALE_LABEL.filter(([k]) => sc[k] && sc[k] !== 1).map(([k, n]) => n + ' ×' + sc[k]).join('、');
 
-/* 戰事：分階段進攻
+/* 亂序戰事：分階段進攻
    end 階段長度（秒）｜spawnTable 每次生成時各種敵人的機率（%，T: null＝這次不出怪；加總不到 100 的部分也算不出怪；sc＝這個階段的強化倍率，例如 { hp: 1.25 }）｜initial 開場數量｜spawn 生成節奏｜boss 時間到召喚的 Boss（沒有就直接過關） */
 const WAR_PHASES = [
   {
@@ -2429,7 +2429,7 @@ const WAR_PHASES = [
   },
 ];
 /* 菁英對決：直接打精英 Boss
-   精英分成三個等級（tier：對應戰事第 1／2／3 階段的 Boss）；這個模式以第 3 階段為基準（三階精英不調整），
+   精英分成三個等級（tier：對應亂序戰事第 1／2／3 階段的 Boss）；這個模式以第 3 階段為基準（三階精英不調整），
    一階、二階精英依類型強化。倍率鍵：hp 生命｜dmg 傷害｜armor 護甲｜evade 迴避率｜speed 移動速度｜rate 射速｜lock 鎖敵距離 */
 // 均衡型（依等級）
 const DUEL_TIER_SCALE = {
@@ -2456,13 +2456,13 @@ const DUEL_PHASES = [
 const TEST_PHASES = [{ name: '測試模式', end: Infinity, spawnTable: [], initial: 0, packs: [], test: true, infiniteParts: true }];
 const BATTLE_PHASES = [{ name: '戰局', end: Infinity, spawnTable: [], initial: 0, packs: [], bigmap: true, noParts: true }];   // 戰局：沒有零件（也不能擴編）
 const VERSUS_PHASES = [{ name: '雲圖對戰', end: Infinity, spawnTable: [], initial: 0, packs: [], bigmap: true, versus: true, startParts: 10 }];   // 對戰：零件由對戰模式自己生成
-// 夜戰：敵人與 Boss 照戰事的三個階段，地圖換成野外地形；通訊器每 40 秒出現一個（手上＋場上＋隊友加起來最多 3）
+// 夜戰：敵人與 Boss 照亂序戰事的三個階段，地圖換成野外地形；通訊器每 40 秒出現一個（手上＋場上＋隊友加起來最多 3）
 const NIGHT_PHASES = [
   { ...WAR_PHASES[0], name: '準備階段', initial: 1, spawn: { every: 9, min: 7, max: 3 }, bossPool: null, bossReward: null, prep: true },   // 前 3 分鐘：只會出現少量敵人，沒有 Boss，時間到直接進第二階段
-  WAR_PHASES[1], WAR_PHASES[2],   // 3:00～6:00 第二階段、之後第三階段（暫時沿用戰事的敵人表，之後換成夜戰專用的）
+  WAR_PHASES[1], WAR_PHASES[2],   // 3:00～6:00 第二階段、之後第三階段（暫時沿用亂序戰事的敵人表，之後換成夜戰專用的）
 ].map((p) => ({ ...p, packs: [...p.packs, 'night'], night: true, commEvery: 40 }));
-// 保衛戰：白天（前 8 分鐘）不受黑夜影響；地圖用夜戰的野外地形，基地在地圖中心。目前只做了第一時段（準備時段）
-// 保衛戰的一階敵人強化倍率
+// 滅星行動：白天（前 8 分鐘）不受黑夜影響；地圖用夜戰的野外地形，基地在地圖中心。目前只做了第一時段（準備時段）
+// 滅星行動的一階敵人強化倍率
 const DEF_SC = { dino: { hp: 1.5, evade: 1.2 }, jaguar: { lock: 1.2 }, wasp: { hp: 1.3, dmg: 1.2 }, ripper: { hp: 1.4 }, beast: { evade: 1.5 }, lion: { hp: 1.2, dmg: 1.2 } };
 const defT = (T, w) => ({ T, w, sc: DEF_SC[T.sprite] });
 const DEF_T1 = [defT(DINO, 30), defT(JAGUAR, 20), defT(WASP, 30), defT(RIPPER, 20)];   // 鐵血工造的一階普通敵人
@@ -2627,7 +2627,7 @@ function nightChunk(cx, cy) {
     }
     for (let i = 0, n = Math.floor(h(60) * 3); i < n; i++) { const [x, y] = P(61 + i * 2, 62 + i * 2); if (clear(x, y, 30) && solid.every((o) => Math.hypot(o.x - x, o.y - y) > (o.r || 20) + 60)) { const sz = 0.9 + h(70 + i) * 0.4; solid.push({ kind: 'tree', x, y, sz, r: 16 * sz }); } }
   }
-  if (isDef()) {   // 保衛戰：基地周圍不長樹、不放岩石
+  if (isDef()) {   // 滅星行動：基地周圍不長樹、不放岩石
     const ok = (o) => { const r = o.r || 0, B = DEF.bounds; if (o.x < B.x0 - 120 || o.x > B.x1 + 120 || o.y < B.y0 - 120 || o.y > B.y1 + 120) return false; if (Math.hypot(o.x - DEF.jupiter.x, o.y - DEF.jupiter.y) < 420 + (o.w || 2 * r)) return false; return !(o.x + r > DEF.x0 - 300 && o.x - r < DEF.x1 + 300 && o.y + r > DEF.yb - 320 && o.y - r < DEF.yb + DEF.R + 300); };
     c = { solid: solid.filter(ok), ground: ground.filter(ok) };
   } else c = { solid, ground };
@@ -2677,8 +2677,8 @@ function drawNightGround(x0, x1, y0, y1) {
 let MAPGEN = BATTLE_MAP, VERSUS_MAP = null;   // 目前使用的地圖（對戰模式開局時換成對戰地圖）
 // 某個位置（半徑 r）有沒有撞到地形。bullet＝子彈：湖擋不住子彈
 function mapSolidAt(x, y, r, bullet) {
-  if (isDef()) { const B = DEF.bounds; if (x - r < B.x0 || x + r > B.x1 || y - r < B.y0 || y + r > B.y1) return DEF_EDGE; }   // 保衛戰：地圖邊界
-  if (isDef()) for (const o of DEF.walls) if (!(bullet && (o.kind === 'fence' || o.kind === 'prop' || o.kind === 'cover'))) if (o.h ? Math.abs(x - o.x) < o.w / 2 + r && Math.abs(y - o.y) < o.h / 2 + r : (x - o.x) ** 2 + (y - o.y) ** 2 < (o.r + r) ** 2) return o;   // 保衛戰：基地的後牆、半圓圍欄、沙包（擋人也擋子彈）
+  if (isDef()) { const B = DEF.bounds; if (x - r < B.x0 || x + r > B.x1 || y - r < B.y0 || y + r > B.y1) return DEF_EDGE; }   // 滅星行動：地圖邊界
+  if (isDef()) for (const o of DEF.walls) if (!(bullet && (o.kind === 'fence' || o.kind === 'prop' || o.kind === 'cover'))) if (o.h ? Math.abs(x - o.x) < o.w / 2 + r && Math.abs(y - o.y) < o.h / 2 + r : (x - o.x) ** 2 + (y - o.y) ** 2 < (o.r + r) ** 2) return o;   // 滅星行動：基地的後牆、半圓圍欄、沙包（擋人也擋子彈）
   for (const o of MAPGEN.near(x, y)) {
     if (o.kind === 'forest' || (bullet && (o.kind === 'lake' || o.kind === 'river' || o.kind === 'lowrock'))) continue;   // 子彈可以飛過湖、河、半磚掩體   // 子彈可以飛過湖和河
     if (bullet && o.kind === 'tent') continue;   // 帳篷是布：擋人不擋子彈
@@ -2702,7 +2702,7 @@ function losBlocked(ax, ay, bx, by) {
 }
 function lowCoverAt(x, y) { for (const o of MAPGEN.near(x, y)) if (o.kind === 'lowrock' && (x - o.x) ** 2 + (y - o.y) ** 2 < (o.r + 6) ** 2) return o; return null; }
 // 趴下的人形躲在半磚後面：剛飛過半磚的子彈會從頭頂飛過去（趴下的人形自己開火不受影響）
-const overProne = (b, u) => (b.overX != null && (u.prone || 0) >= 0.6 && Math.hypot(b.x - b.overX, b.y - b.overY) < 200) || (b.team !== 'p' && defCoverProne(u));   // 保衛戰：趴在掩體旁
+const overProne = (b, u) => (b.overX != null && (u.prone || 0) >= 0.6 && Math.hypot(b.x - b.overX, b.y - b.overY) < 200) || (b.team !== 'p' && defCoverProne(u));   // 滅星行動：趴在掩體旁
 function keepInMap(u) { if (!bigMap()) return; u.x = clamp(u.x, -MAPGEN.hw + 40, MAPGEN.hw - 40); u.y = clamp(u.y, -MAPGEN.hh + 40, MAPGEN.hh - 40); }
 // 佔領點：中立時 v＝中立點數（100 → 0，白旗下降）；被佔領後 v 從 0 升到 100（己方顏色的旗子升到頂）
 let capPoints = [];
@@ -2989,7 +2989,7 @@ const ROLE_OF = { AR: 'dps', RF: 'dps', MG: 'dps', SG: 'front', SMG: 'front', HG
 const VS_TEAMCOL = { blue: '#4aa8ff', red: '#ff5a50' };
 const VS_TEAMNAME = { blue: '藍隊', red: '紅隊' };
 let vs = null, vsHitBy = null, vsLobby = null;
-const vsDead = () => !!(player && ((vs && player.deadT > 0) || player.defDown));   // 對戰倒下等待重生／保衛戰倒下觀戰
+const vsDead = () => !!(player && ((vs && player.deadT > 0) || player.defDown));   // 對戰倒下等待重生／滅星行動倒下觀戰
 const vsRange = (D) => bulletRange(D, false);
 const vsRandId = () => { const ids = Object.keys(CHARACTERS); return ids[Math.floor(Math.random() * ids.length)]; };
 function vsDefaultLobby() {
@@ -4519,7 +4519,7 @@ function netApply(dt) {
   aiAllies = al; enemies = en; clones = myClones;
 }
 
-/* ───────── 零件與擴編（戰事關卡） ─────────
+/* ───────── 零件與擴編（亂序戰事關卡） ─────────
    地圖上會散落「零件」，撿到 10 個可以「擴編」：多一個跟隨自己的分身 */
 const PARTS = { initial: 3, every: 10, maxOnField: 5, minDist: 180, maxDist: 480, pickR: 16, cost: 10, goldCost: 15 };
 // 擴編要消耗的零件：金牌人形數值強，擴編要 15 個；其他 10 個
@@ -4541,7 +4541,7 @@ const BOSSES = {
   ouroboros: {
     name: '銜尾蛇',
     rank: 'elite',
-    tier: 1,                     // 精英等級：對應戰事第 1 階段的 Boss
+    tier: 1,                     // 精英等級：對應亂序戰事第 1 階段的 Boss
     weapon: '雙聯裝砲塔 ×2',
     desc: '駕駛著左右各一座雙聯裝砲塔的機體，與目標保持距離，開火時會停下腳步。每打完 2 個彈匣，會鎖定目標發射兩輪導彈。',
     specialDesc: '導彈齊射：花 2.5 秒瞄準目標，最後半秒鎖定落點，接著發射 2 輪各 3 發導彈，每發在半徑 25 內造成 30 點爆炸傷害（不可迴避）。',
@@ -4603,7 +4603,7 @@ const BOSSES = {
   dreamer: {
     name: '夢想家',
     rank: 'elite',
-    tier: 2,                     // 精英等級：二階（對應戰事第 2 階段的 Boss）
+    tier: 2,                     // 精英等級：二階（對應亂序戰事第 2 階段的 Boss）
     ai: 'dreamer',               // 使用夢想家專用的行為
     weapon: '大型狙擊槍',
     desc: '扛著大型狙擊槍的浮空人形，在遠距離穩定狙擊。目標一旦靠近到 200 以內，就會用閃避向後拉開距離。',
@@ -4756,9 +4756,9 @@ const BOSSES = {
     tier: 3,
     ai: 'jupiter',
     building: true,
-    where: '無',
+    where: '滅星行動（鎖敵距離 1500）',
     weapon: '巨型主砲',
-    desc: '鐵血工造的巨型砲台，平時砲管收起處於待機，有目標進入 850 範圍就會啟動。遠距離用高射模式把砲彈拋到目標頭上，近距離改用平射模式直接轟擊；每一發都是範圍 75、100 點的爆炸。之後會是保衛戰模式的勝利目標。',
+    desc: '鐵血工造的巨型砲台，平時砲管收起處於待機，有目標進入 850 範圍就會啟動。遠距離用高射模式把砲彈拋到目標頭上，近距離改用平射模式直接轟擊；每一發都是範圍 75、100 點的爆炸。之後會是滅星行動模式的勝利目標。',
     specialDesc: '雙模式主砲：目標在 450 以外（最遠 850）用高射模式——蓄力 1.8 秒，拋出砲彈 0.6 秒後落地（地上有落點紅圈），不消耗彈匣，每 5 秒一發；目標在 450 以內改用平射模式——蓄力 0.8 秒（地上有瞄準線），射出 3 倍速度的砲彈，每 1.2 秒一發，彈匣 3 發、打完換彈 12 秒。切換模式要 0.6 秒（砲管轉動）。',
     hp: 2000, armor: 10,
     evade: 0,
@@ -4933,7 +4933,7 @@ const BOSSES = {
   scarecrow: {
     name: '稻草人',
     rank: 'elite',
-    tier: 1,                     // 精英等級：對應戰事第 1 階段的 Boss
+    tier: 1,                     // 精英等級：對應亂序戰事第 1 階段的 Boss
     ai: 'scarecrow',             // 使用稻草人專用的行為
     weapon: '浮游砲 ×3',
     desc: '重裝型人形，身邊漂浮著三座浮游砲。動作緩慢但非常耐打，目標進入射程後會一邊開火一邊慢慢逼近。',
@@ -4989,7 +4989,7 @@ const manualAim = () => aimMode === 'manual' && document.body.classList.contains
 let touchAim = null;   // 手動瞄準：開火鍵拖曳出來的方向（世界角度）
 let state = 'menu';                       // menu | play | pause | over
 let cfg = CHARACTERS.triple_crown, selectedId = cfg.id;
-let subId = 'hk433';                      // 戰事的副角色（不能和主要角色相同）
+let subId = 'hk433';                      // 亂序戰事的副角色（不能和主要角色相同）
 const usesTeam = () => selectedLevel === 'war';   // 有主／副角色的關卡
 const teamIds = () => usesTeam() ? [selectedId, subId] : [selectedId];
 let team = null;                          // 遊戲中：{ ids, states：各自保存的角色數據, active：0 主要／1 副, mainClones, down, cd }
@@ -5019,7 +5019,7 @@ const packBox = {};                                  // 素材包 → 解碼後�
 for (const def of Object.values(CHARACTERS)) packBox[packOf(def.assets)] = def.id;
 for (const id of ['glad', 'lancer', 'hydra', 'hammer', 'scout', 'aeq', 'lcan', 'hind', 'scep', 'aegis', 'wasp', 'beast', 'lion', 'cyc', 'meye', 'ceye', 'cent', 'sws', 'ripper', 'striker', 'guard', 'dino', 'scorp', 'jaeg', 'dragoon', 'jaguar', 'goliath', 'gfac']) packBox[id] = 'enemy_' + id;
 for (const [id, B] of Object.entries(BOSSES)) packBox[packOf(B.assets)] = 'boss_' + id;
-packBox.defbase = 'def_base';   // 保衛戰：基地圖
+packBox.defbase = 'def_base';   // 滅星行動：基地圖
 packBox.night = 'night_bg';   // 夜戰：支援人形的立體背景
 const packLoading = {}, packReady = {};
 function ensurePack(pid) {
@@ -5040,7 +5040,7 @@ function ensurePack(pid) {
   }).catch((err) => { delete packLoading[pid]; throw err; });   // 失敗可以重試
   return packLoading[pid];
 }
-// 戰事每個階段抽到的 Boss（開局就全部抽好）
+// 亂序戰事每個階段抽到的 Boss（開局就全部抽好）
 let phaseBoss = [];
 // 某個階段要用的素材包：該階段的敵人＋該階段的 Boss
 function phasePacks(i) {
@@ -5049,15 +5049,15 @@ function phasePacks(i) {
   if (phaseBoss[i]) list.push(packOf(BOSSES[phaseBoss[i]].assets));
   return list;
 }
-// 開局一定要先載好的素材包：出擊人形；戰事再加上第一階段的敵人與第一階段的 Boss
+// 開局一定要先載好的素材包：出擊人形；亂序戰事再加上第一階段的敵人與第一階段的 Boss
 function packsFor(charId, level) {
   const list = teamIds().map((id) => packOf(CHARACTERS[id].assets));
   if (LEVEL_PHASES[level]) list.push(...phasePacks(0));
-  if (level === 'defense') list.push(...(defLobby || (defLobby = defDefaultLobby())).slots.map((x) => packOf(CHARACTERS[x.id].assets)));   // 保衛戰：大廳裡的 AI 隊友
+  if (level === 'defense') list.push(...(defLobby || (defLobby = defDefaultLobby())).slots.map((x) => packOf(CHARACTERS[x.id].assets)));   // 滅星行動：大廳裡的 AI 隊友
   if (level === 'versus') { vsGuardId = VS_GUARD_POOL[Math.floor(Math.random() * VS_GUARD_POOL.length)]; list.push(...vsLobbyPacks(), packOf(vsGuardB(vsGuardId).assets)); }   // 雲圖對戰：大廳裡所有 AI 的角色＋這場抽到的守衛
   return [...new Set(list)];
 }
-// 在選單停留時先在背景下載：目前的人形；選了戰事再加第一階段的敵人（Boss 要等開局抽了才知道）
+// 在選單停留時先在背景下載：目前的人形；選了亂序戰事再加第一階段的敵人（Boss 要等開局抽了才知道）
 function prefetch() {
   const list = teamIds().map((id) => packOf(CHARACTERS[id].assets));
   if (levelPhases()) list.push(...levelPhases()[0].packs);
@@ -5078,7 +5078,7 @@ function silhouette(im) {
 /* ───────── 背景音樂 ─────────
    歌單：開局從曲庫隨機抽幾首，依序輪流播放（播完從頭再來）。一首一首串流，不會開局就全部下載；
    目前這首剩 25 秒時才預先下載下一首。每首開頭淡入、結尾淡出，兩首之間空 2.5 秒。
-   戰事：只在各階段的一般戰鬥播放，Boss 出現時淡出，打倒 Boss 進入下一階段後接著播下一首。 */
+   亂序戰事：只在各階段的一般戰鬥播放，Boss 出現時淡出，打倒 Boss 進入下一階段後接著播下一首。 */
 const BGM_FILES = {"alphys":"assets/bgm_alphys.mp3","boss1":"assets/bgm_boss1.mp3","boss3":"assets/bgm_boss3.mp3","ev3m2":"assets/bgm_ev3m2.mp3","ev4m1":"assets/bgm_ev4m1.mp3","horizon":"assets/bgm_horizon.mp3","kaiser":"assets/bgm_kaiser.mp3","mainenemy":"assets/bgm_mainenemy.mp3","map10":"assets/bgm_map10.mp3","map2":"assets/bgm_map2.mp3","map3":"assets/bgm_map3.mp3","map6":"assets/bgm_map6.mp3","map8":"assets/bgm_map8.mp3","occisor":"assets/bgm_occisor.mp3","purg1":"assets/bgm_purg1.mp3","segfault":"assets/bgm_segfault.mp3","snow":"assets/bgm_snow.mp3","w21b2":"assets/bgm_w21b2.mp3","wicked":"assets/bgm_wicked.mp3","winter":"assets/bgm_winter.mp3","zombie":"assets/bgm_zombie.mp3"};   // 曲目 → 網址（拆檔版是 assets/ 底下的 mp3，離線版直接內嵌）
 const BGM_SETS = { normal: ['map2', 'map3', 'map6', 'map8', 'snow', 'ev4m1', 'ev3m2'], boss: ['boss1', 'boss3', 'occisor', 'wicked', 'segfault', 'winter'], purgatory: ['purg1', 'horizon', 'zombie', 'mainenemy', 'w21b2', 'map10'], finale: ['alphys', 'kaiser'] };   /* finale＝大決戰歌單（以後的模式用） */   // 普通程度歌單；Boss 歌單（只在 Boss／菁英出現時播放）；煉獄歌單（之後的新模式用）
 const BGM_GAIN = { purg1: 1.4, horizon: 1.53, zombie: 1.27, mainenemy: 1.11, w21b2: 0.93, map10: 0.89, boss1: 0.89, boss3: 1.23, occisor: 1.16, wicked: 1.16, segfault: 0.8, winter: 0.8, alphys: 0.89, kaiser: 0.68 };   // Boss 歌單依感受響度（LUFS）對齊到差不多；winter 比較刺耳，再多壓一點   // 個別曲目的音量補正（原本比同歌單的曲子小聲的，放大到差不多）
@@ -5106,9 +5106,9 @@ function bgmSwitch(list, idx = 0) {
 // Boss／菁英出現：一般音樂淡出，改播 Boss 歌單（隨機順序）；記下一般歌單接下來要播哪一首
 function bgmBoss() {
   if (!bgm.saved && bgm.list.length && !BGM_SETS.boss.includes(bgm.list[0])) bgm.saved = { list: bgm.list, idx: bgm.el ? (bgm.idx + 1) % bgm.list.length : bgm.idx };
-  bgmSwitch(bgmPick('boss', 3));   // 戰事、菁英對決：從 Boss 歌單隨機抽 3 首輪播（不夠就用空白曲補）
+  bgmSwitch(bgmPick('boss', 3));   // 亂序戰事、菁英對決：從 Boss 歌單隨機抽 3 首輪播（不夠就用空白曲補）
 }
-// Boss 倒下：Boss 音樂淡出；之後（戰事的下一階段）接回一般歌單
+// Boss 倒下：Boss 音樂淡出；之後（亂序戰事的下一階段）接回一般歌單
 function bgmBossDown() {
   bgmFadeOut();
   if (bgm.saved) { const sv = bgm.saved; bgm.saved = null; if (bgm.el) bgm.pending = sv; else { bgm.list = sv.list; bgm.idx = sv.idx; } }
@@ -5360,7 +5360,7 @@ function ensureClass(cls) {
   classLoading[cls] = p.catch((err) => { delete classLoading[cls]; throw err; });
   return classLoading[cls];
 }
-// 首頁卡片：出擊的人形（戰事：主要角色＋副角色）
+// 首頁卡片：出擊的人形（亂序戰事：主要角色＋副角色）
 function updatePick() {
   const team_ = usesTeam();
   for (const card of document.querySelectorAll('#picks .pick')) {
@@ -5375,9 +5375,9 @@ function updatePick() {
   }
   $('teamNote').hidden = !team_;
   $('vsLobby').hidden = selectedLevel !== 'versus' && selectedLevel !== 'defense'; if (selectedLevel === 'versus') buildLobby(); else if (selectedLevel === 'defense') buildDefLobby();
-  { const dz = selectedLevel === 'defense' && !net;   // 保衛戰：代碼連線還在製作中（先只能加 AI）
+  { const dz = selectedLevel === 'defense' && !net;   // 滅星行動：代碼連線還在製作中（先只能加 AI）
     for (const id of ['vsHostBtn', 'vsJoinBtn', 'vsCode']) $(id).disabled = dz;
-    if (dz) netStatus('保衛戰的代碼連線還在製作中，目前先加入 AI 隊友；連線遊玩請先用雲圖對戰。'); else if (selectedLevel === 'versus' && !net && /保衛戰/.test($('vsNetStatus').textContent)) netStatus('建立房間會得到一組代碼，朋友輸入代碼就能加入（需要在網站版）。'); }
+    if (dz) netStatus('滅星行動的代碼連線還在製作中，目前先加入 AI 隊友；連線遊玩請先用雲圖對戰。'); else if (selectedLevel === 'versus' && !net && /滅星行動/.test($('vsNetStatus').textContent)) netStatus('建立房間會得到一組代碼，朋友輸入代碼就能加入（需要在網站版）。'); }
   if (netHosting()) netLobbyChanged();
   if (netGuest() && net.conn && net.conn.open && net.sentChar !== selectedId) { net.sentChar = selectedId; net.conn.send({ t: 'char', charId: selectedId }); }
   const lv = LEVELS.find((l) => l.id === selectedLevel); $('levelDesc').textContent = lv ? lv.desc : '';
@@ -5526,8 +5526,8 @@ const ENEMY_CODEX = () => [
     desc: '模仿出擊人形外型的黑色影子，數量多但很脆弱，會邊靠近邊開火。',
     where: '出現：訓練場' },
   { id: 'wasp', rank: 'normal', T: WASP, name: '胡蜂', weapon: '步槍', img: ASSETS.ui.codex_wasp,
-    desc: '戰事第一階段的主力敵人，動作緩慢，在中距離停下來兩發一輪地射擊，換彈時是反擊的好時機。',
-    where: '出現：戰事' },
+    desc: '亂序戰事第一階段的主力敵人，動作緩慢，在中距離停下來兩發一輪地射擊，換彈時是反擊的好時機。',
+    where: '出現：亂序戰事' },
   { id: 'ripper', rank: 'normal', T: RIPPER, name: '切割者', weapon: '雙槍', img: ASSETS.ui.codex_ripper,
     desc: '鐵血工造的雙槍人形，身法靈活。在近距離停下，用兩把槍輪流射擊；看到子彈飛來會往旁邊閃開（閃避冷卻 15 秒），四發打完要換彈 4 秒。',
     where: '出現：無' },
@@ -5536,13 +5536,13 @@ const ENEMY_CODEX = () => [
     where: '出現：無' },
   { id: 'beast', rank: 'normal', T: BEAST, name: '殘獸', weapon: '近戰刀刃', img: ASSETS.ui.codex_beast,
     desc: '高速衝鋒的近戰敵人，貼近後原地蓄力 0.5 秒，朝前方扇形範圍砍一刀，刀刃會穿透 10 點護甲；出刀後會退開等待下一次機會，不會閃躲子彈。',
-    where: '出現：戰事' },
+    where: '出現：亂序戰事' },
   { id: 'scep', rank: 'normal', T: SCEPTER, name: '靈蛇權杖', weapon: '光束機槍', img: ASSETS.ui.codex_scep,
     desc: '扛著光束機槍的人形，光束子彈飛得更快更遠，還會穿透擴編人形。被光束打中會干擾瞄準：每中一發命中率 −1%，可以疊加，4 秒內沒再被打中才會消失。',
-    where: '出現：戰事（第三階段）' },
+    where: '出現：亂序戰事（第三階段）' },
   { id: 'aegis', rank: 'normal', T: AEGIS, name: '聖盾GA', weapon: '盾牌、電磁刀', img: ASSETS.ui.codex_aegis,
     desc: '由鐵血工造的聖盾改造而來，手持大盾與電磁刀的重裝肉盾，移動緩慢但非常耐打，貼身時撞到也很痛。靠近後會舉盾蓄力，地上出現狹窄的扇形預警，接著用電磁刀突刺——電磁傷害無視護甲、無法迴避，只能趁蓄力時離開範圍或閃避。',
-    where: '出現：戰事（第三階段）' },
+    where: '出現：亂序戰事（第三階段）' },
   { id: 'guard', rank: 'normal', T: GUARD, name: '聖盾', weapon: '電磁刀、機械硬盾', img: ASSETS.ui.codex_guard,
     desc: '手持電磁刀與盾牌的重裝人形。移動非常緩慢，靠近後會舉盾蓄力，地上出現狹窄的扇形預警，接著用電磁刀突刺——電磁傷害無視護甲、無法迴避，只能趁蓄力時離開範圍或閃避。貼身時撞到也很痛。',
     where: '出現：無' },
@@ -5566,22 +5566,22 @@ const ENEMY_CODEX = () => [
     where: '出現：無' },
   { id: 'lion', rank: 'normal', T: LION, name: '鋼獅', weapon: '機甲砲', img: ASSETS.ui.codex_lion,
     desc: '笨重的機甲，有 10 點護甲，非常耐打。射擊時會停在原地，停下與重新起步都要花上一點時間。擊敗後可以獲得 1 個零件。',
-    where: '出現：戰事（第二階段強化：生命 ×1.25）' },
+    where: '出現：亂序戰事（第二階段強化：生命 ×1.25）' },
   { id: 'scout', rank: 'normal', T: SCOUT, name: '偵查士', weapon: '腹部機砲', img: ASSETS.ui.codex_scout,
     desc: '高瘦的機甲，腹部裝著一門機砲，子彈無視護甲。身上有 50 點護盾，打光後 20 秒恢復。沒在開火時看到子彈飛來，會往上跳躍 1.5 秒躲開（冷卻 8 秒），趁它開火或換彈時攻擊最有效。擊敗後可以獲得 1 個零件。',
-    where: '出現：戰事（第三階段）' },
+    where: '出現：亂序戰事（第三階段）' },
   { id: 'hammer', rank: 'normal', T: HAMMER, name: '重錘士', weapon: '重錘、電磁槍', img: ASSETS.ui.codex_hammer,
     desc: '笨重的機甲，護甲高達 20，起步和停下都慢半拍。目標在 200 以外時，會站定蓄力 0.5 秒發射電磁閃電球，打中會降低 50% 移動速度 4 秒。目標靠近到 200 以內，或身上有任何緩速效果（包含其他敵人造成的）時，就會走過去揮下重錘，砸出半徑 70 的圓形範圍傷害——地上出現紅圈時趕快離開。電磁砲打完冷卻 2 秒，重錘攻擊完冷卻 1 秒。擊敗後可以獲得 3 個零件。',
-    where: '出現：戰事（第三階段）' },
+    where: '出現：亂序戰事（第三階段）' },
   { id: 'aeq', rank: 'normal', T: AEQUES, name: '埃奎斯', weapon: '防空導彈發射架 ×4', img: ASSETS.ui.codex_aeq,
     desc: '兩用防空導彈戰車。展開雷達鎖定 4 秒時（頭上出現「雷達鎖定」）會移動到離目標 400～600 的位置，接著兩管輪流發射追蹤導彈。導彈離目標超過 200 會持續轉向追蹤，進入 200 以內就鎖定位置直飛，地上會標出爆炸範圍——這時候閃開就能躲掉。填裝要 14 秒，填裝時會停在原地。不會閃躲子彈，擊敗後可以獲得 3 個零件。',
-    where: '出現：戰事（第三階段）' },
+    where: '出現：亂序戰事（第三階段）' },
   { id: 'lcan', rank: 'normal', T: LIGHTCANNON, name: '光炮士', weapon: '大型光束武器', img: ASSETS.ui.codex_lcan,
     desc: '扛著大型光束武器的人形。進入射程後會停下來架槍瞄準 0.8 秒（地上出現藍色落點警示，會跟著目標移動），接著以低弧度拋射光束彈，落地爆炸。被炸到會受到干擾：射速 −15%、移動速度 −10%，持續 3 秒。',
-    where: '出現：戰事（第三階段）' },
+    where: '出現：亂序戰事（第三階段）' },
   { id: 'hind', rank: 'normal', T: HIND, name: '牝鹿', weapon: '機砲 ×2', img: ASSETS.ui.codex_hind,
     desc: '鋼獅的改進型機甲，護甲高達 20，兩門機砲輪流開火。和鋼獅一樣笨重，停下與重新起步都要時間，只在站定時射擊；彈匣打空後要換彈 10 秒。擊敗後可以獲得 2 個零件。',
-    where: '出現：戰事（第三階段）' },
+    where: '出現：亂序戰事（第三階段）' },
   { id: 'scorp', rank: 'normal', T: SCORP, name: '蠍甲獸', weapon: '主砲', img: ASSETS.ui.codex_scorp,
     desc: '鐵血工造自產的四足重型機甲，只裝了一門主砲。和鋼獅一樣停下、起步都要時間，只在站定時開火；主砲每秒 3 發，3 發打完要填裝 3 秒。擊敗後可以獲得 2 個零件。',
     where: '出現：無' },
@@ -5598,23 +5598,23 @@ const ENEMY_CODEX = () => [
     specialDesc: '撞擊：火箭彈發射完之後，立刻獲得 20 點護盾，鎖定目標後把速度提升到 250 衝過去（會跟著目標轉向），最多衝 500 的距離，撞到就造成碰撞傷害。',
     where: '出現：無' },
   { id: 'cyclops', rank: 'normal', T: CYCLOPS, name: '獨眼巨人', weapon: '步槍', img: ASSETS.ui.codex_cyc,
-    desc: '戰事的主力敵人，在稍遠的距離停下來連續射擊，打完一個彈匣才換彈。',
-    where: '出現：戰事' },
+    desc: '亂序戰事的主力敵人，在稍遠的距離停下來連續射擊，打完一個彈匣才換彈。',
+    where: '出現：亂序戰事' },
   { id: 'sws', rank: 'normal', T: SWORDSHIELD, name: '劍盾士', weapon: '光束武器', img: ASSETS.ui.codex_sws,
     desc: '手持光束武器的敵人，身上有 40 點護盾，要先打破護盾才傷得到本體；護盾被打光 15 秒後會恢復。光束子彈飛得更快更遠，還會穿透擴編人形。距離太遠或太近時會用閃避調整位置（冷卻 5 秒）。擊敗後可以獲得 1 個零件。',
-    where: '出現：戰事（第三階段強化：生命 ×1.5、傷害 ×1.1、護盾 ×1.5）' },
+    where: '出現：亂序戰事（第三階段強化：生命 ×1.5、傷害 ×1.1、護盾 ×1.5）' },
   { id: 'cent', rank: 'normal', T: CENTAUR, name: '肯陶羅斯', weapon: '複合弓', img: ASSETS.ui.codex_cent,
     desc: '手持複合弓的弓箭手，會在 400 的距離停下，朝目標當下的位置往高處拋射箭矢；地上會先出現落點預警。被貼近到 100 以內就會轉身後撤，拉開距離再繼續攻擊。',
-    where: '出現：戰事（第三階段強化：傷害 ×1.2、迴避率 ×1.2）' },
+    where: '出現：亂序戰事（第三階段強化：傷害 ×1.2、迴避率 ×1.2）' },
   { id: 'ceye', rank: 'normal', T: COMPOUND_EYE, name: '複眼巨人', weapon: '機槍', img: ASSETS.ui.codex_ceye,
     desc: '手持機槍的敵人，停在中距離高速連射，5 發一個彈匣；打完要換彈 4 秒，是靠近輸出的空檔。',
-    where: '出現：戰事' },
+    where: '出現：亂序戰事' },
   { id: 'meye', rank: 'normal', T: MULTI_EYE, name: '多眼巨人', weapon: '霰彈槍', img: ASSETS.ui.codex_meye,
     desc: '半肉盾半輸出的敵人，有 5 點護甲，會貼近到 200 的距離再用霰彈槍轟擊；兩發打完要換彈 6 秒，是反擊的好時機。',
-    where: '出現：戰事' },
+    where: '出現：亂序戰事' },
   ...ELITE_POOL.map((id) => ({ id, rank: 'elite', B: BOSSES[id], name: BOSSES[id].name, weapon: BOSSES[id].weapon,
     img: ASSETS.ui['codex_' + id], desc: BOSSES[id].desc, special: BOSSES[id].specialDesc,
-    where: BOSSES[id].where ? '出現：' + BOSSES[id].where : '出現：戰事、菁英對決' })),
+    where: BOSSES[id].where ? '出現：' + BOSSES[id].where : '出現：亂序戰事、菁英對決' })),
   ...Object.keys(BOSSES).filter((id) => BOSSES[id].rank === 'boss').map((id) => ({ id, rank: 'boss', B: BOSSES[id], name: BOSSES[id].name, weapon: BOSSES[id].weapon,
     img: ASSETS.ui['codex_' + id], desc: BOSSES[id].desc, special: BOSSES[id].specialDesc,
     where: '出現：' + (BOSSES[id].where || '無') })),
@@ -5878,7 +5878,7 @@ function addEnemy() {
   const T = phase ? pickSpawn(phase.spawnTable) : ENEMY;
   if (!T) return;   // 這次抽到「不出怪」
   let sp0 = nightSpot(player.x + ca * d, player.y + sa * d, T.radius || 20), dGoal;
-  if (isDef()) { const ea = Math.random() < 0.75 ? rand(-1.2, 1.2) : a, r = rand(1400, 2100), w = defClamp({ x: Math.cos(ea) * r, y: DEF.yb + DEF.depth / 2 + Math.sin(ea) * r }, 100); sp0 = nightSpot(w.x, w.y, T.radius || 20); dGoal = Math.random() < 0.5 ? 'base' : 'hunt'; }   // 保衛戰：在基地外圍出現；一半進攻基地、一半追擊在外的隊員
+  if (isDef()) { const ea = Math.random() < 0.75 ? rand(-1.2, 1.2) : a, r = rand(1400, 2100), w = defClamp({ x: Math.cos(ea) * r, y: DEF.yb + DEF.depth / 2 + Math.sin(ea) * r }, 100); sp0 = nightSpot(w.x, w.y, T.radius || 20); dGoal = Math.random() < 0.5 ? 'base' : 'hunt'; }   // 滅星行動：在基地外圍出現；一半進攻基地、一半追擊在外的隊員
   enemies.push({ dGoal, T, x: sp0.x, y: sp0.y, r: T.radius, hp: T.hp, ammo: T.magazine, angle: 0, cool: rand(1.2, 2), touchCd: 0, def: cfg, shot: 0, moving: true, phase: rand(0, 6) });
 }
 /* ───────── 載入素材時輪播的人形小資訊 ───────── */
@@ -5925,7 +5925,7 @@ function setLoadingTips(on, ids = ['startTip', 'retryTip']) {
 }
 let gameLoading = false;
 function startGame() {
-  if (selectedLevel === 'defense') { defLobby = defLobby || defDefaultLobby(); defLobby.slots = defLobby.slots.filter((x) => CHARACTERS[x.id]); defSquad = defLobby.slots.map((x) => x.id); }   // 保衛戰：大廳裡的 AI 隊友
+  if (selectedLevel === 'defense') { defLobby = defLobby || defDefaultLobby(); defLobby.slots = defLobby.slots.filter((x) => CHARACTERS[x.id]); defSquad = defLobby.slots.map((x) => x.id); }   // 滅星行動：大廳裡的 AI 隊友
   for (const k in capBlock) delete capBlock[k]; smoothT = 0; perfMs = perfN = 0;   // 自動畫質：每次開局都重新往上試
   if (gameLoading) return;
   audio();
@@ -6043,7 +6043,7 @@ function beginGame() {
   if (isDef()) defBegin(); else { $('defBlock').hidden = true; $('boardBtn').hidden = true; $('defBoard').hidden = true; $('defRev').hidden = true; $('specBanner').hidden = true; }   // 對戰：建立雙方隊伍（玩家在自己隊伍的大本營出發）
   $('score').textContent = '0'; refreshCharHud();
   setState('play'); last = performance.now();
-  if (selectedLevel === 'war' || selectedLevel === 'night' || selectedLevel === 'defense') bgmStart('normal', 3); else if (selectedLevel === 'versus') bgmStart('normal', 5); else bgmStop(true);   // 背景音樂：戰事從普通歌單抽 3 首、雲圖對戰抽 5 首（菁英對決只有 Boss 歌單）
+  if (selectedLevel === 'war' || selectedLevel === 'night' || selectedLevel === 'defense') bgmStart('normal', 3); else if (selectedLevel === 'versus') bgmStart('normal', 5); else bgmStop(true);   // 背景音樂：亂序戰事從普通歌單抽 3 首、雲圖對戰抽 5 首（菁英對決只有 Boss 歌單）
 }
 // 角色相關的介面（技能圖示、彈藥、生命、閃避、效果列、切換按鈕）依目前出擊的人形更新
 function refreshCharHud() {
@@ -6089,9 +6089,9 @@ function nightTick(dt) {
   }
   nightSwapCd = Math.max(0, nightSwapCd - dt); if (nightSwapCd > 0) updateSwap();
   // 通訊器：定時出現在玩家附近
-  if (isDef()) defTick(dt);   // 保衛戰：基地產出、地上的零件與核心、佈告欄
+  if (isDef()) defTick(dt);   // 滅星行動：基地產出、地上的零件與核心、佈告欄
   commClock -= dt;
-  if (commClock <= 0 && !isDef()) {   // 保衛戰沒有通訊器
+  if (commClock <= 0 && !isDef()) {   // 滅星行動沒有通訊器
     commClock = phase.commEvery || 40;
     if (!commItems.length && nightComms + nightSpace() < NIGHT.teamMax) {
       const a = rand(0, Math.PI * 2), d = rand(320, 600), p = nightSpot(player.x + Math.cos(a) * d, player.y + Math.sin(a) * d, 16);
@@ -6154,7 +6154,7 @@ function nightSwap(a, oldDead) {
   burst(player.x, player.y, '#9cc6ff', 14); floatText(player.x, player.y - 56, '操控：' + cfg.name, '#cfe3ff');
   refreshCharHud(); updateParts(); return true;
 }
-function nightSwapNext(dir = 1) { if (isDef()) { if (player.defDown) defSpecNext(dir); return !!player.defDown; } /* 保衛戰：不能切換到 AI 隊友身上 */ const t = nightStep(dir); if (!t || nightSwapCd > 0) return false; return nightSwap(t, false); }
+function nightSwapNext(dir = 1) { if (isDef()) { if (player.defDown) defSpecNext(dir); return !!player.defDown; } /* 滅星行動：不能切換到 AI 隊友身上 */ const t = nightStep(dir); if (!t || nightSwapCd > 0) return false; return nightSwap(t, false); }
 // 隊友 AI：用雲圖對戰的 AI（普通 AI／精銳 AI，含技能、躲子彈），在一個暫時的對戰沙盒裡跑
 const NIGHT_VS = { myTeam: 'blue', night: true, intel: {}, score: { blue: 0, red: 0 } };
 let nightProxy = null;
@@ -6166,7 +6166,7 @@ function nightFighterTick(c, dt) {
     if (c.def.skill && c.def.skill.modes && c.mode == null) c.mode = Object.keys(c.def.skill.modes)[0];
     vsFighterTick(c, dt);
     // 落後太多：額外加速追上；超過 800 直接歸隊
-    const dP = isDef() && c.job && c.job !== 'follow' ? 0 : Math.hypot(player.x - c.x, player.y - c.y);   // 保衛戰：駐守／蒐集的隊友不會被拉回玩家身邊
+    const dP = isDef() && c.job && c.job !== 'follow' ? 0 : Math.hypot(player.x - c.x, player.y - c.y);   // 滅星行動：駐守／蒐集的隊友不會被拉回玩家身邊
     if (dP > 800) { const p = nightSpot(player.x + rand(-80, 80), player.y + rand(-80, 80), c.r); c.x = p.x; c.y = p.y; c.goal = null; }
     else if (dP > 320 && !(c.dodgeT > 0) && !(mgOn(c) && c.prone > 0)) { const v = c.def.speed * 0.6 * dt; moveWithCover(c, (player.x - c.x) / dP * v, (player.y - c.y) / dP * v); }
     c.reload = c.reloadT; c.curSpeed = c.moving ? c.def.speed : 0; c.backward = c.moving && Math.cos(c.angle - c.moveAngle) < 0;
@@ -6174,7 +6174,7 @@ function nightFighterTick(c, dt) {
 }
 function nightLeash(f, tgt, goal) {
   if (!isDef()) return nightLeash0(f, tgt, goal);
-  return defRoute(f, f.job && f.job !== 'follow' ? defJobGoal(f, tgt, goal) : nightLeash0(f, tgt, goal));   // 保衛戰：依佈告欄安排的工作行動；進出基地都走左右出入口
+  return defRoute(f, f.job && f.job !== 'follow' ? defJobGoal(f, tgt, goal) : nightLeash0(f, tgt, goal));   // 滅星行動：依佈告欄安排的工作行動；進出基地都走左右出入口
 }
 function nightLeash0(f, tgt, goal) {
   const P = player, dP = Math.hypot(f.x - P.x, f.y - P.y), maxD = tgt ? 170 : 300;
@@ -6232,11 +6232,11 @@ function nightAfterEnemies(dt) {
     }
   }
   pushOut(player); for (const c of clones) pushOut(c);
-  if (isDef()) for (const c of clones) if (c.nightAlly && c.hp <= 0 && !c.defDown) { c.defDown = true; c.revTask = null; defDead.push({ u: c, t0: gameTime, wait: DEF.revWait }); floatText(c.x, c.y - 70, c.def.name + ' 倒下', '#ff8f83'); }   // 保衛戰：倒下的隊友可以在復活台復活
+  if (isDef()) for (const c of clones) if (c.nightAlly && c.hp <= 0 && !c.defDown) { c.defDown = true; c.revTask = null; defDead.push({ u: c, t0: gameTime, wait: DEF.revWait }); floatText(c.x, c.y - 70, c.def.name + ' 倒下', '#ff8f83'); }   // 滅星行動：倒下的隊友可以在復活台復活
   if (clones.some((c) => c.nightAlly && c.hp <= 0)) { clones = clones.filter((c) => !(c.nightAlly && c.hp <= 0)); updateSwap(); }
   if (vsNades.length) { const V0 = vs; vs = NIGHT_VS; try { vsUpdateNades(dt); } finally { vs = V0; } }
 }
-/* ───────── 保衛戰 ─────────
+/* ───────── 滅星行動 ─────────
    基地（網路操作站＋左右營區）在地圖中心：後方是一道直牆（y=−100），前方是半圓形的圍欄（半徑 536），只有左右兩端的缺口可以進出。
    中間的網路操作站（x −176～176）是安全區：敵人不會鎖定裡面的人形；控制室有 1000 生命，敵人要進到基地裡才能攻擊它。
    基地裡的人形迴避率 +20%。左營區的佈告欄安排 AI 隊友的工作；右營區的復活台可以花核心復活倒下的隊友 */
@@ -6306,7 +6306,7 @@ function defBegin() {
     clones.push(u); nightOrder(); nightTeam.push(u);
   });
   for (let i = 0; i < 8; i++) defSpawnItem();
-  { const B = BOSSES.jupiter;   // 木星砲：東方營地中央，平時待機，有目標靠近才啟動；摧毀它就完成任務
+  { const B = { ...BOSSES.jupiter, lockRange: 1500 };   // 木星砲（滅星行動：鎖敵距離 1500）：東方營地中央，平時待機，有目標靠近才啟動；摧毀它就完成任務
     enemies.push({ boss: true, B, id: 'jupiter', defJup: true, x: DEF.jupiter.x, y: DEF.jupiter.y, r: B.radius, hp: B.hp, maxHp: B.hp, ammo: B.magazine, reloadT: 0, magsDone: 0, special: null, cool: 0.8, angle: 0,
       touchCd: 0, debuffT: 0, faceLeft: true, aiming: false, shot: 0, phase: 0 }); }
   $('defBlock').hidden = false; $('defBoard').hidden = true; $('defRev').hidden = true; $('specBanner').hidden = true; updDefHud(); updateSwap();
@@ -6501,7 +6501,7 @@ function defEnemyTarget(e) {
   const L = lr + 70, d = Math.hypot(w.x - e.x, w.y - e.y) || 1;
   P.x = e.x + (w.x - e.x) / d * L; P.y = e.y + (w.y - e.y) / d * L; e.ntg = P; return P;
 }
-// 保衛戰大廳：跟雲圖對戰一樣的介面——你＋最多 3 名隊友（普通／精銳 AI；點名字可以換人）
+// 滅星行動大廳：跟雲圖對戰一樣的介面——你＋最多 3 名隊友（普通／精銳 AI；點名字可以換人）
 let defLobby = null, defPickSlot = null;
 function defDefaultLobby() { const ids = Object.keys(CHARACTERS).filter((id) => id !== selectedId); const out = []; while (out.length < 4 && ids.length) out.push({ id: ids.splice(Math.floor(Math.random() * ids.length), 1)[0], level: 'normal' }); return { slots: out }; }
 function buildDefLobby() {
@@ -6781,7 +6781,7 @@ function drawNightDark() {
     }
   }
 }
-/* ───────── 戰事：主要角色／副角色切換 ─────────
+/* ───────── 亂序戰事：主要角色／副角色切換 ─────────
    切換時把目前人形的整份數據（生命、彈藥、技能冷卻、效果……）保存起來，換上另一名人形的數據；位置與朝向沿用。
    擴編人形一直留在場上，不受切換影響（副角色可以用技能輔助它們）。擴編出來的永遠是主要角色；
    主要角色倒下後，之後擴編出來的改成副角色（已經在場上的主要角色分身繼續留著）。
@@ -6807,7 +6807,7 @@ function updateSwap() {
   const b = $('swapBtn');
   if (!isNight() && $('swapKey').textContent !== 'F') { $('swapKey').textContent = 'F'; b.title = '切換角色（F）'; }
   if (isNight()) {
-    if (isDef() && !player.defDown) { b.hidden = true; return; }   // 保衛戰：只能控制自己選的人形（倒下觀戰時才用 F／G 換觀戰對象）
+    if (isDef() && !player.defDown) { b.hidden = true; return; }   // 滅星行動：只能控制自己選的人形（倒下觀戰時才用 F／G 換觀戰對象）
     const nx = nightStep(1); b.hidden = state !== 'play' || !nx; if (b.hidden) return;
     if ($('swapKey').textContent !== 'F 下一個G 上一個') { $('swapKey').innerHTML = 'F 下一個<br>G 上一個'; b.title = '切換下一個人形（F）／上一個人形（G）'; }   // 夜戰：電腦版兩個切換鍵
     const def = nx.def, im = $('swapImg'), src = previewOf(def); if (src && im.dataset.id !== def.id) { im.src = src; im.dataset.id = def.id; }
@@ -6837,9 +6837,9 @@ function endGame(cleared) {
     $('bossBar').hidden = true; setState('over'); return;
   }
   $('overBoard').hidden = true;
-  const warClear = cleared && (selectedLevel === 'war' || selectedLevel === 'night');   // 戰事通關：恭喜通關＋通關時間與分數
+  const warClear = cleared && (selectedLevel === 'war' || selectedLevel === 'night');   // 亂序戰事通關：恭喜通關＋通關時間與分數
   $('overTitle').textContent = warClear ? '恭喜通關！' : cleared && isDef() ? '任務完成：木星砲已摧毀！' : cleared ? (phase ? phase.name : '') + '完成！' : '本回合結束';
-  $('clearBanner').hidden = !warClear; $('clearBanner').textContent = '戰事 全三階段完成';
+  $('clearBanner').hidden = !warClear; $('clearBanner').textContent = '亂序戰事 全三階段完成';
   $('scoreLabel').textContent = warClear ? '通關分數' : '你的最終得分';
   $('bossBar').hidden = true;
   const isBest = score > best;
@@ -6882,7 +6882,7 @@ window.addEventListener('keydown', (e) => {
   if (e.code === 'KeyZ' && state === 'play' && !$('invitePanel').hidden) nightInvite(true);   // 夜戰：Z 邀請加入
   if (e.code === 'KeyX' && state === 'play' && !$('invitePanel').hidden) nightInvite(false);
   if (e.code === 'KeyC' && state === 'play' && !$('commBtn').hidden) nightUseComm();
-  if (e.code === 'KeyB' && state === 'play' && isDef()) { if (!$('defBoard').hidden || !$('defRev').hidden) { $('defBoard').hidden = true; $('defRev').hidden = true; } else if (!$('boardBtn').hidden) openDefPanel(); }   // 保衛戰：B 開關佈告欄
+  if (e.code === 'KeyB' && state === 'play' && isDef()) { if (!$('defBoard').hidden || !$('defRev').hidden) { $('defBoard').hidden = true; $('defRev').hidden = true; } else if (!$('boardBtn').hidden) openDefPanel(); }   // 滅星行動：B 開關佈告欄
   if (e.code === 'KeyG' && state === 'play' && isNight()) nightSwapNext(-1);   // 夜戰：G 切換上一個人形
   if (e.code === 'KeyE' && state === 'play' && !$('expandBtn').hidden) expandEchelon();   // 擴編（電腦版）
   if (e.code === 'KeyF' && state === 'play') swapChar(false);   // 切換主／副角色
@@ -7083,7 +7083,7 @@ function foxToMG(u) {
 // X95 花之鎖：開火者（或其本體）身上有花之鎖時，依目標已損失的生命比例提高傷害
 function flowerMul(src, tgt) {
   let o = src && src.lead ? src.lead : src;
-  if (o && o.clone) o = o.def === cfg ? player : null;   // 戰事的擴編人形：跟著本體
+  if (o && o.clone) o = o.def === cfg ? player : null;   // 亂序戰事的擴編人形：跟著本體
   if (!o || !(o.effects || []).some((x) => x.id === 'flowerlock')) return 1;
   const D = o.def || cfg; if (!D.skill || D.skill.id !== 'flowerlock') return 1;
   const mx = tgt.maxHp || (tgt.T && tgt.T.hp) || (tgt.B && tgt.B.hp) || tgt.hp || 1;
@@ -7851,8 +7851,8 @@ function shootEnemy(e) {
   if (T.flash) burst(mz.x, mz.y, '#ffd27a', 4);   // 加特林的槍口火光
 }
 function damage(amount, pierce, armorPen = 0) {
-  if (player && player.fake) { if (player.ctrl) defHitCtrl(amount * atkMulNow); return; }   // 保衛戰：敵人帶路用的假目標／控制室
-  if (isDef() && player.defDown) return;   // 保衛戰：倒下（觀戰中）
+  if (player && player.fake) { if (player.ctrl) defHitCtrl(amount * atkMulNow); return; }   // 滅星行動：敵人帶路用的假目標／控制室
+  if (isDef() && player.defDown) return;   // 滅星行動：倒下（觀戰中）
   if (nightProxy && player === nightProxy) { damageClone(nightProxy, amount, pierce, armorPen); return; }   // 夜戰：敵人打的是 AI 隊友
   lastBlk = false;
   if (player.invT > 0) return;   // 閃避無敵中
@@ -8032,7 +8032,7 @@ function updateParts() {
 }
 function expandEchelon() {
   if (vsDead()) return;
-  if (isDef()) { defEnhance(); return; }   // 保衛戰：全隊一起強化
+  if (isDef()) { defEnhance(); return; }   // 滅星行動：全隊一起強化
   if (isNight()) { nightEnhance(); return; }   // 夜戰：強化取代擴編
   if (netGuestPress('ex')) return;
   const D = cloneSrcDef();   // 擴編的是主要角色（主要角色倒下後改成副角色），不管目前操控誰
@@ -9121,7 +9121,7 @@ function ladonShell(b, dt) {
 }
 /* ───────── 木星砲：鐵血工造的巨型砲台（建築，不會移動、不會被擊退）。
    待機時砲管收起；目標進入 850 就啟動。目標在 450 以外用高射（拋物線，不耗彈匣），450 以內用平射（3 倍速砲彈，彈匣 3、換彈 12 秒）。
-   切換模式 0.6 秒（砲管轉動）。每發砲彈範圍 75、100 點爆炸傷害。之後是保衛戰模式的勝利目標 ───────── */
+   切換模式 0.6 秒（砲管轉動）。每發砲彈範圍 75、100 點爆炸傷害。之後是滅星行動模式的勝利目標 ───────── */
 function updateJupiter(e, dt, toward, dist) {
   const B = e.B, m = B.assets.meta, H = B.high, F = B.flat; e.phase += dt; e.kvx = e.kvy = 0;
   if (e.jMode == null) { e.jMode = 'off'; e.jAng = -1; e.ammo = B.magazine; e.jCd = 0; }   // jAng：-1＝收起、0＝平射、1＝高射
@@ -10282,8 +10282,8 @@ function updateMissiles(dt) {
     missiles.splice(i, 1);
     if (ms.smoke) { smokes.push({ x: ms.tx, y: ms.ty, r: ms.smoke.r, life: ms.smoke.life, t: 0, eff: ms.smoke.eff, seed: Math.random() * 6 }); burst(ms.tx, ms.ty, '#cfd8dc', 14); continue; }   // 干擾煙霧彈
     // 落地爆炸：碰撞箱與爆炸範圍重疊就受傷（爆炸不能迴避，閃避無敵可以躲）
-    if (isDef() && inSafe({ x: ms.tx, y: ms.ty })) { blasts.push({ x: ms.tx, y: ms.ty, r: ms.r, life: 0.4, max: 0.4, level: 0 }); burst(ms.tx, ms.ty, '#ff6b3d', 10); continue; }   // 保衛戰：網路操作站裡不受傷
-    if (isDef() && Math.hypot(ms.tx - DEF.modem.x, ms.ty - DEF.modem.y) <= ms.r + DEF.modem.r) defHitCtrl(ms.dmg);   // 保衛戰：炸到數據機
+    if (isDef() && inSafe({ x: ms.tx, y: ms.ty })) { blasts.push({ x: ms.tx, y: ms.ty, r: ms.r, life: 0.4, max: 0.4, level: 0 }); burst(ms.tx, ms.ty, '#ff6b3d', 10); continue; }   // 滅星行動：網路操作站裡不受傷
+    if (isDef() && Math.hypot(ms.tx - DEF.modem.x, ms.ty - DEF.modem.y) <= ms.r + DEF.modem.r) defHitCtrl(ms.dmg);   // 滅星行動：炸到數據機
     if (Math.hypot(player.x - ms.tx, player.y - ms.ty) <= ms.r + player.r && player.invT <= 0) { damage(ms.dmg); if (ms.burn) addBurn(player, ms.burn); if (ms.debuff) { addEffect(player, ms.debuff, null); floatText(player.x, player.y - 54, '射速 −15%', '#ff8f83'); } }
     for (const c of [...clones]) if (Math.hypot(c.x - ms.tx, c.y - ms.ty) <= ms.r + c.r && !(c.invT > 0)) { damageClone(c, ms.dmg); if (ms.burn && clones.includes(c)) addBurn(c, ms.burn); if (ms.debuff && clones.includes(c)) addEffect(c, ms.debuff, null); }
     blasts.push({ x: ms.tx, y: ms.ty, r: ms.r, life: 0.4, max: 0.4, level: 0 });
@@ -10820,7 +10820,7 @@ function killEnemy(e) {
   if (e.boss) {
     enemies.splice(i, 1); score += 2000; if (e === boss) { boss = null; $('bossBar').hidden = true; } testPrimary();
     if (selectedLevel === 'war' || selectedLevel === 'night' || selectedLevel === 'duel') bgmBossDown();   // Boss 音樂淡出
-    if (isDef() && e.B.ai === 'jupiter' && defState) { defState.winT = 1.8; floatText(e.x, e.y - 90, '木星砲已摧毀', '#f9cf70'); }   // 保衛戰：摧毀木星砲＝任務完成
+    if (isDef() && e.B.ai === 'jupiter' && defState) { defState.winT = 1.8; floatText(e.x, e.y - 90, '木星砲已摧毀', '#f9cf70'); }   // 滅星行動：摧毀木星砲＝任務完成
     else if (!(phase && phase.test)) phaseAdvT = 1e-6;   // 先排好進入下一階段（後面的特效、獎勵就算出錯也不會卡關）
     $('score').textContent = score;
     burst(e.x, e.y, '#ff6b6b', 40); burst(e.x, e.y, '#f9cf70', 30); floatText(e.x, e.y - 60, '擊敗 ' + e.B.name + '！ +2000', '#f9cf70'); sfx.boom(); shake = 10;
@@ -11063,10 +11063,10 @@ function update(dt) {
         if (packReady[pid]) spawnBoss(bid);
         else { ensurePack(pid).catch(() => {}); $('phaseTime').textContent = '載入中'; }   // 素材還沒下載完：稍等再出場
       } else if (phase.prep) { if (!phaseAdvT) phaseAdvT = 1e-6; }   // 夜戰準備階段：時間到直接進下一階段
-      else if (phase.defense) { endGame(false); return; }   // 保衛戰：16 分鐘到了還沒摧毀木星砲＝任務失敗
+      else if (phase.defense) { endGame(false); return; }   // 滅星行動：16 分鐘到了還沒摧毀木星砲＝任務失敗
       else { endGame(true); return; }
     }
-    if (phase.defense) { const t = Math.max(0, DEF.time - gameTime); $('phaseTime').textContent = Math.floor(t / 60) + ':' + String(Math.floor(t % 60)).padStart(2, '0'); }   // 保衛戰：顯示任務剩餘時間
+    if (phase.defense) { const t = Math.max(0, DEF.time - gameTime); $('phaseTime').textContent = Math.floor(t / 60) + ':' + String(Math.floor(t % 60)).padStart(2, '0'); }   // 滅星行動：顯示任務剩餘時間
     if (boss) { $('phaseTime').textContent = 'BOSS'; }
     // 保險：Boss 生命歸零卻沒被結算、或 Boss 已經不在場上卻沒排進下一階段 → 補上
     for (const e of enemies.filter((x) => x.boss && x.hp <= 0)) killEnemy(e);
@@ -11187,9 +11187,9 @@ function update(dt) {
     b.age += dt; b.vy += 34 * dt; b.x += b.vx * dt; b.y += b.vy * dt; b.life -= dt;
     if (b.lacer) { const LD = b.def || (b.src && b.src.def) || cfg; b.dist += Math.hypot(b.vx, b.vy) * dt; if (!b.purple && b.dist >= LD.skill.purpleAfter) { b.purple = true; burst(b.x, b.y, '#b06bff', 3); } }
     if (b.life <= 0 || Math.hypot(b.x - player.x, b.y - player.y) > far) { bullets.splice(i, 1); continue; }
-    if (isDef() && b.team !== 'p' && Math.hypot(b.x - DEF.modem.x, b.y - DEF.modem.y) < DEF.modem.r + b.r) { defHitCtrl(b.dmg || 0); burst(b.x, b.y, '#ffb36b', 3); bullets.splice(i, 1); continue; }   // 保衛戰：敵人的子彈打到數據機
+    if (isDef() && b.team !== 'p' && Math.hypot(b.x - DEF.modem.x, b.y - DEF.modem.y) < DEF.modem.r + b.r) { defHitCtrl(b.dmg || 0); burst(b.x, b.y, '#ffb36b', 3); bullets.splice(i, 1); continue; }   // 滅星行動：敵人的子彈打到數據機
     if ((bigMap() || isNight()) && mapSolidAt(b.x, b.y, b.r, true)) { burst(b.x, b.y, '#c8c2b4', 3); bullets.splice(i, 1); continue; }   // 戰局：山、房屋、樹木擋子彈
-    if (isDef() && b.team !== 'p' && inSafe(b)) { bullets.splice(i, 1); continue; }   // 保衛戰：敵人的子彈打不進網路操作站
+    if (isDef() && b.team !== 'p' && inSafe(b)) { bullets.splice(i, 1); continue; }   // 滅星行動：敵人的子彈打不進網路操作站
     if ((bigMap() || isNight()) && lowCoverAt(b.x, b.y)) { b.overX = b.x; b.overY = b.y; }   // 子彈剛飛過半磚掩體（記下位置，見 overProne）
     if (b.beam) b.vy -= 34 * dt;   // 光束：直線飛行
     if (b.home) {
@@ -11374,14 +11374,14 @@ function update(dt) {
   for (let i = particles.length - 1; i >= 0; i--) { const p = particles[i]; p.x += p.vx * dt; p.y += p.vy * dt; p.life -= dt; if (p.life <= 0) particles.splice(i, 1); }
   for (let i = floaters.length - 1; i >= 0; i--) { const f = floaters[i]; f.y -= 28 * dt; f.life -= dt; if (f.life <= 0) floaters.splice(i, 1); }
 
-  { const ct = isDef() && player.defDown && defSpec ? defSpec : player; cam.x += (ct.x - cam.x) * (1 - Math.exp(-dt * 12)); cam.y += (ct.y - cam.y) * (1 - Math.exp(-dt * 12)); }   // 保衛戰觀戰：鏡頭跟著觀戰的隊友
+  { const ct = isDef() && player.defDown && defSpec ? defSpec : player; cam.x += (ct.x - cam.x) * (1 - Math.exp(-dt * 12)); cam.y += (ct.y - cam.y) * (1 - Math.exp(-dt * 12)); }   // 滅星行動觀戰：鏡頭跟著觀戰的隊友
   shake = Math.max(0, shake - dt * 14); hurtT = Math.max(0, hurtT - dt);
   stream();
   if (team && team.cd > 0) { team.cd = Math.max(0, team.cd - dt); updateSwap(); }
   if (player.hp <= 0 && vs) { if (!(player.deadT > 0)) vsHumanDown(); }   // 對戰：倒下 5 秒後重生
   else if (player.hp <= 0) {
-    // 戰事：出擊中的人形倒下 → 另一名還活著就自動換上
-    if (isDef()) defPlayerDown();   // 保衛戰：倒下後觀戰，等隊友到復活台復活
+    // 亂序戰事：出擊中的人形倒下 → 另一名還活著就自動換上
+    if (isDef()) defPlayerDown();   // 滅星行動：倒下後觀戰，等隊友到復活台復活
     else if (isNight() && nightAllies().length) { const fallen = cfg.name; nightSwap(nightStep(1) || nightAllies()[0], true); floatText(player.x, player.y - 80, fallen + ' 倒下', '#ff8f83'); }
     else if (team && !team.down[1 - team.active]) {
       const fallen = cfg.name; team.down[team.active] = true;
@@ -11521,7 +11521,7 @@ function drawGround(t) {
   ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
   // 地面底色：遠處（上）偏亮偏霧，近處（下）偏深
   const g = ctx.createLinearGradient(0, 0, 0, H);
-  if (isDef() && phase.day) { g.addColorStop(0, '#4d7a52'); g.addColorStop(VIEW3D.anchor * 0.7, '#3f6a45'); g.addColorStop(1, '#2f5636'); }   // 保衛戰白天：比較亮的草地
+  if (isDef() && phase.day) { g.addColorStop(0, '#4d7a52'); g.addColorStop(VIEW3D.anchor * 0.7, '#3f6a45'); g.addColorStop(1, '#2f5636'); }   // 滅星行動白天：比較亮的草地
   else if (isNight()) { g.addColorStop(0, '#1d3a2e'); g.addColorStop(VIEW3D.anchor * 0.7, '#173027'); g.addColorStop(1, '#0f231c'); }   // 夜戰：野外草地
   else { g.addColorStop(0, '#24505a'); g.addColorStop(VIEW3D.anchor * 0.7, '#183a43'); g.addColorStop(1, '#0d2530'); }
   ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
@@ -11534,7 +11534,7 @@ function drawGround(t) {
   if (bigMap()) drawBigMapGround(x0, x1, y0, y1);
   if (isNight()) drawNightGround(x0, x1, y0, y1);
   if (isDef()) drawJupPad();
-  if (isDef()) {   // 保衛戰：地圖邊界外變暗、畫一圈邊線
+  if (isDef()) {   // 滅星行動：地圖邊界外變暗、畫一圈邊線
     const B = DEF.bounds, edge = [], seg = (x0, y0, x1, y1) => { for (let i = 0; i < 24; i++) edge.push([x0 + (x1 - x0) * i / 24, y0 + (y1 - y0) * i / 24]); };
     seg(B.x0, B.y0, B.x1, B.y0); seg(B.x1, B.y0, B.x1, B.y1); seg(B.x1, B.y1, B.x0, B.y1); seg(B.x0, B.y1, B.x0, B.y0);
     ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
@@ -11594,7 +11594,7 @@ function draw(t) {
   const actors = [...mapActors(), ...nightActors(), ...covers().map((it) => ({ it, k: 'c' })), ...enemies.map((it) => ({ it, k: 'e' })), ...aiAllies.map((it) => ({ it, k: 'a' })), ...(player && state !== 'menu' && !vsDead() ? [{ it: player, k: 'p' }, ...clones.map((it) => ({ it, k: 'm' }))] : [])].sort((a, b) => a.it.y - b.it.y);
   drawLater = []; drawMiniBossLater = [];
   for (const { it, k } of actors) {
-    if (k === 'B') { drawDefBase(); continue; }   // 保衛戰的基地（很寬：不做畫面外判斷）
+    if (k === 'B') { drawDefBase(); continue; }   // 滅星行動的基地（很寬：不做畫面外判斷）
     if (k === 'F') { drawDefFence(it.i); continue; }
     if (k === 'S') { drawDefThing(it); continue; }
     const q = proj(it.x, it.y);
