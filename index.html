@@ -1879,7 +1879,7 @@ const LEVELS = [
   { id: 'war', name: '戰事', open: true, desc: '三階段的戰事，敵人會階段性地變強，每個階段末尾都會出現 Boss，擊敗第三階段的 Boss 即過關。' },
   { id: 'duel', name: '菁英對決', open: true, desc: '入場 5 秒後出現一名隨機精英敵人，擊敗它即可過關。精英以三階的強度為基準，一階、二階精英會依類型強化到相同水準。場上會定時出現零件與醫療箱。' },
   { id: 'night', name: '夜戰', open: true, desc: '在漆黑的野外作戰，分成三個階段，跟戰事一樣每階段末尾會出現 Boss。每名人形都有自己的視野：手槍 500，其他槍種只有 200（隊伍裡有手槍人形時提高到 450），且每名手槍人形讓全隊命中 +20%；所有單位迴避率 +20%。只能帶一名人形出擊，撿到通訊器後可以呼叫遠處的友方人形支援，最多再帶三名隊友，並且可以切換操控；零件全隊共用，改用來強化目前操控的人形（子彈傷害、生命 ×1.2，最多 5 次）。前 3 分鐘是準備階段，敵人很少。' },
-  { id: 'defense', name: '保衛戰', open: true, desc: '（開發中：目前做到第一時段）帶最多 3 名隊友（在下方小隊加入普通或精銳 AI）駐守網路操作站，在 16 分鐘內摧毀遠處的木星砲。0:00～2:00 是準備時段：到基地外蒐集零件和核心，同時會有少量鐵血工造的一階敵人出現，有的追擊在外的隊員、有的從基地左右兩側進攻。基地每 30 秒產出 3 零件、1 電池，花 5 核心可以升級產出速度（+20%）。到佈告欄（B）可以安排 AI 隊友的工作，到復活台可以花核心復活倒下的隊友；20 零件可以強化全隊（最多 5 次）。基地裡迴避率 +20%；營區中間的數據機有 1000 生命，被摧毀就失敗。' },
+  { id: 'defense', name: '保衛戰', open: true, desc: '（開發中：目前做到第二時段）帶最多 4 名隊友（在下方小隊加入普通或精銳 AI）駐守網路操作站，在 16 分鐘內摧毀遠處的木星砲。0:00～2:00 是準備時段：到基地外蒐集零件和核心，同時會有少量鐵血工造的一階敵人出現，有的追擊在外的隊員、有的從基地的出入口進攻；2:00～6:00 是第二時段，開始出現鐵血工造的二階敵人，出怪也更頻繁。基地每 30 秒產出 3 零件、1 電池，花 5 核心可以升級產出速度（+20%）。到佈告欄（B）可以安排 AI 隊友的工作，到復活台可以花核心復活倒下的隊友；20 零件可以強化全隊（最多 5 次）。基地裡迴避率 +20%；營區中間的數據機有 1000 生命，被摧毀就失敗。' },
   { id: 'test', name: '測試模式', open: true, desc: '不會自動出怪，可以自選召喚任何敵人或精英，零件無限。' },
   { id: 'battle', name: '戰局', open: true, desc: '（開發中）100×100 格的大地圖，之後會做成 7 打 7 的戰局。地圖上有三個佔領點，站在點上就能佔領；山、房屋、樹木會擋路與子彈，樹林會遮擋視線。左上角是小地圖，按 M 或點小地圖可以打開全圖（單位會變成點）。' },
   { id: 'versus', name: '雲圖對戰', open: true, desc: '（開發中）5 打 5 的團隊對戰，所有人形的生命都是原本的 3 倍，60×30 格的長條地圖，藍隊、紅隊的大本營在左右兩側。擊倒敵方人形本體得 1 分，先到 30 分獲勝；初始零件 10，地圖中間會出現零件和醫療包，擊倒敵人可拿走對方 50% 的零件。可以加入普通或精銳 AI，倒下 5 秒後重生。大本營有會無限重生的守衛，會攻擊太靠近的敵人。' },
@@ -2414,11 +2414,17 @@ const NIGHT_PHASES = [
   WAR_PHASES[1], WAR_PHASES[2],   // 3:00～6:00 第二階段、之後第三階段（暫時沿用戰事的敵人表，之後換成夜戰專用的）
 ].map((p) => ({ ...p, packs: [...p.packs, 'night'], night: true, commEvery: 40 }));
 // 保衛戰：白天（前 8 分鐘）不受黑夜影響；地圖用夜戰的野外地形，基地在地圖中心。目前只做了第一時段（準備時段）
-const DEF_T1 = [{ T: DINO, w: 30 }, { T: JAGUAR, w: 20 }, { T: WASP, w: 30 }, { T: RIPPER, w: 20 }];   // 鐵血工造的一階普通敵人
+// 保衛戰的一階敵人強化倍率
+const DEF_SC = { dino: { hp: 1.5, evade: 1.2 }, jaguar: { lock: 1.2 }, wasp: { hp: 1.3, dmg: 1.2 }, ripper: { hp: 1.4 }, beast: { evade: 1.5 }, lion: { hp: 1.2, dmg: 1.2 } };
+const defT = (T, w) => ({ T, w, sc: DEF_SC[T.sprite] });
+const DEF_T1 = [defT(DINO, 30), defT(JAGUAR, 20), defT(WASP, 30), defT(RIPPER, 20)];   // 鐵血工造的一階普通敵人
+const DEF_T2 = [defT(DINO, 12), defT(JAGUAR, 8), defT(WASP, 12), defT(RIPPER, 10), defT(BEAST, 10), defT(LION, 8),   // 第二時段：一階 60%
+  { T: STRIKER, w: 10 }, { T: JAEG, w: 10 }, { T: DRAGOON, w: 10 }, { T: GUARD, w: 10 }];                            // ＋鐵血工造的二階敵人 40%
 const DEFENSE_PHASES = [
   { name: '準備時段', end: 120, spawnTable: DEF_T1, initial: 2, spawn: { every: 9, min: 7, max: 6 }, prep: true },   // 0:00～2:00：少量敵人，時間到進入下一時段
-  { name: '交戰時段（製作中）', end: 840, spawnTable: DEF_T1, initial: 0, spawn: { every: 6, min: 4, max: 10 } },   // 之後的時段還沒做：暫時沿用一階敵人；16:00 時間到＝任務失敗
-].map((p) => ({ ...p, packs: ['dino', 'jaguar', 'wasp', 'ripper', 'night', 'defbase'], night: true, defense: true, day: true, bossPool: null, medkitEvery: 30, medkitHeal: 10 }));
+  { name: '第二時段', end: 240, spawnTable: DEF_T2, initial: 2, spawn: { every: 5, min: 3, max: 12 } },              // 2:00～6:00：出現二階敵人，出怪更頻繁
+  { name: '第三時段（製作中）', end: 600, spawnTable: DEF_T2, initial: 0, spawn: { every: 5, min: 3, max: 12 } },     // 之後的時段還沒做：暫時沿用第二時段；16:00 時間到＝任務失敗
+].map((p) => ({ ...p, packs: ['dino', 'jaguar', 'wasp', 'ripper', 'beast', 'lion', 'striker', 'jaeg', 'dragoon', 'guard', 'night', 'defbase'], night: true, defense: true, day: true, bossPool: null, medkitEvery: 30, medkitHeal: 10 }));
 const LEVEL_PHASES = { defense: DEFENSE_PHASES, night: NIGHT_PHASES, war: WAR_PHASES, duel: DUEL_PHASES, test: TEST_PHASES, battle: BATTLE_PHASES, versus: VERSUS_PHASES };   // 有分階段的關卡
 const levelPhases = () => LEVEL_PHASES[selectedLevel] || null;
 let phase = null, phaseIdx = 0, phaseStart = 0, spawnIdx = 0;   // 目前階段、階段開始時間、輪到第幾種敵人
@@ -2624,7 +2630,7 @@ let MAPGEN = BATTLE_MAP, VERSUS_MAP = null;   // 目前使用的地圖（對戰�
 // 某個位置（半徑 r）有沒有撞到地形。bullet＝子彈：湖擋不住子彈
 function mapSolidAt(x, y, r, bullet) {
   if (isDef()) { const B = DEF.bounds; if (x - r < B.x0 || x + r > B.x1 || y - r < B.y0 || y + r > B.y1) return DEF_EDGE; }   // 保衛戰：地圖邊界
-  if (isDef()) for (const o of DEF.walls) if (!(bullet && (o.kind === 'fence' || o.kind === 'prop'))) if (o.w ? Math.abs(x - o.x) < o.w / 2 + r && Math.abs(y - o.y) < o.h / 2 + r : (x - o.x) ** 2 + (y - o.y) ** 2 < (o.r + r) ** 2) return o;   // 保衛戰：基地的後牆、半圓圍欄、沙包（擋人也擋子彈）
+  if (isDef()) for (const o of DEF.walls) if (!(bullet && (o.kind === 'fence' || o.kind === 'prop' || o.kind === 'cover'))) if (o.h ? Math.abs(x - o.x) < o.w / 2 + r && Math.abs(y - o.y) < o.h / 2 + r : (x - o.x) ** 2 + (y - o.y) ** 2 < (o.r + r) ** 2) return o;   // 保衛戰：基地的後牆、半圓圍欄、沙包（擋人也擋子彈）
   for (const o of MAPGEN.near(x, y)) {
     if (o.kind === 'forest' || (bullet && (o.kind === 'lake' || o.kind === 'river' || o.kind === 'lowrock'))) continue;   // 子彈可以飛過湖、河、半磚掩體   // 子彈可以飛過湖和河
     if (bullet && o.kind === 'tent') continue;   // 帳篷是布：擋人不擋子彈
@@ -2648,7 +2654,7 @@ function losBlocked(ax, ay, bx, by) {
 }
 function lowCoverAt(x, y) { for (const o of MAPGEN.near(x, y)) if (o.kind === 'lowrock' && (x - o.x) ** 2 + (y - o.y) ** 2 < (o.r + 6) ** 2) return o; return null; }
 // 趴下的人形躲在半磚後面：剛飛過半磚的子彈會從頭頂飛過去（趴下的人形自己開火不受影響）
-const overProne = (b, u) => b.overX != null && (u.prone || 0) >= 0.6 && Math.hypot(b.x - b.overX, b.y - b.overY) < 200;
+const overProne = (b, u) => (b.overX != null && (u.prone || 0) >= 0.6 && Math.hypot(b.x - b.overX, b.y - b.overY) < 200) || (b.team !== 'p' && defCoverProne(u));   // 保衛戰：趴在掩體旁
 function keepInMap(u) { if (!bigMap()) return; u.x = clamp(u.x, -MAPGEN.hw + 40, MAPGEN.hw - 40); u.y = clamp(u.y, -MAPGEN.hh + 40, MAPGEN.hh - 40); }
 // 佔領點：中立時 v＝中立點數（100 → 0，白旗下降）；被佔領後 v 從 0 升到 100（己方顏色的旗子升到頂）
 let capPoints = [];
@@ -6167,7 +6173,7 @@ const DEF = { bounds: { x0: -1900, x1: 1900, y0: -2800, y1: 1100 },   // 地圖�
 // 出入口：左右兩端＋下半弧兩個（角度從 +x 軸往下量）
 DEF.gates = [0.135, 1.047, 2.094, Math.PI - 0.135];
 DEF.gateY = DEF.yb + Math.sin(0.135) * DEF.R;
-DEF.modem = { x: 0, y: DEF.yb + 350, r: 40, w: 86 };   // 數據機：敵人進到營區後的攻擊目標
+DEF.modem = { x: 0, y: DEF.yb + 300, r: 40, w: 86 };   // 數據機：敵人進到營區後的攻擊目標
 // 牆：後方一道厚牆（擋人也擋子彈，避免高速子彈穿過）＋前方半圓圍欄（擋人、不擋子彈），留出 4 個出入口
 DEF.walls = [{ kind: 'wall', x: 0, y: DEF.yb - 30, w: DEF.x1 - DEF.x0 + 40, h: 64 }];
 DEF.fenceSeg = [];
@@ -6177,16 +6183,19 @@ DEF.fenceSeg = [];
     const a = DEF.gap + (Math.PI - 2 * DEF.gap) * i / n; if (hole(a)) { prev = null; continue; }
     const p = pt(a); DEF.walls.push({ kind: 'fence', x: p.x, y: p.y, r: 20 }); if (prev) DEF.fenceSeg.push([prev, p]); prev = p;
   } }
-// 下半部營區的掩體（三種雜物堆輪流，擋人也擋子彈）
+// 下半部營區的掩體（三種雜物堆輪流，擋人、不擋子彈；會趴下／蹲下的人形趴在掩體旁不會被子彈打中）
 DEF.covers = [[0.45, 420], [0.78, 300], [1.33, 455], [1.81, 455], [2.36, 300], [2.69, 420]].map(([a, r], i) => ({ kind: 'cover', img: 'cov' + (i % 3 + 1), x: Math.cos(a) * r, y: DEF.yb + Math.sin(a) * r, r: 30, w: 92 }));
 // 營區中間的物件（擋人、不擋子彈）
 DEF.props = [
   { img: 'wrack', x: -150, y: DEF.yb + 26, w: 46, r: 16 }, { img: 'wrack', x: 150, y: DEF.yb + 26, w: 46, r: 16 },   // 武器架（操作站前的兩側）
   { img: 'kit', x: 118, y: DEF.yb + 205, w: 58, r: 18 },                                                              // 攝影機與筆電箱
-  { img: 'water', x: -118, y: DEF.yb + 330, w: 66, r: 22 }, { img: 'ammo', x: 112, y: DEF.yb + 330, w: 50, r: 20 },   // 數據機兩側：瓶裝水、彈藥箱
+  { img: 'water', x: -118, y: DEF.yb + 300, w: 66, r: 22 }, { img: 'ammo', x: 112, y: DEF.yb + 300, w: 50, r: 20 },   // 數據機兩側：瓶裝水、彈藥箱
   { img: 'cov2', x: -235, y: DEF.yb + 215, w: 70, r: 22 }, { img: 'ammo', x: 240, y: DEF.yb + 200, w: 46, r: 18 },
 ].map((o) => ({ kind: 'prop', ...o }));
 DEF.walls.push(...DEF.covers, ...DEF.props, { kind: 'modem', x: DEF.modem.x, y: DEF.modem.y, r: DEF.modem.r });
+// 駐守巡邏路線：右出口 → 繞過掩體 → 數據機下方 → 左出口，來回走
+DEF.patrol = [[462, -37], [330, -20], [290, 275], [-290, 275], [-330, -20], [-462, -37]].map(([x, y]) => ({ x, y }));
+const defCoverProne = (u) => isDef() && (u.prone || 0) >= 0.6 && DEF.covers.some((o) => Math.hypot(u.x - o.x, u.y - o.y) < o.r + 50);
 const DEF_EDGE = { kind: 'wall', x: 0, y: 0, w: 1, h: 1, edge: true };
 const defClamp = (p, m = 60) => { const B = DEF.bounds; return { x: clamp(p.x, B.x0 + m, B.x1 - m), y: clamp(p.y, B.y0 + m, B.y1 - m) }; };
 let defSquad = [], defPicked = false, defState = null, defCores = [], defDead = [], defSpec = null;
@@ -6204,8 +6213,8 @@ function defBegin() {
   defState = { prodT: 0, lv: 0, batt: 0, cores: 0, itemT: 0, enh: 0, ctrl: DEF.ctrlHp, autoRev: false }; defCores = []; defDead = []; defSpec = null;
   player.x = 0; player.y = DEF.yb + 150; player.defDown = false;
   (defLobby ? defLobby.slots : defSquad.map((id) => ({ id, level: 'normal' }))).forEach((sl, i) => {
-    const u = makePlayer(CHARACTERS[sl.id]); u.x = -60 + i * 60; u.y = DEF.yb + 200;
-    Object.assign(u, { clone: true, nightAlly: true, eliteAI: sl.level === 'elite', level: sl.level === 'elite' ? 'elite' : 'normal', slot: CLONE_SLOTS[i % 4], invT: 0.6, moving: false, aiming: false, shot: 0, trail: [], job: i === 0 ? 'collect' : 'guard', post: i === 2 ? 1 : 0 });
+    const u = makePlayer(CHARACTERS[sl.id]); { const q = nightSpot(-120 + i * 80, DEF.yb + 130, 20); u.x = q.x; u.y = q.y; }
+    Object.assign(u, { clone: true, nightAlly: true, eliteAI: sl.level === 'elite', level: sl.level === 'elite' ? 'elite' : 'normal', slot: CLONE_SLOTS[i % 4], invT: 0.6, moving: false, aiming: false, shot: 0, trail: [], job: i === 0 ? 'collect' : 'guard', post: i % 2 ? 0 : 1 });
     clones.push(u); nightOrder(); nightTeam.push(u);
   });
   for (let i = 0; i < 8; i++) defSpawnItem();
@@ -6355,13 +6364,13 @@ function defRoute(f, g) {
 // AI 隊友的工作
 function defJobGoal(f, tgt, goal) {
   if (f.revTask) return { x: DEF.rev.x, y: DEF.rev.y };   // 去復活台復活隊友（最優先）
-  if (f.job === 'guard') {
-    const P = DEF.posts[f.post || 0];
-    if (tgt && Math.hypot(tgt.x - P.x, tgt.y - P.y) < 460) {
-      if (goal) { const gx = goal.x - P.x, gy = goal.y - P.y, gd = Math.hypot(gx, gy); if (gd > 120) goal = { x: P.x + gx / gd * 120, y: P.y + gy / gd * 120 }; }
-      return goal && inBase(goal) ? goal : { x: P.x, y: P.y };
-    }
-    return Math.hypot(f.x - P.x, f.y - P.y) > 24 ? { x: P.x, y: P.y } : null;
+  if (f.job === 'guard') {   // 駐守：在左右兩個出口之間來回巡邏，有敵人靠近就在營區裡迎戰
+    const W = DEF.patrol;
+    if (f.pi == null) { f.pi = f.post ? W.length - 1 : 0; f.pd = f.post ? -1 : 1; }
+    if (tgt && Math.hypot(tgt.x - f.x, tgt.y - f.y) < 460 && (inBase(tgt) || nearGate(tgt))) return goal && inBase(goal) ? goal : { x: f.x, y: f.y };
+    let P = W[f.pi];
+    if (Math.hypot(f.x - P.x, f.y - P.y) < 30) { if (f.pi + f.pd < 0 || f.pi + f.pd >= W.length) f.pd = -f.pd; f.pi += f.pd; P = W[f.pi]; }
+    return { x: P.x, y: P.y };
   }
   if (tgt && Math.hypot(tgt.x - f.x, tgt.y - f.y) < 280) return goal;
   let best = null, bd = 2600;
@@ -6400,11 +6409,11 @@ function defEnemyTarget(e) {
 }
 // 保衛戰大廳：跟雲圖對戰一樣的介面——你＋最多 3 名隊友（普通／精銳 AI；點名字可以換人）
 let defLobby = null, defPickSlot = null;
-function defDefaultLobby() { const ids = Object.keys(CHARACTERS).filter((id) => id !== selectedId); const out = []; while (out.length < 3 && ids.length) out.push({ id: ids.splice(Math.floor(Math.random() * ids.length), 1)[0], level: 'normal' }); return { slots: out }; }
+function defDefaultLobby() { const ids = Object.keys(CHARACTERS).filter((id) => id !== selectedId); const out = []; while (out.length < 4 && ids.length) out.push({ id: ids.splice(Math.floor(Math.random() * ids.length), 1)[0], level: 'normal' }); return { slots: out }; }
 function buildDefLobby() {
   const L = defLobby || (defLobby = defDefaultLobby()), box = $('vsTeams'); box.textContent = '';
   const col = document.createElement('div'); col.className = 'vs-team blue';
-  const h = document.createElement('div'); h.className = 'vs-head'; const nm = document.createElement('b'); nm.textContent = '防守小隊（' + (L.slots.length + 1) + '/4）'; h.appendChild(nm); col.appendChild(h);
+  const h = document.createElement('div'); h.className = 'vs-head'; const nm = document.createElement('b'); nm.textContent = '防守小隊（' + (L.slots.length + 1) + '/5）'; h.appendChild(nm); col.appendChild(h);
   const row = (tag, cls, name, onName, onX) => {
     const r = document.createElement('div'); r.className = 'vs-row';
     const g = document.createElement('span'); g.className = 'vs-tag ' + cls; g.textContent = tag;
@@ -6418,8 +6427,8 @@ function buildDefLobby() {
   L.slots.forEach((sl, i) => row(sl.level === 'elite' ? '精銳' : '普通', sl.level, CHARACTERS[sl.id].name + ' ▾', () => { defPickSlot = i; openDefPick(); }, () => { L.slots.splice(i, 1); buildDefLobby(); }));
   const add = document.createElement('div'); add.className = 'vs-add';
   for (const [lv, label] of [['normal', '＋普通 AI'], ['elite', '＋精銳 AI']]) {
-    const b = document.createElement('button'); b.type = 'button'; b.className = 'btn'; b.textContent = label; b.disabled = L.slots.length >= 3;
-    b.addEventListener('click', () => { if (L.slots.length >= 3) return; const used = new Set([selectedId, ...L.slots.map((x) => x.id)]), pool = Object.keys(CHARACTERS).filter((id) => !used.has(id)); L.slots.push({ id: pool[Math.floor(Math.random() * pool.length)] || vsRandId(), level: lv }); buildDefLobby(); prefetch(); });
+    const b = document.createElement('button'); b.type = 'button'; b.className = 'btn'; b.textContent = label; b.disabled = L.slots.length >= 4;
+    b.addEventListener('click', () => { if (L.slots.length >= 4) return; const used = new Set([selectedId, ...L.slots.map((x) => x.id)]), pool = Object.keys(CHARACTERS).filter((id) => !used.has(id)); L.slots.push({ id: pool[Math.floor(Math.random() * pool.length)] || vsRandId(), level: lv }); buildDefLobby(); prefetch(); });
     add.appendChild(b);
   }
   col.appendChild(add);
@@ -6452,11 +6461,11 @@ function renderDefPick() {
     const D = CHARACTERS[id], b = document.createElement('button'); b.type = 'button';
     b.innerHTML = '<span></span><small></small>'; b.firstChild.textContent = D.name; b.lastChild.textContent = CLASS_NAMES[D.weapon.class];
     if (defSquad.includes(id)) b.className = 'on';
-    b.addEventListener('click', () => { if (defSquad.includes(id)) defSquad = defSquad.filter((x) => x !== id); else if (defSquad.length < 3) defSquad.push(id); renderDefPick(); });
+    b.addEventListener('click', () => { if (defSquad.includes(id)) defSquad = defSquad.filter((x) => x !== id); else if (defSquad.length < 4) defSquad.push(id); renderDefPick(); });
     g.appendChild(b);
   }
-  $('defPickTxt').textContent = '出擊人形：' + CHARACTERS[selectedId].name + '　已選 ' + defSquad.length + ' / 3' + (defSquad.length ? '：' + defSquad.map((id) => CHARACTERS[id].name).join('、') : '');
-  $('defPickGo').disabled = defSquad.length !== 3;
+  $('defPickTxt').textContent = '出擊人形：' + CHARACTERS[selectedId].name + '　已選 ' + defSquad.length + ' / 4' + (defSquad.length ? '：' + defSquad.map((id) => CHARACTERS[id].name).join('、') : '');
+  $('defPickGo').disabled = defSquad.length !== 4;
 }
 // 基地：半圓形地板＋立起來的基地圖。地板每個頂點都用 proj() 投影（大範圍用局部變換會因為透視而錯位）
 function defPoly(pts) { ctx.beginPath(); pts.forEach(([x, y], i) => { const q = proj(x, y); if (i) ctx.lineTo(q.x, q.y); else ctx.moveTo(q.x, q.y); }); }
@@ -6861,8 +6870,8 @@ $('defBoardClose').addEventListener('click', () => { $('defBoard').hidden = true
 $('defRevClose').addEventListener('click', () => { $('defRev').hidden = true; });
 $('defAutoBtn').addEventListener('click', () => { if (!defState) return; defState.autoRev = !defState.autoRev; renderDefRev(true); });
 $('defUpBtn').addEventListener('click', defUpgrade);
-$('defPickRand').addEventListener('click', () => { const pool = Object.keys(CHARACTERS).filter((id) => id !== selectedId); defSquad = []; while (defSquad.length < 3 && pool.length) defSquad.push(pool.splice(Math.floor(Math.random() * pool.length), 1)[0]); renderDefPick(); });
-$('defPickGo').addEventListener('click', () => { if (defSquad.length !== 3) return; $('defPick').hidden = true; defPicked = true; startGame(); });
+$('defPickRand').addEventListener('click', () => { const pool = Object.keys(CHARACTERS).filter((id) => id !== selectedId); defSquad = []; while (defSquad.length < 4 && pool.length) defSquad.push(pool.splice(Math.floor(Math.random() * pool.length), 1)[0]); renderDefPick(); });
+$('defPickGo').addEventListener('click', () => { if (defSquad.length !== 4) return; $('defPick').hidden = true; defPicked = true; startGame(); });
 $('defPickCancel').addEventListener('click', () => { $('defPick').hidden = true; defPickSlot = null; });
 /* 手機：按住移動搖桿（另一根手指）時，click 事件不會觸發 → 觸控改用 pointerdown，滑鼠維持 click */
 function tapBtn(el, fn) {
