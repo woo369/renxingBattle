@@ -126,6 +126,7 @@ h2{margin:0 0 8px;font-size:26px;font-weight:800}
 .btn:hover{filter:brightness(1.1)}
 .btn:disabled{opacity:.6;cursor:wait}
 .row{display:flex;gap:10px;justify-content:center;flex-wrap:wrap}
+.def-help{text-align:left}.def-help h2{text-align:center}.def-help h4{margin:14px 0 4px;color:#7fd4ff;font-size:14px;letter-spacing:.05em}.def-help ul{margin:0;padding-left:1.3em;font-size:13px;line-height:1.6;color:#d6e4e8}.def-help li{margin:3px 0}.def-help b{color:#ffd28a}
 .help{margin:14px 0 0;font-size:13px;line-height:1.6;color:var(--muted)}
 /* 載入素材時的人形小資訊 */
 .load-tip{margin:14px auto 0;max-width:30em;display:flex;align-items:center;gap:10px;padding:8px 12px;border-radius:12px;background:#0b2230;border:1px solid #1f4250;text-align:left;animation:tipIn .35s ease}
@@ -190,7 +191,7 @@ body:not(.touch) #touchui{display:none}
 .home-levels .level svg{width:30px;height:30px}
 .home-levels .level b{font-size:14px}
 .home-levels .level small{display:none}
-.level-desc{min-height:2.9em;max-width:520px;margin:4px auto 2px;font-size:12.5px;line-height:1.45;color:#b8cbd0}
+.level-desc{white-space:pre-line;min-height:2.9em;max-width:520px;margin:4px auto 2px;font-size:12.5px;line-height:1.45;color:#b8cbd0}
 .picks{display:flex;flex-direction:column;gap:8px;margin:0 auto 10px;max-width:520px}
 .picks .pick{margin:0;position:relative}
 .picks .pick::before{content:attr(data-tag);position:absolute;left:10px;top:-8px;padding:1px 8px;border-radius:8px;font-size:11px;font-weight:800;letter-spacing:.08em;background:var(--aqua);color:#062028}
@@ -546,6 +547,33 @@ body.touch #testPanel{max-height:38vh}   /* 手機：不要擋到左下的移動
       <button id="resumeBtn" class="btn primary" type="button">繼續</button>
       <button id="quitBtn" class="btn" type="button">回主選單</button>
     </div>
+    <div class="row" style="margin-top:10px"><button id="defHelpBtn" class="btn" type="button" hidden>作戰說明</button></div>
+  </div>
+</div>
+<div id="defHelp" class="overlay" hidden>
+  <div class="sheet def-help" style="max-width:560px">
+    <h2>作戰說明</h2>
+    <h4>任務目標</h4>
+    <ul><li>在 16 分鐘內摧毀東方鐵血工造營地裡的木星砲。</li><li>營區中央的數據機有 1000 生命，被摧毀就算失敗。</li></ul>
+    <h4>時段</h4>
+    <ul>
+      <li><b>0:00～2:00 準備時段</b>：到基地外蒐集零件和核心。會有少量一階敵人出現，有的追擊在外的隊員，有的從基地出入口進攻。</li>
+      <li><b>2:00～6:00 第二時段</b>：開始出現二階敵人，出怪也更頻繁。</li>
+      <li><b>6:00～10:00 第三時段</b>：出現三階敵人和數隻一組的兵團；時段一開始會有兩名精英來襲，擊敗前時間會暫停。8:00 入夜，視野變小，敵人也更難打中。</li>
+      <li><b>10:00～16:00 最終時段</b>：二階精英和王牌兵團來襲，其餘敵人退回鐵血營地防守。這時可以到網路控制室花電池連線東北方廢棄基地的九頭蛇（一台 20 電池、兩台 40 電池），操控它反攻。</li>
+    </ul>
+    <h4>基地</h4>
+    <ul>
+      <li>基地每 30 秒產出 3 零件、1 電池；花 5 核心可以讓產出速度 +20%。</li>
+      <li>20 零件可以強化全隊，最多 5 次。</li>
+      <li>待在基地裡迴避率 +20%。</li>
+    </ul>
+    <h4>隊友</h4>
+    <ul>
+      <li>到佈告欄（B）可以安排 AI 隊友的工作。</li>
+      <li>隊友倒下 10 秒後，可以到復活台花核心讓他復活。</li>
+    </ul>
+    <div class="row" style="margin-top:14px"><button id="defHelpClose" class="btn primary" type="button">關閉</button></div>
   </div>
 </div>
 
@@ -1883,7 +1911,7 @@ const LEVELS = [
   { id: 'war', name: '亂序戰事', open: true, desc: '三階段的亂序戰事，敵人會階段性地變強，每個階段末尾都會出現 Boss，擊敗第三階段的 Boss 即過關。' },
   { id: 'duel', name: '菁英對決', open: true, desc: '入場 5 秒後出現一名隨機精英敵人，擊敗它即可過關。精英以三階的強度為基準，一階、二階精英會依類型強化到相同水準。場上會定時出現零件與醫療箱。' },
   { id: 'night', name: '夜戰', open: true, desc: '在漆黑的野外作戰，分成三個階段，跟亂序戰事一樣每階段末尾會出現 Boss。每名人形都有自己的視野：手槍 500，其他槍種只有 200（隊伍裡有手槍人形時提高到 450），且每名手槍人形讓全隊命中 +20%；所有單位迴避率 +20%。只能帶一名人形出擊，撿到通訊器後可以呼叫遠處的友方人形支援，最多再帶三名隊友，並且可以切換操控；零件全隊共用，改用來強化目前操控的人形（子彈傷害、生命 ×1.2，最多 5 次）。前 3 分鐘是準備階段，敵人很少。' },
-  { id: 'defense', name: '滅星行動', open: true, desc: '帶最多 4 名 AI 隊友（在下方小隊加入）駐守網路操作站，在 16 分鐘內攻進東方的鐵血工造營地，摧毀木星砲。戰事分成四個時段，敵人會一波比一波強，途中還有兵團與精英來襲，入夜後視野也會變差。善用基地產出的零件、電池與核心來強化隊伍、復活隊友，到佈告欄（B）可以安排隊友的工作；最終時段還能連線廢棄基地的九頭蛇發動反攻。營區中央的數據機被摧毀就算失敗。' },
+  { id: 'defense', name: '滅星行動', open: true, desc: '鐵血工造在羅馬尼亞的多布羅加高地建立了一座木星砲。由於海拔的差異，他們能夠輕易地透過木星砲封鎖多瑙河下游一帶，掐住格里芬的補給線。\n玩家和四名人形一起組隊，來到座落於多布羅加的高功率網路基地站，使用遠端連線到報廢在山區的正規軍營站，並操控軍方機甲九頭蛇，摧毀木星砲。\n由於行動被鐵血工造偵察到，他們也調動大量的兵力來防守並奪取網路基地站，玩家需要保衛住基地站並為其充電。' },
   { id: 'test', name: '測試模式', open: true, desc: '不會自動出怪，可以自選召喚任何敵人或精英，零件無限。' },
   { id: 'battle', name: '戰局', open: true, desc: '（開發中）100×100 格的大地圖，之後會做成 7 打 7 的戰局。地圖上有三個佔領點，站在點上就能佔領；山、房屋、樹木會擋路與子彈，樹林會遮擋視線。左上角是小地圖，按 M 或點小地圖可以打開全圖（單位會變成點）。' },
   { id: 'versus', name: '雲圖對戰', open: true, desc: '（開發中）5 打 5 的團隊對戰，所有人形的生命都是原本的 3 倍，60×30 格的長條地圖，藍隊、紅隊的大本營在左右兩側。擊倒敵方人形本體得 1 分，先到 30 分獲勝；初始零件 10，地圖中間會出現零件和醫療包，擊倒敵人可拿走對方 50% 的零件。可以加入普通或精銳 AI，倒下 5 秒後重生。大本營有會無限重生的守衛，會攻擊太靠近的敵人。' },
@@ -7274,8 +7302,8 @@ function nextPhase() {
   floatText(player.x, player.y - 64, phase.name + ' 開始！', '#f9cf70'); shake = Math.max(shake, 5);
   for (let i = 0; i < phase.initial; i++) addEnemy();
 }
-function pauseGame() { if (state === 'play') { $('zoomRange').value = userZoom; $('pauseBgm').value = bgmMul; setState('pause'); } }
-function resumeGame() { if (state === 'pause') { setState('play'); last = performance.now(); } }
+function pauseGame() { if (state === 'play') { $('zoomRange').value = userZoom; $('pauseBgm').value = bgmMul; $('defHelpBtn').hidden = !isDef(); setState('pause'); } }
+function resumeGame() { $('defHelp').hidden = true; if (state === 'pause') { setState('play'); last = performance.now(); } }
 
 /* ───────── 輸入 ───────── */
 window.addEventListener('keydown', (e) => {
@@ -7407,6 +7435,8 @@ $('retryBtn').addEventListener('click', startGame);
 function backToMenu() { bgmStop(true); showBest(); setState('menu'); releaseUnused(openingPacks()); prefetch(); }
 $('menuBtn').addEventListener('click', backToMenu);
 $('resumeBtn').addEventListener('click', resumeGame);
+$('defHelpBtn').addEventListener('click', () => { $('defHelp').hidden = false; });   // 滅星行動：暫停選單的作戰說明
+$('defHelpClose').addEventListener('click', () => { $('defHelp').hidden = true; });
 $('quitBtn').addEventListener('click', backToMenu);
 $('pauseBtn').addEventListener('click', pauseGame);
 $('zoomRange').addEventListener('input', (e) => setZoom(Number(e.target.value)));
