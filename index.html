@@ -555,7 +555,7 @@ body.touch #testPanel{max-height:38vh}   /* 手機：不要擋到左下的移動
   <div class="sheet def-help" style="max-width:560px">
     <h2>作戰說明</h2>
     <h4>任務目標</h4>
-    <ul><li>在 16 分鐘內摧毀東方鐵血工造營地裡的木星砲。</li><li>營區中央的數據機有 1000 生命，被摧毀就算失敗。</li></ul>
+    <ul><li>在 16 分鐘內摧毀東方鐵血工造營地裡的木星砲。</li><li>時間到了還沒摧毀木星砲，鐵血工造會派出殲滅部隊（三階精英首領、兩個王牌精銳兵團、十隻強化蠍甲獸）直取基地，木星砲也會開始全圖打擊。</li><li>營區中央的數據機有 1000 生命，被摧毀就算失敗。</li></ul>
     <h4>時段</h4>
     <ul>
       <li><b>0:00～2:00 準備時段</b>：到基地外蒐集零件和核心。會有少量一階敵人出現，有的追擊在外的隊員，有的從基地出入口進攻。</li>
@@ -1912,7 +1912,7 @@ const LEVELS = [
   { id: 'war', name: '亂序戰事', open: true, desc: '三階段的亂序戰事，敵人會階段性地變強，每個階段末尾都會出現 Boss，擊敗第三階段的 Boss 即過關。' },
   { id: 'duel', name: '菁英對決', open: true, desc: '入場 5 秒後出現一名隨機精英敵人，擊敗它即可過關。精英以三階的強度為基準，一階、二階精英會依類型強化到相同水準。場上會定時出現零件與醫療箱。' },
   { id: 'night', name: '夜戰', open: true, desc: '在漆黑的野外作戰，分成三個階段，跟亂序戰事一樣每階段末尾會出現 Boss。每名人形都有自己的視野：手槍 500，其他槍種只有 200（隊伍裡有手槍人形時提高到 450），且每名手槍人形讓全隊命中 +20%；所有單位迴避率 +20%。只能帶一名人形出擊，撿到通訊器後可以呼叫遠處的友方人形支援，最多再帶三名隊友，並且可以切換操控；零件全隊共用，改用來強化目前操控的人形（子彈傷害、生命 ×1.2，最多 5 次）。前 3 分鐘是準備階段，敵人很少。' },
-  { id: 'defense', name: '滅星行動', open: true, desc: '鐵血工造在羅馬尼亞的多布羅加高地建立了一座木星砲。由於海拔的差異，他們能夠輕易地透過木星砲封鎖多瑙河下游一帶，掐住格里芬的補給線。\n玩家和四名人形一起組隊，來到座落於多布羅加的高功率網路基地站，使用遠端連線到報廢在山區的正規軍營站，並操控軍方機甲九頭蛇，摧毀木星砲。\n由於行動被鐵血工造偵察到，他們也調動大量的兵力來防守並奪取網路基地站，玩家需要保衛住基地站並為其充電。' },
+  { id: 'defense', name: '滅星行動', open: true, desc: '鐵血工造在羅馬尼亞的多布羅加高地建立了一座木星砲。由於海拔的差異，他們能夠輕易地透過木星砲封鎖多瑙河下游一帶，掐住格里芬的補給線。\n玩家和四名人形一起組隊，來到座落於多布羅加的高功率網路基地站，使用遠端連線到報廢在山區的正規軍營站，並操控軍方機甲九頭蛇，摧毀木星砲。\n由於行動被鐵血工造偵察到，他們也調動大量的兵力來防守並奪取網路基地站，玩家需要保衛住基地站並為其充電。\n需要在鐵血工造的大軍抵達前搶先摧毀木星砲，否則將迎來全滅的下場。' },
   { id: 'test', name: '測試模式', open: true, desc: '不會自動出怪，可以自選召喚任何敵人或精英，零件無限。' },
   { id: 'battle', name: '戰局', open: true, desc: '（開發中）100×100 格的大地圖，之後會做成 7 打 7 的戰局。地圖上有三個佔領點，站在點上就能佔領；山、房屋、樹木會擋路與子彈，樹林會遮擋視線。左上角是小地圖，按 M 或點小地圖可以打開全圖（單位會變成點）。' },
   { id: 'versus', name: '雲圖對戰', open: true, desc: '（開發中）5 打 5 的團隊對戰，所有人形的生命都是原本的 3 倍，60×30 格的長條地圖，藍隊、紅隊的大本營在左右兩側。擊倒敵方人形本體得 1 分，先到 30 分獲勝；初始零件 10，地圖中間會出現零件和醫療包，擊倒敵人可拿走對方 50% 的零件。可以加入普通或精銳 AI，倒下 5 秒後重生。大本營有會無限重生的守衛，會攻擊太靠近的敵人。' },
@@ -2523,7 +2523,7 @@ const DEFENSE_PHASES = [
   { name: '準備時段', end: 120, spawnTable: DEF_T1, initial: 2, spawn: { every: 9, min: 7, max: 6 }, prep: true },   // 0:00～2:00：少量敵人，時間到進入下一時段
   { name: '第二時段', end: 240, spawnTable: DEF_T2, initial: 2, spawn: { every: 5, min: 3, max: 12 } },              // 2:00～6:00：出現二階敵人，出怪更頻繁
   { name: '第三時段', end: 240, spawnTable: DEF_T3, sc: DEF_SC3, initial: 2, spawn: { every: 5, min: 3, max: 10 }, eliteWave: 2, legion: { max: 2, first: 8, every: 20 } },   // 6:00～10:00：三階普通敵人＋兵團；最多 10 隻（8:00 入夜）
-  { name: '最終時段', end: 360, spawnTable: DEF_T3, sc: DEF_SC3, initial: 0, spawn: { every: 6, min: 4, max: 6 }, eliteWave: 3, elitePool: 'tier2', aceLegion: true, campDefend: true, mechs: true, legion: { max: 2, first: 6, every: 15 } },   // 10:00～16:00：敵人往鐵血營地集結防守（最多 6 隻、2 個兵團）；可以操作九頭蛇   // 6:00 第二時段結束：基地東側出現 2 隻鐵血工造一階精英     // 之後的時段還沒做：暫時沿用第二時段；16:00 時間到＝任務失敗
+  { name: '最終時段', end: 360, spawnTable: DEF_T3, sc: DEF_SC3, initial: 0, spawn: { every: 10, min: 8, max: 6 }, eliteWave: 3, elitePool: 'tier2', aceLegion: true, campDefend: true, mechs: true, legion: { max: 2, first: 10, every: 25 } },   // 10:00～16:00：敵人往鐵血營地集結防守（最多 6 隻、2 個兵團）；可以操作九頭蛇   // 6:00 第二時段結束：基地東側出現 2 隻鐵血工造一階精英     // 之後的時段還沒做：暫時沿用第二時段；16:00 時間到＝任務失敗
 ].map((p) => ({ ...p, packs: ['dino', 'jaguar', 'wasp', 'ripper', 'beast', 'lion', 'striker', 'jaeg', 'dragoon', 'guard', 'jupiter', 'scorp', 'night', 'defbase', 'ouro', 'ouroE', 'dreamer', 'agent', 'witch', 'arch', 'intr', 'scarecrow', 'goliath', 'gfac', 'judge', 'hydra'], night: true, defense: true, day: true, bossPool: null, medkitEvery: 30, medkitHeal: 10 }));
 const LEVEL_PHASES = { defense: DEFENSE_PHASES, night: NIGHT_PHASES, war: WAR_PHASES, duel: DUEL_PHASES, test: TEST_PHASES, battle: BATTLE_PHASES, versus: VERSUS_PHASES };   // 有分階段的關卡
 const levelPhases = () => LEVEL_PHASES[selectedLevel] || null;
@@ -2681,7 +2681,7 @@ function nightChunk(cx, cy) {
     for (let i = 0, n = Math.floor(h(60) * 3); i < n; i++) { const [x, y] = P(61 + i * 2, 62 + i * 2); if (clear(x, y, 30) && solid.every((o) => Math.hypot(o.x - x, o.y - y) > (o.r || 20) + 60)) { const sz = 0.9 + h(70 + i) * 0.4; solid.push({ kind: 'tree', x, y, sz, r: 16 * sz }); } }
   }
   if (isDef()) {   // 滅星行動：基地周圍不長樹、不放岩石
-    const ok = (o) => { const r = o.r || 0, B = DEF.bounds; if (o.x < B.x0 - 120 || o.x > B.x1 + 120 || o.y < B.y0 - 120 || o.y > B.y1 + 120) return false; if (Math.hypot(o.x - DEF.jupiter.x, o.y - DEF.jupiter.y) < 420 + (o.w || 2 * r)) return false; if (o.x + r > 980 && o.x - r < 2080 && o.y + r > -1700 && o.y - r < -1090) return false; return !(o.x + r > DEF.x0 - 300 && o.x - r < DEF.x1 + 300 && o.y + r > DEF.yb - 320 && o.y - r < DEF.yb + DEF.R + 300); };
+    const ok = (o) => { const r = o.r || 0, B = DEF.bounds; if (o.x < B.x0 - 120 || o.x > B.x1 + 120 || o.y < B.y0 - 120 || o.y > B.y1 + 120) return false; if (Math.hypot(o.x - DEF.jupiter.x, o.y - DEF.jupiter.y) < 420 + (o.w || 2 * r)) return false; if (o.x + r > DEF.ruin.pad.x0 - 80 && o.x - r < DEF.ruin.pad.x1 + 80 && o.y + r > -1700 && o.y - r < -1090) return false; return !(o.x + r > DEF.x0 - 300 && o.x - r < DEF.x1 + 300 && o.y + r > DEF.yb - 320 && o.y - r < DEF.yb + DEF.R + 300); };
     c = { solid: solid.filter(ok), ground: ground.filter(ok) };
   } else c = { solid, ground };
   if (nightChunks.size > 600) { nightChunks.clear(); nightNear.clear(); }
@@ -6229,7 +6229,7 @@ const visionOf = (u) => (isDef() && phase.day ? 3000 : u.def.weapon.class === 'H
 const visionR = () => (isNight() && player ? visionOf(player) : Infinity);
 // 敵人有沒有被隊伍裡任何一名人形看到（看到的才能鎖定）
 const MECH_VISION = 900;   // 九頭蛇的夜戰視野
-const teamSees = (e) => !isNight() || (isDef() && Math.hypot(e.x, e.y - DEF.yb - 110) < 680) || nightOrder().some((u) => Math.hypot(e.x - u.x, e.y - u.y) <= visionOf(u)) || clones.some((c) => c.mech && Math.hypot(e.x - c.x, e.y - c.y) <= MECH_VISION);
+const teamSees = (e) => !isNight() || (isDef() && (Math.hypot(e.x, e.y - DEF.yb - 110) < 680 || Math.hypot(e.x, e.y - DEF.yb - 400) < 580)) || nightOrder().some((u) => Math.hypot(e.x - u.x, e.y - u.y) <= visionOf(u)) || clones.some((c) => c.mech && Math.hypot(e.x - c.x, e.y - c.y) <= MECH_VISION);
 const NIGHT_HG_ACC = 0.2;   // 隊伍增益：隊伍裡每有一名手槍人形，全隊命中 +20%（抵銷敵人的迴避率，最低扣到 0）
 const nightAcc = () => (isNight() && !phase.day && player && (state === 'play' || state === 'pause') ? NIGHT_HG_ACC * nightOrder().filter((u) => u.def.weapon.class === 'HG').length : 0);
 const enhMul = (u) => Math.pow(NIGHT_ENH.mul, (u && u.enh) || 0);
@@ -6456,11 +6456,11 @@ DEF.jcamp = [
 ].map(([img, dx, dy, w, r]) => ({ kind: 'prop', img, x: DEF.jupiter.x + dx, y: DEF.jupiter.y + dy, w, r }));
 DEF.walls.push(...DEF.jcamp);
 // 東北方靠近邊界的正規軍廢棄基地：一棟房子、兩座機甲停放棚，棚下停著兩台蒙灰的九頭蛇（未連線、中立）
-DEF.ruin = { x: 1500, y: -1380, pad: { x0: 1060, x1: 2000, y0: -1620, y1: -1170 }, parks: [{ x: 1560, y: -1400 }, { x: 1840, y: -1400 }] };
+DEF.ruin = { x: 2400, y: -1380, pad: { x0: 1960, x1: 2900, y0: -1620, y1: -1170 }, parks: [{ x: 2460, y: -1400 }, { x: 2740, y: -1400 }] };   // 東北方的廢棄正規軍營地
 DEF.rprops = [
-  ['r_house', 1240, -1440, 300], ['r_hangar', 1560, -1470, 270], ['r_hangar', 1840, -1470, 270],
-  ['r_barricade', 1300, -1230, 90], ['r_barricade', 1720, -1210, 90], ['r_boxes', 1430, -1290, 80], ['r_cases', 1980, -1300, 76], ['r_gen', 1100, -1300, 66],
-  ['r_tanker', 1140, -1560, 130], ['r_lamp', 1080, -1610, 28], ['r_lamp', 1990, -1610, 28],
+  ['r_house', 2140, -1440, 300], ['r_hangar', 2460, -1470, 270], ['r_hangar', 2740, -1470, 270],
+  ['r_barricade', 2200, -1230, 90], ['r_barricade', 2620, -1210, 90], ['r_boxes', 2330, -1290, 80], ['r_cases', 2880, -1300, 76], ['r_gen', 2000, -1300, 66],
+  ['r_tanker', 2040, -1560, 130], ['r_lamp', 1980, -1610, 28], ['r_lamp', 2890, -1610, 28],
 ].map(([img, x, y, w]) => ({ kind: img === 'r_house' || img === 'r_hangar' ? 'wall' : 'prop', img, x, y, w, ...(img === 'r_house' ? { h: 50, ww: 290 } : img === 'r_hangar' ? { h: 26, ww: 260 } : { r: w * 0.3 }) }));
 for (const o of DEF.rprops) DEF.walls.push(o.h ? { kind: 'wall', x: o.x, y: o.y - o.h / 2, w: o.ww, h: o.h } : o);
 DEF.ruin.parks.forEach((pk) => { pk.wall = { kind: 'prop', x: pk.x, y: pk.y, r: 30 }; DEF.walls.push(pk.wall); });
@@ -6553,9 +6553,7 @@ function defTick(dt) {
     S.eliteDone = phase; const shuf = (L, n) => [...L].sort(() => Math.random() - 0.5).slice(0, n);
     const ids = phase.elitePool === 'tier2' ? [...shuf(DEF_ELITE2, 2), ...shuf(DEF_ELITE3, 1)] : shuf(DEF_ELITE1, phase.eliteWave);   // 最終時段：兩隻二階＋一隻三階
     if (phase.aceLegion) defSpawnLegion(phase.sc || {}, DEF_LEGIONS.find((t) => t.name === '精銳王牌團'), true);
-    ids.forEach((id, k) => { const B = BOSSES[id], p = nightSpot(rand(1000, 1300), DEF.yb + [-120, 380, 130][k % 3] + rand(-80, 80), B.radius || 30);
-      enemies.push({ boss: true, B, id, defElite: true, x: p.x, y: p.y, r: B.radius, hp: B.hp, maxHp: B.hp, ammo: B.magazine, reloadT: 0, magsDone: 0, special: null, cool: 0.8, barrel: 0, angle: 0, strafe: 1, strafeT: 0, jinkT: 0, jx: 0, jy: 0, vx: 0, vy: 0,
-        touchCd: 0, debuffT: 0, faceLeft: true, aiming: false, shot: 0, phase: 0 }); burst(p.x, p.y, '#ff6b6b', 16); });
+    ids.forEach((id, k) => defSpawnElite(id, rand(1000, 1300), DEF.yb + [-120, 380, 130][k % 3] + rand(-80, 80)));
   }
   if (phase && phase.legion) {   // 兵團
     const Lg = phase.legion, alive = new Set(enemies.filter((x) => x.legion).map((x) => x.legion));
@@ -6613,13 +6611,32 @@ function defPlayerDown() {
 }
 function defSpecNext(dir) { const A = nightAllies(); if (!A.length) return; const i = A.indexOf(defSpec); defSpec = A[(i + dir + A.length) % A.length]; }
 // 滅星行動：隊友倒下 → 登記到復活台（佈告欄也看得到），並跳出通知
-function defSpawnLegion(SC, pick, attack) {
+function defSpawnElite(id, x, y, extra) {   // 鐵血工造精英出場（defElite：在場時時間軸暫停、外出蒐集的 AI 回防）
+  const B = BOSSES[id], p = nightSpot(x, y, B.radius || 30);
+  const e = { boss: true, B, id, defElite: true, x: p.x, y: p.y, r: B.radius, hp: B.hp, maxHp: B.hp, ammo: B.magazine, reloadT: 0, magsDone: 0, special: null, cool: 0.8, barrel: 0, angle: 0, strafe: 1, strafeT: 0, jinkT: 0, jx: 0, jy: 0, vx: 0, vy: 0,
+    touchCd: 0, debuffT: 0, faceLeft: true, aiming: false, shot: 0, phase: 0, ...(extra || {}) };
+  enemies.push(e); burst(p.x, p.y, '#ff6b6b', 16); return e;
+}
+// 倒數結束（16:00）還沒摧毀木星砲：鐵血工造的殲滅部隊從營地出發直取基地，木星砲改成全圖打擊
+const DOOM_SC = { scorp: { hp: 10, dmg: 4 } };
+function defDoom() {
+  const S = defState; if (S.doom) return; S.doom = true;
+  const J = DEF.jupiter, cx = J.x - 520;
+  defSpawnElite(DEF_ELITE3[Math.floor(Math.random() * DEF_ELITE3.length)], cx, J.y, { dGoal: 'base', doom: true });   // 三階精英首領
+  const ace = DEF_LEGIONS.find((t) => t.name === '精銳王牌團');
+  defSpawnLegion({}, ace, true, { x: cx + 40, y: J.y - 330 }); defSpawnLegion({}, ace, true, { x: cx + 40, y: J.y + 330 });   // 兩個王牌精銳兵團
+  defSpawnLegion(DOOM_SC, { name: '殲滅蠍甲團', list: [[SCORP, 10]] }, true, { x: cx - 120, y: J.y });                          // 十隻強化蠍甲獸（生命 ×10、傷害 ×4）
+  const j = enemies.find((x) => x.defJup);
+  if (j) { j.B = { ...j.B, lockRange: Math.hypot(J.x - DEF.home.x, J.y - DEF.home.y) + 700 }; j.doom = true; }   // 木星砲：鎖敵距離拉到能打到玩家基地
+  defNotice('時間到了：鐵血工造的殲滅部隊正從營地出發，木星砲開始全圖打擊！', '#ff6b6b'); shake = Math.max(shake, 10); sfx.boom();
+}
+function defSpawnLegion(SC, pick, attack, at) {
   const tot = DEF_LEGIONS.reduce((a, b) => a + b.w, 0); let r = Math.random() * tot, tp = pick || DEF_LEGIONS[0];
   if (!pick) for (const t of DEF_LEGIONS) { if ((r -= t.w) < 0) { tp = t; break; } }
   const camp = !attack && phase && phase.campDefend;   // 最終時段：兵團在鐵血營地周圍防守
   const ea = Math.random() < 0.75 ? rand(-1.2, 1.2) : rand(0, Math.PI * 2), rr = rand(1400, 2000);
-  const c = camp ? campPost(380, 700) : defClamp({ x: Math.cos(ea) * rr, y: DEF.yb + DEF.depth / 2 + Math.sin(ea) * rr }, 160);
-  const L = { name: tp.name, dGoal: Math.random() < 0.5 ? 'base' : 'hunt', speed: Infinity };
+  const c = at ? defClamp(at, 160) : camp ? campPost(380, 700) : defClamp({ x: Math.cos(ea) * rr, y: DEF.yb + DEF.depth / 2 + Math.sin(ea) * rr }, 160);
+  const L = { name: tp.name, dGoal: at ? 'base' : Math.random() < 0.5 ? 'base' : 'hunt', speed: Infinity };   // at：指定出生點（殲滅部隊），直接進攻基地
   let k = 0; const n = tp.list.reduce((a, b) => a + b[1], 0);
   for (const [T0, cnt] of tp.list) {
     const T = SC[T0.sprite] ? scaleStats(T0, SC[T0.sprite]) : T0; L.speed = Math.min(L.speed, T.speed || 100);
@@ -6653,7 +6670,7 @@ function defMechStart(n) {
     m.parked = false; const w = DEF.walls.indexOf(m.park.wall); if (w >= 0) DEF.walls.splice(w, 1);
     const T = HYDRA_M, c = { mech: true, clone: true, T, def: MECH_DEF, x: m.park.x, y: m.park.y + 30, r: T.radius, hp: T.hp, maxHp: T.hp, ammo: T.magazine, reloadT: 0, cool: 0, mgCd: 0,
       atkT: 9, phase: rand(0, 6), faceLeft: true, aim: Math.PI, moving: false, sweepT: null, effects: [], invT: 0, shield: 0, slot: [0, 0] };
-    clones.push(c); if (k === 0) defPilot = c;
+    clones.push(c); if (k === 0) { defPilot = c; c.mechAcc = 0.2; }   // 玩家操作的九頭蛇：命中率永久 +20%
     burst(c.x, c.y - 30, '#7fd4ff', 20);
   });
   defNotice(n === 2 ? '兩台九頭蛇已連線：你操作其中一台，另一台會護衛你' : '九頭蛇已連線：你正在操作九頭蛇（本人留在控制室）', '#7fd4ff');
@@ -6723,7 +6740,7 @@ function mechTick(c, dt) {
     c.sweepT += dt; const st = m.sweep.raise_;
     while (c.sweepN < W.n && c.sweepT >= st + c.sweepN * W.time / W.n) {
       const aimPt = { x: c.x + Math.cos(c.aim) * 300, y: c.y + Math.sin(c.aim) * 300 }, bl = hydraSweepShot(c, W, c.sweepN, aimPt);
-      bl.team = 'p'; bl.def = MECH_MG; bl.dmg = undefined; bl.eff = undefined; bl.fromClone = true; bl.vx *= 1.2; bl.vy *= 1.2; bullets.push(bl); c.sweepN++; mechSfx(c, 'ACS', 0.9);
+      bl.team = 'p'; bl.src = c; bl.def = MECH_MG; bl.dmg = undefined; bl.eff = undefined; bl.fromClone = true; bl.vx *= 1.2; bl.vy *= 1.2; bullets.push(bl); c.sweepN++; mechSfx(c, 'ACS', 0.9);
     }
     if (c.sweepT >= st + W.time) c.sweepT = null;
   }
@@ -6906,6 +6923,11 @@ function defJobGoal(f, tgt, goal) {
 // 敵人的目標：追擊型找最近的隊員、進攻型只在 420 內出手；網路操作站裡的人形不會被鎖定，基地裡的人形要等敵人進到基地（或在出入口）才打得到。
 // 沒有能打的目標：在基地外就走向左右出入口；進到基地裡就攻擊控制室
 function defEnemyTarget(e) {
+  if (e.defJup && e.doom) {   // 全圖打擊：目標不受基地限制，隨機挑一名隊員（每 6 秒換一次）
+    const U = [player, ...nightAllies(), ...clones.filter((c) => c.mech)].filter((u) => u.hp > 0 && !u.defDown);
+    if (!e.ntg || e.ntg.fake || e.ntg.hp <= 0 || e.ntg.defDown || !U.includes(e.ntg) || gameTime > (e.ntT || 0)) { e.ntg = U[Math.floor(Math.random() * U.length)] || player; e.ntT = gameTime + 6; }
+    return e.ntg;
+  }
   const lr = (e.boss ? e.B.lockRange : e.T.lockRange) || 200;
   if (e.sentry) {   // 據點守軍：只打進到警戒範圍（以崗位為中心）的人形，沒有目標就回崗位待命
     const Q = e.sentry; let best = null, bd = Infinity;
@@ -7198,7 +7220,7 @@ function drawNightDark() {
   if (!vsDead()) light(player.x, player.y - 10, visionR() * 1.12);
   for (const c of clones) light(c.x, c.y - 10, c.mech ? MECH_VISION * 1.05 : c.nightAlly ? visionOf(c) * 1.12 : 85, c.nightAlly || c.mech ? 1 : 0.85);   // 隊友各自的視野也會揭開黑霧
   if (station && station.ready) light(station.x, station.y - 40, 190, 0.95);
-  if (isDef()) { light(0, DEF.yb + 110, 760, 0.97); for (const P of DEF.posts) light(P.x, P.y + 20, 260, 0.9); }   // 滅星行動：基地的燈光照亮整個營區
+  if (isDef()) { light(0, DEF.yb + 110, 760, 0.97); light(0, DEF.yb + 400, 640, 0.97); light(-330, DEF.yb + 330, 300, 0.9); light(330, DEF.yb + 330, 300, 0.9); for (const P of DEF.posts) light(P.x, P.y + 20, 260, 0.9); }   // 滅星行動：基地的燈光照亮整個營區
   for (const it of commItems) light(it.x, it.y, 60, 0.9);
   for (const it of parts) light(it.x, it.y, 34, 0.7);
   for (const it of medkits) light(it.x, it.y, 34, 0.7);
@@ -8403,7 +8425,7 @@ function segmentedHit(e, b, D) {
   const per = (D.weapon.damage + (b.flat || 0)) * (b.buff || 1) * b.segs.pct;
   let any = false;
   for (let n = 0; n < b.segs.n && e.hp > 0; n++) {
-    if (Math.random() < clamp(enemyEvade(e) - effSum(b.src || player, 'acc'), 0, 1)) { floatText(e.x + rand(-10, 10), e.y - 30 - n * 8, 'MISS', '#bfefff'); continue; }
+    if (Math.random() < clamp(enemyEvade(e) - effSum(b.src || player, 'acc') - ((b.src && b.src.mechAcc) || 0), 0, 1)) { floatText(e.x + rand(-10, 10), e.y - 30 - n * 8, 'MISS', '#bfefff'); continue; }
     any = true;
     hitEnemy.pierceShield = D.skill && D.skill.id === 'deter'; hitEnemy.pierceArmor = !!b.ap; hitEnemy.apv = b.apv || 0;
     hitEnemy(e, per, '#d9c2ff', n > 0, b.crit);
@@ -11812,10 +11834,10 @@ function update(dt) {
         else { ensurePack(pid).catch(() => {}); $('phaseTime').textContent = '載入中'; }   // 素材還沒下載完：稍等再出場
       } else if (phase.prep) { if (!phaseAdvT) phaseAdvT = 1e-6; }   // 夜戰準備階段：時間到直接進下一階段
       else if (phase.defense && levelPhases()[phaseIdx + 1]) { if (!phaseAdvT) phaseAdvT = 1e-6; }   // 滅星行動：時段結束 → 進入下一時段
-      else if (phase.defense) { endGame(false); return; }   // 滅星行動：16 分鐘到了還沒摧毀木星砲＝任務失敗
+      else if (phase.defense) { if (!defState.doom) defDoom(); }   // 滅星行動：16 分鐘到了還沒摧毀木星砲 → 殲滅部隊出擊（數據機被摧毀才失敗）
       else { endGame(true); return; }
     }
-    if (phase.defense) { const t = Math.max(0, DEF.time - (gameTime - defPauseT)); $('phaseName').textContent = defPaused ? '擊敗敵人' : phase.name; $('phaseTime').textContent = Math.floor(t / 60) + ':' + String(Math.floor(t % 60)).padStart(2, '0'); }   // 滅星行動：顯示任務剩餘時間
+    if (phase.defense) { const t = Math.max(0, DEF.time - (gameTime - defPauseT)); $('phaseName').textContent = defState.doom ? '全滅危機' : defPaused ? '擊敗敵人' : phase.name; $('phaseTime').textContent = Math.floor(t / 60) + ':' + String(Math.floor(t % 60)).padStart(2, '0'); }   // 滅星行動：顯示任務剩餘時間
     if (boss) { $('phaseTime').textContent = 'BOSS'; }
     // 保險：Boss 生命歸零卻沒被結算、或 Boss 已經不在場上卻沒排進下一階段 → 補上
     for (const e of enemies.filter((x) => x.boss && x.hp <= 0)) killEnemy(e);
@@ -12013,7 +12035,7 @@ function update(dt) {
           }
           // 影子敵人的迴避：子彈穿過這隻敵人，繼續往前飛
           // 命中率：射擊者命中 +X% → 敵人迴避率 −X%
-          if (Math.random() < clamp(enemyEvade(e) - effSum(b.src || player, 'acc'), 0, 1)) { (b.missed || (b.missed = new Set())).add(e); floatText(e.x + rand(-6, 6), e.y - 30, 'MISS', '#bfefff'); continue; }
+          if (Math.random() < clamp(enemyEvade(e) - effSum(b.src || player, 'acc') - ((b.src && b.src.mechAcc) || 0), 0, 1)) { (b.missed || (b.missed = new Set())).add(e); floatText(e.x + rand(-6, 6), e.y - 30, 'MISS', '#bfefff'); continue; }
           // 傷害順序：原始傷害 → 自身技能加成（裂傷紀錄／榮光延續）→ 其他人給的增益（蜂鳥共鳴）→ hitEnemy 判定暴擊 → 護甲
           const fm = flowerMul(b.src || player, e) * maskMul(b, e), D = b.def || cfg, base = (D.weapon.damage + (b.flat || 0)) * (b.purple ? D.skill.purpleMult : 1) * (b.buff || 1) * fm;   // flat：裝備的子彈傷害 +固定值（先加在每發傷害上，再吃加成）   // fm：花之鎖   // 用發射時的人形數值（中途切換角色也不會變）
           const hhi = huntHi(D, e);   // 連鎖狂獵：對生命高於 50% 的目標 +10%
