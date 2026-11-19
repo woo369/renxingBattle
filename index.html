@@ -2474,7 +2474,7 @@ const DEFENSE_PHASES = [
   { name: '準備時段', end: 120, spawnTable: DEF_T1, initial: 2, spawn: { every: 9, min: 7, max: 6 }, prep: true },   // 0:00～2:00：少量敵人，時間到進入下一時段
   { name: '第二時段', end: 240, spawnTable: DEF_T2, initial: 2, spawn: { every: 5, min: 3, max: 12 } },              // 2:00～6:00：出現二階敵人，出怪更頻繁
   { name: '第三時段（製作中）', end: 600, spawnTable: DEF_T2, initial: 0, spawn: { every: 5, min: 3, max: 12 } },     // 之後的時段還沒做：暫時沿用第二時段；16:00 時間到＝任務失敗
-].map((p) => ({ ...p, packs: ['dino', 'jaguar', 'wasp', 'ripper', 'beast', 'lion', 'striker', 'jaeg', 'dragoon', 'guard', 'jupiter', 'night', 'defbase'], night: true, defense: true, day: true, bossPool: null, medkitEvery: 30, medkitHeal: 10 }));
+].map((p) => ({ ...p, packs: ['dino', 'jaguar', 'wasp', 'ripper', 'beast', 'lion', 'striker', 'jaeg', 'dragoon', 'guard', 'jupiter', 'scorp', 'night', 'defbase'], night: true, defense: true, day: true, bossPool: null, medkitEvery: 30, medkitHeal: 10 }));
 const LEVEL_PHASES = { defense: DEFENSE_PHASES, night: NIGHT_PHASES, war: WAR_PHASES, duel: DUEL_PHASES, test: TEST_PHASES, battle: BATTLE_PHASES, versus: VERSUS_PHASES };   // 有分階段的關卡
 const levelPhases = () => LEVEL_PHASES[selectedLevel] || null;
 let phase = null, phaseIdx = 0, phaseStart = 0, spawnIdx = 0;   // 目前階段、階段開始時間、輪到第幾種敵人
@@ -5872,7 +5872,7 @@ function pickSpawn(table) {
 }
 function addEnemy() {
   const maxN = phase ? phase.spawn.max : Math.min(14, 9 + Math.floor(gameTime / 60));
-  if (enemies.length >= maxN) return;
+  if (enemies.filter((x) => !x.sentry && !x.defJup).length >= maxN) return;   // 據點守軍和木星砲不算在上限裡
   const a = rand(0, Math.PI * 2), ca = Math.cos(a), sa = Math.sin(a);
   let d = 150;
   while (d < 4000 && onScreen(proj(player.x + ca * d, player.y + sa * d), 90)) d += 40;
@@ -6244,6 +6244,8 @@ function nightAfterEnemies(dt) {
    基地裡的人形迴避率 +20%。左營區的佈告欄安排 AI 隊友的工作；右營區的復活台可以花核心復活倒下的隊友 */
 const DEF = { bounds: { x0: -1800, x1: 6200, y0: -1700, y1: 1500 },   // 地圖範圍（有限大小、橫向長）：基地在西側，鐵血工造的木星砲據點預設在東方遠處，正規軍單位在基地和木星砲之間
   jupiter: { x: 5400, y: -100 },   // 木星砲據點的預設位置（東方）
+  medEvery: 30, medMax: 3,         // 基地每 30 秒生產一個醫療包，基地裡最多 3 個（不佔地圖上的醫療包上限）
+  farR: 2400,                      // 外出蒐集的 AI 離基地超過這個距離就先回基地
   yb: -100, R: 536, depth: 260, x0: -536, x1: 536, safe: 176, gap: 0.27,
   board: { x: -220, y: -80 }, rev: { x: 292, y: -80 }, useR: 110,
   posts: [{ x: -440, y: -20 }, { x: 440, y: -20 }],            // 駐守點：左右出入口內側
@@ -6286,6 +6288,10 @@ DEF.walls.push(...DEF.jcamp);
 // 駐守巡邏路線：右出口 → 繞過掩體 → 數據機下方 → 左出口，來回走
 DEF.patrol = [[462, -37], [330, -20], [290, 275], [-290, 275], [-330, -20], [-462, -37]].map(([x, y]) => ({ x, y }));
 const defCoverProne = (u) => isDef() && (u.prone || 0) >= 0.6 && DEF.covers.some((o) => Math.hypot(u.x - o.x, u.y - o.y) < o.r + 50);
+DEF.medSpots = [{ x: -200, y: DEF.yb + 400 }, { x: 200, y: DEF.yb + 400 }, { x: 0, y: DEF.yb + 410 }];   // 基地醫療包擺放的位置
+DEF.home = { x: 0, y: DEF.yb + DEF.R * 0.4 };   // 判斷「離基地多遠」用的基地中心
+// 鐵血工造據點的守軍：營地四個角落各一隻蠍甲獸（生命 ×5），平時待在原地，有人進到警戒範圍就去攻擊，目標離開範圍就回原位
+DEF.sentry = { alert: 650, hpMul: 5, posts: [[-300, -280], [300, -280], [-300, 290], [300, 290]] };
 const DEF_EDGE = { kind: 'wall', x: 0, y: 0, w: 1, h: 1, edge: true };
 const defClamp = (p, m = 60) => { const B = DEF.bounds; return { x: clamp(p.x, B.x0 + m, B.x1 - m), y: clamp(p.y, B.y0 + m, B.y1 - m) }; };
 let defSquad = [], defPicked = false, defState = null, defCores = [], defDead = [], defSpec = null;
@@ -6312,6 +6318,9 @@ function defBegin() {
   { const B = { ...BOSSES.jupiter, lockRange: 1500, boom: { ...BOSSES.jupiter.boom, r: 300 } };   // 木星砲（滅星行動：鎖敵距離 1500、砲彈爆炸範圍 300）：東方營地中央，平時待機，有目標靠近才啟動；摧毀它就完成任務
     enemies.push({ boss: true, B, id: 'jupiter', defJup: true, x: DEF.jupiter.x, y: DEF.jupiter.y, r: B.radius, hp: B.hp, maxHp: B.hp, ammo: B.magazine, reloadT: 0, magsDone: 0, special: null, cool: 0.8, angle: 0,
       touchCd: 0, debuffT: 0, faceLeft: true, aiming: false, shot: 0, phase: 0 }); }
+  { const T = scaleStats(SCORP, { hp: DEF.sentry.hpMul });   // 據點四個角落的蠍甲獸守軍
+    for (const [dx, dy] of DEF.sentry.posts) { const x = DEF.jupiter.x + dx, y = DEF.jupiter.y + dy;
+      enemies.push({ T, x, y, r: T.radius, hp: T.hp, ammo: T.magazine, angle: 0, cool: rand(1, 1.6), touchCd: 0, def: cfg, shot: 0, moving: false, phase: rand(0, 6), orbitA: 0, off: rand(-0.8, 0.8), kvx: 0, kvy: 0, faceLeft: dx > 0, sentry: { x, y } }); } }
   $('defBlock').hidden = false; $('defBoard').hidden = true; $('defRev').hidden = true; $('specBanner').hidden = true; updDefHud(); updateSwap();
 }
 function updDefHud() { $('battNum').textContent = defState.batt; $('coreNum').textContent = defState.cores; $('ctrlNum').textContent = Math.ceil(defState.ctrl); }
@@ -6335,6 +6344,12 @@ function defHitCtrl(dmg) {
 function defTick(dt) {
   const S = defState; if (!S) return;
   if (S.lost) { endGame(false); return; }
+  S.medT = (S.medT || 0) + dt;   // 基地醫療包
+  if (S.medT >= DEF.medEvery) {
+    const has = medkits.filter((m) => m.base);
+    if (has.length < DEF.medMax) { S.medT = 0; const sp = DEF.medSpots.find((q) => !has.some((m) => m.spot === q)); const pt = nightSpot(sp.x, sp.y, 14); medkits.push({ x: pt.x, y: pt.y, ph: rand(0, 6), base: true, spot: sp }); burst(pt.x, pt.y, '#7dff9a', 10); }
+    else S.medT = DEF.medEvery;
+  }
   if (S.winT != null) { S.winT -= dt; if (S.winT <= 0) { S.winT = null; endGame(true); return; } }
   { const j = enemies.find((x) => x.defJup), near = j && j.jMode && j.jMode !== 'off' && Math.hypot(j.x - player.x, j.y - player.y) < 1300;   // 木星砲啟動後，靠近時顯示上方血條
     if (near) { const b0 = boss; boss = j; $('bossName').textContent = j.B.name; $('bossBar').hidden = false; updateBossBar(); boss = b0; } else if (!boss) $('bossBar').hidden = true; }
@@ -6490,10 +6505,21 @@ function defJobGoal(f, tgt, goal) {
     if (Math.hypot(f.x - P.x, f.y - P.y) < 30) { if (f.pi + f.pd < 0 || f.pi + f.pd >= W.length) f.pd = -f.pd; f.pi += f.pd; P = W[f.pi]; }
     return { x: P.x, y: P.y };
   }
+  // 外出蒐集：每 2 秒確認一次自己的狀態，血量 < 50% 或離基地太遠就先回基地（血少時順便拿基地的醫療包），之後再出去
+  if (gameTime >= (f.chkT || 0)) { f.chkT = gameTime + 2; if (!f.goHome && (f.hp < f.maxHp * 0.5 || Math.hypot(f.x - DEF.home.x, f.y - DEF.home.y) > DEF.farR)) { f.goHome = true; f.restUntil = null; f.goalItem = null; floatText(f.x, f.y - 56, f.def.name + '：返回基地', '#ffe9b8'); } }
+  if (f.goHome) {
+    if (!inBase(f)) return tgt && Math.hypot(tgt.x - f.x, tgt.y - f.y) < 200 ? goal : { x: DEF.home.x, y: DEF.home.y };
+    if (f.restUntil == null) f.restUntil = gameTime + (f.hp < f.maxHp * 0.5 ? 30 : 0);   // 血少：在基地最多等 30 秒醫療包
+    const med = f.hp < f.maxHp * 0.5 ? medkits.filter((m) => m.base).sort((a, b) => Math.hypot(a.x - f.x, a.y - f.y) - Math.hypot(b.x - f.x, b.y - f.y))[0] : null;
+    if (med) return { x: med.x, y: med.y, item: true };
+    if (f.hp >= f.maxHp * 0.5 || gameTime >= f.restUntil) { f.goHome = false; f.wander = null; }
+    else return { x: DEF.home.x, y: DEF.home.y + 60 };
+  }
   if (tgt && Math.hypot(tgt.x - f.x, tgt.y - f.y) < 280) return goal;
   let best = null, bd = 2600;
   for (const it of [...parts, ...defCores]) {
     if (clones.some((c) => c !== f && c.job === 'collect' && c.goalItem === it)) continue;
+    if (Math.hypot(it.x - DEF.home.x, it.y - DEF.home.y) > DEF.farR - 150) continue;   // 太遠的不去撿（免得撿完又要回頭）
     const d = Math.hypot(it.x - f.x, it.y - f.y) * (defCores.includes(it) ? 0.6 : 1); if (d < bd) { bd = d; best = it; }
   }
   f.goalItem = best;
@@ -6507,6 +6533,14 @@ function defJobGoal(f, tgt, goal) {
 // 沒有能打的目標：在基地外就走向左右出入口；進到基地裡就攻擊控制室
 function defEnemyTarget(e) {
   const lr = (e.boss ? e.B.lockRange : e.T.lockRange) || 200;
+  if (e.sentry) {   // 據點守軍：只打進到警戒範圍（以崗位為中心）的人形，沒有目標就回崗位待命
+    const Q = e.sentry; let best = null, bd = Infinity;
+    for (const u of [player, ...nightAllies()]) { if (u.hp <= 0 || u.defDown || Math.hypot(u.x - Q.x, u.y - Q.y) > DEF.sentry.alert) continue; const d = Math.hypot(u.x - e.x, u.y - e.y); if (d < bd) { bd = d; best = u; } }
+    e.sentryIdle = false;
+    if (best) { e.ntg = best; return best; }
+    const P = e.wp || (e.wp = { r: 14, hp: 1, maxHp: 1, invT: 99, fake: true, effects: [], def: cfg, vx: 0, vy: 0, clone: true }), d = Math.hypot(Q.x - e.x, Q.y - e.y) || 1;
+    P.ctrl = false; e.sentryIdle = d < 40; P.x = e.x + (Q.x - e.x) / d * (lr + 70); P.y = e.y + (Q.y - e.y) / d * (lr + 70); e.ntg = P; return P;
+  }
   const eIn = inBase(e) || nearGate(e), R = e.dGoal === 'hunt' ? Infinity : Math.max(DEF.detect, lr + 150);
   let best = null, bd = Infinity;
   for (const u of [player, ...nightAllies()]) {
@@ -11109,6 +11143,7 @@ function update(dt) {
     try {
     const e = enemies[i], toward = Math.atan2(player.y - e.y, player.x - e.x), dist = Math.hypot(player.x - e.x, player.y - e.y);
     if (e.fighter || e.guard) continue;   // 對戰模式的人形 AI 另外更新（vsUpdate）
+    if (e.sentryIdle) { e.moving = false; e.aiming = false; e.phase = (e.phase || 0) + dt; continue; }   // 滅星行動：據點守軍在崗位待命
     const nb0 = bullets.length, nm0 = missiles.length, nh0 = homers.length, ns0 = shockWaves.length;   // 開火音效用：更新前的數量
     if (e.atkDownT > 0) e.atkDownT = Math.max(0, e.atkDownT - dt);
     atkMulNow = e.atkDownT > 0 ? 1 - e.atkDownPct : 1;   // 埃癸斯之盾：攻擊 −50%
@@ -11344,7 +11379,7 @@ function update(dt) {
   // 醫療箱：定時出現；靠近就撿起回血
   if (phase && phase.medkitEvery) {
     medClock += dt;
-    if (medClock > phase.medkitEvery && medkits.length < (phase.medkitMax || 3)) {
+    if (medClock > phase.medkitEvery && medkits.filter((m) => !m.base).length < (phase.medkitMax || 3)) {   // 基地生產的醫療包不算在上限裡
       medClock = 0;
       const a = rand(0, Math.PI * 2), d = rand(PARTS.minDist, PARTS.maxDist);
       const p0 = pointInArena(player.x + Math.cos(a) * d, player.y + Math.sin(a) * d), pt = nightSpot(p0.x, p0.y, 14);   // Boss 戰：生成在圍欄內
@@ -11366,7 +11401,7 @@ function update(dt) {
           floatText(m.x, m.y - 20, '生命 +' + Math.round(heal), '#7dff9a');
         }
         burst(m.x, m.y, '#7dff9a', 10); sfx.reload();
-      } else if (d > 1600) medkits.splice(i, 1);
+      } else if (d > 1600 && !m.base) medkits.splice(i, 1);
     }
   }
   updateClones(dt); if (isNight()) nightTick(dt);
