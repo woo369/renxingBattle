@@ -2477,9 +2477,9 @@ const DEF_T2 = [defT(DINO, 12), defT(JAGUAR, 8), defT(WASP, 12), defT(RIPPER, 10
 const DEF_SC3 = { dino: { hp: 2, evade: 2 }, jaguar: { lock: 1.5 }, wasp: { hp: 1.5, dmg: 1.5 }, ripper: { hp: 1.6, evade: 2 }, beast: { evade: 2 }, lion: { hp: 1.4, dmg: 1.5 },
   striker: { lock: 1.1, dmg: 1.2 }, guard: { hp: 1.25 }, jaeg: { dmg: 1.2 }, dragoon: { hp: 1.2, evade: 1.1 } };
 const defT3 = (T, w) => ({ T, w, sc: DEF_SC3[T.sprite] });
-const DEF_T3 = [defT3(DINO, 9), defT3(JAGUAR, 6), defT3(WASP, 9), defT3(RIPPER, 8), defT3(BEAST, 8), defT3(LION, 6),   // 一階 46%
-  defT3(STRIKER, 8), defT3(JAEG, 8), defT3(DRAGOON, 8), defT3(GUARD, 7),                                                // 二階 31%
-  { T: GOLIATH, w: 13 }, { T: SCORP, w: 5 }, { T: GFAC, w: 5 }];                                                         // 三階 23%（蠍甲獸、歌利亞工廠各 5%）
+const DEF_T3 = [defT3(DINO, 11), defT3(JAGUAR, 7), defT3(WASP, 11), defT3(RIPPER, 9), defT3(BEAST, 9), defT3(LION, 7),   // 一階 54%
+  defT3(STRIKER, 9), defT3(JAEG, 10), defT3(DRAGOON, 9), defT3(GUARD, 8),                                                 // 二階 36%
+  { T: SCORP, w: 5 }, { T: GFAC, w: 5 }];                                                                                 // 三階 10%（蠍甲獸、歌利亞工廠各 5%；歌利亞不單獨出現，只由工廠生產）
 // 兵團：數隻一組一起出現、一起行動（成員不算在最大敵人數裡；移動速度以最慢的成員為準，不會走散）
 const DEF_LEGIONS = [
   { name: '遠程打擊團', w: 25, list: [[JAGUAR, 3], [JAEG, 2]] },
@@ -2497,6 +2497,7 @@ const LEVEL_PHASES = { defense: DEFENSE_PHASES, night: NIGHT_PHASES, war: WAR_PH
 const levelPhases = () => LEVEL_PHASES[selectedLevel] || null;
 let phase = null, phaseIdx = 0, phaseStart = 0, spawnIdx = 0;   // 目前階段、階段開始時間、輪到第幾種敵人
 const phaseClock = () => gameTime - phaseStart;
+let defPaused = false, defPauseT = 0;   // 滅星行動：精英在場時暫停時間軸（累計暫停秒數）
 
 /* ───────── 戰局：100×100 格的大地圖 ─────────
    一格 110（跟地面格線一樣）→ 地圖 27500×27500，中心是 (0,0)。整張地圖對中心點對稱（雙方公平）：
@@ -6423,6 +6424,7 @@ const defEv = (u) => (isDef() && u && inBase(u) ? DEF.baseEv : 0);   // 基地�
 const revCost = (u) => (u.eliteAI || u.level === 'elite' ? DEF.revCostGold : DEF.revCost);   // 復活：一般 2 核心、王牌（精銳 AI）3 核心
 const DEF_JOBS = [['guard', '駐守基地'], ['follow', '跟隨玩家'], ['collect', '外出蒐集']];
 function defBegin() {
+  defPaused = false; defPauseT = 0;
   $('defFeed').textContent = '';
   defState = { prodT: 0, lv: 0, batt: 0, cores: 0, itemT: 0, enh: 0, ctrl: DEF.ctrlHp, autoRev: false }; defCores = []; defDead = []; defSpec = null;
   player.x = 0; player.y = DEF.yb + 150; player.defDown = false;
@@ -6481,7 +6483,7 @@ function defTick(dt) {
     ids.forEach((id, k) => { const B = BOSSES[id], p = nightSpot(rand(1000, 1300), DEF.yb + (k ? 380 : -120) + rand(-80, 80), B.radius || 30);
       enemies.push({ boss: true, B, id, defElite: true, x: p.x, y: p.y, r: B.radius, hp: B.hp, maxHp: B.hp, ammo: B.magazine, reloadT: 0, magsDone: 0, special: null, cool: 0.8, barrel: 0, angle: 0, strafe: 1, strafeT: 0, jinkT: 0, jx: 0, jy: 0, vx: 0, vy: 0,
         touchCd: 0, debuffT: 0, faceLeft: true, aiming: false, shot: 0, phase: 0 }); burst(p.x, p.y, '#ff6b6b', 16); });
-    defNotice('鐵血工造的精英出現在基地東側：' + ids.map((id) => BOSSES[id].name).join('、'), '#ff6b6b');
+    defNotice('鐵血工造的精英出現在基地東側：' + ids.map((id) => BOSSES[id].name).join('、') + '。時間暫停，擊敗精英才會繼續', '#ff6b6b');
   }
   if (phase && phase.legion) {   // 兵團
     const Lg = phase.legion, alive = new Set(enemies.filter((x) => x.legion).map((x) => x.legion));
@@ -11343,7 +11345,7 @@ function killEnemy(e) {
     enemies.splice(i, 1); score += 2000; if (e === boss) { boss = null; $('bossBar').hidden = true; } testPrimary();
     if (selectedLevel === 'war' || selectedLevel === 'night' || selectedLevel === 'duel') bgmBossDown();   // Boss 音樂淡出
     if (isDef() && e.B.ai === 'jupiter' && defState) { defState.winT = 1.8; floatText(e.x, e.y - 90, '木星砲已摧毀', '#f9cf70'); }   // 滅星行動：摧毀木星砲＝任務完成
-    else if (!(phase && phase.test)) phaseAdvT = 1e-6;   // 先排好進入下一階段（後面的特效、獎勵就算出錯也不會卡關）
+    else if (!(phase && phase.test) && !e.defElite) phaseAdvT = 1e-6;   // 先排好進入下一階段（滅星行動的精英被擊敗不換時段，只解除時間暫停）（後面的特效、獎勵就算出錯也不會卡關）
     $('score').textContent = score;
     burst(e.x, e.y, '#ff6b6b', 40); burst(e.x, e.y, '#f9cf70', 30); floatText(e.x, e.y - 60, '擊敗 ' + e.B.name + '！ +2000', '#f9cf70'); sfx.boom(); shake = 10;
     for (const d of enemies.filter((x) => x.owner === e)) { burst(d.x, d.y, '#ffb36b', 10); enemies.splice(enemies.indexOf(d), 1); }
@@ -11572,6 +11574,9 @@ function update(dt) {
     if (shootPlayer()) { player.cool = cfg.weapon.cooldown / (1 + effSum(player, 'rate')); player.shot = player.shotMax = cfg.weapon.anim; } else player.cool = 0.12;
   }
 
+  // 滅星行動：場上有精英時時間軸暫停（時段計時、任務剩餘時間都停住），擊敗精英才繼續
+  defPaused = !!(phase && phase.defense && enemies.some((x) => x.defElite && x.hp > 0));
+  if (defPaused) { phaseStart += dt; defPauseT += dt; }
   // 敵人生成（隨時間變快）
   spawnClock += dt;
   const every = phase && !phase.spawn ? Infinity : phase ? Math.max(phase.spawn.min, phase.spawn.every - phaseClock() / phase.end * (phase.spawn.every - phase.spawn.min))
@@ -11589,7 +11594,7 @@ function update(dt) {
       else if (phase.defense) { endGame(false); return; }   // 滅星行動：16 分鐘到了還沒摧毀木星砲＝任務失敗
       else { endGame(true); return; }
     }
-    if (phase.defense) { const t = Math.max(0, DEF.time - gameTime); $('phaseTime').textContent = Math.floor(t / 60) + ':' + String(Math.floor(t % 60)).padStart(2, '0'); }   // 滅星行動：顯示任務剩餘時間
+    if (phase.defense) { const t = Math.max(0, DEF.time - (gameTime - defPauseT)); $('phaseName').textContent = defPaused ? '擊敗精英以繼續' : phase.name; $('phaseTime').textContent = Math.floor(t / 60) + ':' + String(Math.floor(t % 60)).padStart(2, '0'); }   // 滅星行動：顯示任務剩餘時間
     if (boss) { $('phaseTime').textContent = 'BOSS'; }
     // 保險：Boss 生命歸零卻沒被結算、或 Boss 已經不在場上卻沒排進下一階段 → 補上
     for (const e of enemies.filter((x) => x.boss && x.hp <= 0)) killEnemy(e);
