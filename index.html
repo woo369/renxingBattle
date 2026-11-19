@@ -2710,6 +2710,10 @@ function mapSolidAt(x, y, r, bullet) {
 }
 // 視線：兩點之間有沒有被山、房屋或樹林擋住（之後 7 打 7 的 AI 會用到）
 function losBlocked(ax, ay, bx, by) {
+  if (isDef()) {   // 滅星行動：基地北面的厚牆擋住視線（牆內外互相看不到）
+    const wy = DEF.yb - 30;
+    if ((ay - wy) * (by - wy) < 0) { const t = (wy - ay) / (by - ay), x = ax + (bx - ax) * t; if (Math.abs(x) < (DEF.x1 - DEF.x0) / 2 + 20) return true; }
+  }
   const d = Math.hypot(bx - ax, by - ay), n = Math.ceil(d / 60);
   for (let i = 1; i < n; i++) {
     const x = ax + (bx - ax) * i / n, y = ay + (by - ay) * i / n;
@@ -6675,9 +6679,9 @@ function defJobGoal(f, tgt, goal) {
   if (f.job === 'guard') {   // 駐守：在左右兩個出口之間來回巡邏，有敵人靠近就在營區裡迎戰
     const W = DEF.patrol;
     if (f.pi == null) { f.pi = f.post ? W.length - 1 : 0; f.pd = f.post ? -1 : 1; }
-    if (tgt && Math.hypot(tgt.x - f.x, tgt.y - f.y) < 460 && (inBase(tgt) || nearGate(tgt))) return goal && inBase(goal) ? goal : { x: f.x, y: f.y };
+    if (tgt && Math.hypot(tgt.x - f.x, tgt.y - f.y) <= vsRange(f.def) * 1.05 && !losBlocked(f.x, f.y, tgt.x, tgt.y) && (inBase(tgt) || nearGate(tgt))) return goal && inBase(goal) ? goal : { x: f.x, y: f.y };   // 敵人進到射程（且看得到）才停下迎戰，否則繼續巡邏
     let P = W[f.pi];
-    if (Math.hypot(f.x - P.x, f.y - P.y) < 30) { if (f.pi + f.pd < 0 || f.pi + f.pd >= W.length) f.pd = -f.pd; f.pi += f.pd; P = W[f.pi]; }
+    if (Math.hypot(f.x - P.x, f.y - P.y) < 70) { if (f.pi + f.pd < 0 || f.pi + f.pd >= W.length) f.pd = -f.pd; f.pi += f.pd; P = W[f.pi]; }
     return { x: P.x, y: P.y };
   }
   // 外出蒐集：每 2 秒確認一次自己的狀態，血量 < 50% 或離基地太遠就先回基地（血少時順便拿基地的醫療包），之後再出去
@@ -11591,6 +11595,7 @@ function update(dt) {
         if (packReady[pid]) spawnBoss(bid);
         else { ensurePack(pid).catch(() => {}); $('phaseTime').textContent = '載入中'; }   // 素材還沒下載完：稍等再出場
       } else if (phase.prep) { if (!phaseAdvT) phaseAdvT = 1e-6; }   // 夜戰準備階段：時間到直接進下一階段
+      else if (phase.defense && levelPhases()[phaseIdx + 1]) { if (!phaseAdvT) phaseAdvT = 1e-6; }   // 滅星行動：時段結束 → 進入下一時段
       else if (phase.defense) { endGame(false); return; }   // 滅星行動：16 分鐘到了還沒摧毀木星砲＝任務失敗
       else { endGame(true); return; }
     }
