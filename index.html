@@ -438,7 +438,8 @@ body.touch #testPanel{max-height:38vh}   /* 手機：不要擋到左下的移動
 </div>
 
 <button id="boardBtn" type="button" hidden title="佈告欄（B）">佈告欄<small class="only-mouse">B</small></button>
-<div id="defBoard" class="def-panel" hidden><h3>佈告欄</h3><div class="sub">安排 AI 隊友的工作（真人玩家不受影響）。駐守基地：守在左右出入口的掩體；跟隨玩家：跟著你行動；外出蒐集：到基地外撿零件和核心。</div><div id="defJobs"></div><div class="def-row" id="defMechRow" hidden><span id="defMechTxt"></span><button id="defMech1" type="button">操作一台（20 電池）</button><button id="defMech2" type="button">兩台一起（40 電池）</button></div><div class="def-row"><span id="defUpTxt"></span><button id="defUpBtn" type="button">升級基地（5 核心）</button></div><div class="def-row"><button id="defBoardClose" type="button">關閉（B）</button></div></div>
+<div id="defBoard" class="def-panel" hidden><h3>佈告欄</h3><div class="sub">安排 AI 隊友的工作（真人玩家不受影響）。駐守基地：守在左右出入口的掩體；跟隨玩家：跟著你行動；外出蒐集：到基地外撿零件和核心。</div><div id="defJobs"></div><div class="def-row"><span id="defUpTxt"></span><button id="defUpBtn" type="button">升級基地（5 核心）</button></div><div class="def-row"><button id="defBoardClose" type="button">關閉（B）</button></div></div>
+<div id="defNet" class="def-panel" hidden><h3>網路控制室</h3><div class="sub">最終時段可以花電池遠端連線東北方廢棄基地的九頭蛇。操作時本人會留在控制室。</div><div class="def-row" id="defMechRow"><span id="defMechTxt"></span><button id="defMech1" type="button">操作一台（20 電池）</button><button id="defMech2" type="button">兩台一起（40 電池）</button></div><div class="def-row"><button id="defNetClose" type="button">關閉（B）</button></div></div>
 <div id="defRev" class="def-panel" hidden><h3>復活台</h3><div class="sub">倒下 10 秒後可以花核心復活：一般 2 核心、王牌（精銳 AI）3 核心。打開「自動復活 AI」後，有 AI 倒下時其他 AI 會自己來這裡幫忙復活。</div><div id="defRevList"></div><div class="def-row"><span id="defRevTxt" class="sub"></span></div><div class="def-row"><button id="defAutoBtn" type="button">自動復活 AI：關</button><button id="defRevClose" type="button">關閉（B）</button></div></div>
 <div id="specBanner" hidden></div><div id="defFeed"></div>
 <div id="defPick" class="def-panel" hidden><h3>滅星行動：挑選 4 名 AI 隊友</h3><div class="sub" id="defPickTxt"></div><div id="defPickGrid"></div><div class="def-row"><button id="defPickRand" type="button">隨機挑選</button><button id="defPickGo" type="button">出擊</button><button id="defPickCancel" type="button">取消</button></div></div>
@@ -6219,7 +6220,7 @@ function beginGame() {
   mapOpen = false;
   if (bigMap()) { const b = MAPGEN.bases[0]; player.x = b.x; player.y = b.y; cam = { x: b.x, y: b.y }; parts = []; chunks.clear(); coverCache = null; stream(); resetCapture(); }   // 戰局：從藍方基地出發
   if (phase && phase.versus) vsBegin();
-  if (isDef()) defBegin(); else { $('defBlock').hidden = true; $('defModem').hidden = true; $('boardBtn').hidden = true; $('defBoard').hidden = true; $('defRev').hidden = true; $('specBanner').hidden = true; }   // 對戰：建立雙方隊伍（玩家在自己隊伍的大本營出發）
+  if (isDef()) defBegin(); else { $('defBlock').hidden = true; $('defModem').hidden = true; $('boardBtn').hidden = true; $('defBoard').hidden = true; $('defRev').hidden = true; $('defNet').hidden = true; $('specBanner').hidden = true; }   // 對戰：建立雙方隊伍（玩家在自己隊伍的大本營出發）
   $('score').textContent = '0'; refreshCharHud();
   setState('play'); last = performance.now();
   if (selectedLevel === 'war' || selectedLevel === 'night' || selectedLevel === 'defense') bgmStart('normal', 3); else if (selectedLevel === 'versus') bgmStart('normal', 5); else bgmStop(true);   // 背景音樂：亂序戰事從普通歌單抽 3 首、雲圖對戰抽 5 首（菁英對決只有 Boss 歌單）
@@ -6238,7 +6239,8 @@ const NIGHT = { teamMax: 3, inviteR: 150, spawnMin: 900, spawnMax: 1300, bgScale
 const visionOf = (u) => (isDef() && phase.day ? 3000 : u.def.weapon.class === 'HG' ? NIGHT_VISION.HG : nightOrder().some((c) => c.def.weapon.class === 'HG') ? NIGHT_VISION.withHG : NIGHT_VISION.other);
 const visionR = () => (isNight() && player ? visionOf(player) : Infinity);
 // 敵人有沒有被隊伍裡任何一名人形看到（看到的才能鎖定）
-const teamSees = (e) => !isNight() || nightOrder().some((u) => Math.hypot(e.x - u.x, e.y - u.y) <= visionOf(u)) || clones.some((c) => c.mech && Math.hypot(e.x - c.x, e.y - c.y) <= 440);
+const MECH_VISION = 900;   // 九頭蛇的夜戰視野
+const teamSees = (e) => !isNight() || (isDef() && Math.hypot(e.x, e.y - DEF.yb - 110) < 680) || nightOrder().some((u) => Math.hypot(e.x - u.x, e.y - u.y) <= visionOf(u)) || clones.some((c) => c.mech && Math.hypot(e.x - c.x, e.y - c.y) <= MECH_VISION);
 const NIGHT_HG_ACC = 0.2;   // 隊伍增益：隊伍裡每有一名手槍人形，全隊命中 +20%（抵銷敵人的迴避率，最低扣到 0）
 const nightAcc = () => (isNight() && !phase.day && player && (state === 'play' || state === 'pause') ? NIGHT_HG_ACC * nightOrder().filter((u) => u.def.weapon.class === 'HG').length : 0);
 const enhMul = (u) => Math.pow(NIGHT_ENH.mul, (u && u.enh) || 0);
@@ -6426,7 +6428,7 @@ const DEF = { bounds: { x0: -1800, x1: 6200, y0: -1700, y1: 1500 },   // 地圖�
   medEvery: 30, medMax: 3,         // 基地每 30 秒生產一個醫療包，基地裡最多 3 個（不佔地圖上的醫療包上限）
   farR: 2400,                      // 外出蒐集的 AI 離基地超過這個距離就先回基地
   yb: -100, R: 536, depth: 260, x0: -536, x1: 536, safe: 176, gap: 0.27,
-  board: { x: -220, y: -80 }, rev: { x: 292, y: -80 }, useR: 110,
+  board: { x: -220, y: -80 }, rev: { x: 292, y: -80 }, net: { x: -10, y: -85 }, useR: 110,   // net：網路控制室（中間的操作桌，最終時段在這裡連線九頭蛇）
   posts: [{ x: -440, y: -20 }, { x: 440, y: -20 }],            // 駐守點：左右出入口內側
   prodEvery: 30, prodParts: 3, prodBatt: 1, upCost: 5, upMul: 0.2, enhCost: 20, time: 960, ctrlHp: 1000, baseEv: 0.2,
   revWait: 10, revCost: 2, revCostGold: 3,
@@ -6520,7 +6522,7 @@ function defBegin() {
     for (const [dx, dy] of DEF.sentry.posts) { const x = DEF.jupiter.x + dx, y = DEF.jupiter.y + dy;
       enemies.push({ T, x, y, r: T.radius, hp: T.hp, ammo: T.magazine, angle: 0, cool: rand(1, 1.6), touchCd: 0, def: cfg, shot: 0, moving: false, phase: rand(0, 6), orbitA: 0, off: rand(-0.8, 0.8), kvx: 0, kvy: 0, faceLeft: dx > 0, sentry: { x, y } }); } }
   $('defBlock').hidden = false; $('defModem').hidden = false; $('hudScore').style.display = 'none'; $('partsBlock').hidden = true;   // 滅星行動：不顯示分數，原位置放數據機；零件、電池、核心放同一格
-  $('defBoard').hidden = true; $('defRev').hidden = true; $('specBanner').hidden = true; updDefHud(); updateSwap();
+  $('defBoard').hidden = true; $('defRev').hidden = true; $('defNet').hidden = true; $('specBanner').hidden = true; updDefHud(); updateSwap();
 }
 function updDefHud() { $('battNum').textContent = defState.batt; $('coreNum').textContent = defState.cores; $('ctrlNum').textContent = Math.ceil(defState.ctrl); }
 function defSpawnItem() {
@@ -6606,9 +6608,10 @@ function defTick(dt) {
     sb.textContent = '觀戰中：' + defSpec.def.name + '（F／G 切換）　' + (me && me.wait > 0 ? '等待 ' + Math.ceil(me.wait) + ' 秒後可復活' : S.cores >= revCost(player) ? '隊友正在前往復活台' : '核心不足（需要 ' + revCost(player) + ' 個）');
   } else $('specBanner').hidden = true;
   // 佈告欄／復活台：靠近才可以打開
-  const nb = !player.defDown && Math.hypot(player.x - DEF.board.x, player.y - DEF.board.y) < DEF.useR, nr = !player.defDown && Math.hypot(player.x - DEF.rev.x, player.y - DEF.rev.y) < DEF.useR;
-  $('boardBtn').hidden = !(nb || nr); if (nb || nr) $('boardBtn').firstChild.textContent = nb ? '佈告欄' : '復活台';
-  if (!nb) $('defBoard').hidden = true; if (!nr) $('defRev').hidden = true;
+  const nb = !player.defDown && Math.hypot(player.x - DEF.board.x, player.y - DEF.board.y) < DEF.useR, nr = !player.defDown && Math.hypot(player.x - DEF.rev.x, player.y - DEF.rev.y) < DEF.useR, nn = !player.defDown && !defPilot && Math.hypot(player.x - DEF.net.x, player.y - DEF.net.y) < DEF.useR;
+  $('boardBtn').hidden = !(nb || nr || nn); if (nb || nr || nn) $('boardBtn').firstChild.textContent = nb ? '佈告欄' : nn ? '網路控制室' : '復活台';
+  if (!nb) $('defBoard').hidden = true; if (!nr) $('defRev').hidden = true; if (!nn) $('defNet').hidden = true;
+  if (!$('defNet').hidden) renderDefNet();
   if (!$('defBoard').hidden) renderDefBoard(false);
   if (!$('defRev').hidden) renderDefRev(false);
 }
@@ -6664,7 +6667,7 @@ function defMechStart(n) {
     burst(c.x, c.y - 30, '#7fd4ff', 20);
   });
   defNotice(n === 2 ? '兩台九頭蛇已連線：你操作其中一台，另一台會護衛你' : '九頭蛇已連線：你正在操作九頭蛇（本人留在控制室）', '#7fd4ff');
-  $('defBoard').hidden = true; updateHp(); sfx.skill();
+  $('defBoard').hidden = true; $('defNet').hidden = true; updateHp(); sfx.skill();
 }
 function mechTarget(c) {
   let best = null, bd = Infinity;
@@ -6792,7 +6795,7 @@ function defRevive(d) {
   burst(u.x, u.y, '#7fd4ff', 20); floatText(u.x, u.y - 60, u.def.name + ' 復活（核心 −' + cost + '）', '#7fd4ff'); defNotice(u.def.name + ' 已在復活台復活', '#7fd4ff'); sfx.skill(); updateSwap();
   return true;
 }
-function openDefPanel() { if (Math.hypot(player.x - DEF.board.x, player.y - DEF.board.y) < DEF.useR) { $('defBoard').hidden = false; renderDefBoard(true); } else { $('defRev').hidden = false; renderDefRev(true); } }
+function openDefPanel() { if (Math.hypot(player.x - DEF.board.x, player.y - DEF.board.y) < DEF.useR) { $('defBoard').hidden = false; renderDefBoard(true); } else if (Math.hypot(player.x - DEF.net.x, player.y - DEF.net.y) < DEF.useR) { $('defNet').hidden = false; renderDefNet(); } else { $('defRev').hidden = false; renderDefRev(true); } }
 function openDefBoard() { openDefPanel(); }
 function renderDefRev(full) {
   const S = defState, box = $('defRevList');
@@ -6810,12 +6813,13 @@ function renderDefRev(full) {
   $('defAutoBtn').textContent = '自動復活 AI：' + (S.autoRev ? '開' : '關'); $('defAutoBtn').className = S.autoRev ? 'on' : '';
   $('defRevTxt').textContent = '核心 ' + S.cores + '　（玩家倒下時，AI 一定會去復活玩家）';
 }
+function renderDefNet() {   // 網路控制室：最終時段可以連線九頭蛇
+  const S = defState, on = phase && phase.mechs, idle = defMechs.filter((m) => m.parked).length;
+  $('defMechTxt').textContent = !on ? '最終時段（10:00）才能連線' : defPilot ? '正在操作九頭蛇' : '九頭蛇連線（可用 ' + idle + ' 台，電池 ' + S.batt + '）';
+  $('defMech1').disabled = !on || !!defPilot || idle < 1 || S.batt < DEF.mechCost; $('defMech2').disabled = !on || !!defPilot || idle < 2 || S.batt < DEF.mechCost * 2;
+}
 function renderDefBoard(full) {
   const S = defState, A = nightAllies(), box = $('defJobs');
-  { const on = phase && phase.mechs, idle = defMechs.filter((m) => m.parked).length;   // 最終時段：網路控制室可以連線九頭蛇
-    $('defMechRow').hidden = !on;
-    if (on) { $('defMechTxt').textContent = defPilot ? '正在操作九頭蛇' : '九頭蛇連線（可用 ' + idle + ' 台）';
-      $('defMech1').disabled = !!defPilot || idle < 1 || S.batt < DEF.mechCost; $('defMech2').disabled = !!defPilot || idle < 2 || S.batt < DEF.mechCost * 2; } }
   const D = defDead.filter((d) => !d.isP);
   const key = A.map((c) => c.def.id + c.job).join() + '|' + D.map((d) => d.u.def.id + Math.ceil(d.wait)).join() + S.cores + S.lv;
   if (!full && box.dataset.k === key) return; box.dataset.k = key;
@@ -7013,7 +7017,7 @@ function drawDefBase() {
   const S0 = DEF.safe, D0 = DEF.depth;
   ctx.fillStyle = '#3d4046'; defPoly([[-S0, yb], [S0, yb], [S0, yb + D0], [-S0, yb + D0]]); ctx.closePath(); ctx.fill();   // 網路操作站的地板
   ctx.strokeStyle = 'rgba(249,207,112,0.55)'; ctx.setLineDash([10, 8]); ctx.lineWidth = 2; defPoly([[-S0, yb], [-S0, yb + D0], [S0, yb + D0], [S0, yb]]); ctx.stroke(); ctx.setLineDash([]);
-  for (const [P, col] of [[DEF.board, '249,207,112'], [DEF.rev, '127,212,255']]) {
+  for (const [P, col] of [[DEF.board, '249,207,112'], [DEF.rev, '127,212,255'], [DEF.net, '127,255,190']]) {
     const near = !player.defDown && Math.hypot(player.x - P.x, player.y - P.y) < DEF.useR, c = [];
     for (let i = 0; i <= 24; i++) { const a = Math.PI * 2 * i / 24; c.push([P.x + Math.cos(a) * 34, P.y + Math.sin(a) * 34]); }
     ctx.strokeStyle = 'rgba(' + col + ',' + (near ? 0.9 : 0.3 + 0.2 * Math.sin(gameTime * 3)) + ')'; ctx.lineWidth = 2; defPoly(c); ctx.stroke();
@@ -7021,7 +7025,7 @@ function drawDefBase() {
   const yI = yb + DEF.imgFloor / VIEW3D.squash;   // 圖裡畫的地板對齊世界的地板後半段
   if (im) { const q = proj(0, yI); upright(q, 0, yI); ctx.imageSmoothingEnabled = true; ctx.imageSmoothingQuality = 'high'; const h = w * im.height / im.width; ctx.drawImage(im, x0, yI - h, w, h); ctx.setTransform(DPR, 0, 0, DPR, 0, 0); }
   ctx.font = '800 13px sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-  for (const [P, name, col] of [[DEF.board, '佈告欄', '#ffe2a0'], [DEF.rev, '復活台', '#bfeaff']]) {
+  for (const [P, name, col] of [[DEF.board, '佈告欄', '#ffe2a0'], [DEF.rev, '復活台', '#bfeaff'], [DEF.net, '網路控制室', '#bfffd8']]) {
     const near = !player.defDown && Math.hypot(player.x - P.x, player.y - P.y) < DEF.useR;
     upright(proj(P.x, P.y), P.x, P.y); ctx.fillStyle = col; ctx.fillText(name + (near ? '（B）' : ''), P.x, P.y - 70 + Math.sin(gameTime * 3) * 3); ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
   }
@@ -7199,8 +7203,9 @@ function drawNightDark() {
     g.fillStyle = gr; g.beginPath(); g.ellipse(q.x, q.y, r, r * VIEW3D.squash, 0, 0, Math.PI * 2); g.fill();
   };
   if (!vsDead()) light(player.x, player.y - 10, visionR() * 1.12);
-  for (const c of clones) light(c.x, c.y - 10, c.mech ? 460 : c.nightAlly ? visionOf(c) * 1.12 : 85, c.nightAlly || c.mech ? 1 : 0.85);   // 隊友各自的視野也會揭開黑霧
+  for (const c of clones) light(c.x, c.y - 10, c.mech ? MECH_VISION * 1.05 : c.nightAlly ? visionOf(c) * 1.12 : 85, c.nightAlly || c.mech ? 1 : 0.85);   // 隊友各自的視野也會揭開黑霧
   if (station && station.ready) light(station.x, station.y - 40, 190, 0.95);
+  if (isDef()) { light(0, DEF.yb + 110, 760, 0.97); for (const P of DEF.posts) light(P.x, P.y + 20, 260, 0.9); }   // 滅星行動：基地的燈光照亮整個營區
   for (const it of commItems) light(it.x, it.y, 60, 0.9);
   for (const it of parts) light(it.x, it.y, 34, 0.7);
   for (const it of medkits) light(it.x, it.y, 34, 0.7);
@@ -7320,7 +7325,7 @@ window.addEventListener('keydown', (e) => {
   if (e.code === 'KeyZ' && state === 'play' && !$('invitePanel').hidden) nightInvite(true);   // 夜戰：Z 邀請加入
   if (e.code === 'KeyX' && state === 'play' && !$('invitePanel').hidden) nightInvite(false);
   if (e.code === 'KeyC' && state === 'play' && !$('commBtn').hidden) nightUseComm();
-  if (e.code === 'KeyB' && state === 'play' && isDef()) { if (!$('defBoard').hidden || !$('defRev').hidden) { $('defBoard').hidden = true; $('defRev').hidden = true; } else if (!$('boardBtn').hidden) openDefPanel(); }   // 滅星行動：B 開關佈告欄
+  if (e.code === 'KeyB' && state === 'play' && isDef()) { if (!$('defBoard').hidden || !$('defRev').hidden || !$('defNet').hidden) { $('defBoard').hidden = true; $('defRev').hidden = true; $('defNet').hidden = true; } else if (!$('boardBtn').hidden) openDefPanel(); }   // 滅星行動：B 開關佈告欄
   if (e.code === 'KeyG' && state === 'play' && isNight()) nightSwapNext(-1);   // 夜戰：G 切換上一個人形
   if (e.code === 'KeyE' && state === 'play' && !$('expandBtn').hidden) expandEchelon();   // 擴編（電腦版）
   if (e.code === 'KeyF' && state === 'play') swapChar(false);   // 切換主／副角色
@@ -7422,6 +7427,7 @@ $('skillBtn').addEventListener('click', () => useSkill());
 $('startBtn').addEventListener('click', startGame);
 $('boardBtn').addEventListener('click', () => { if (state === 'play') openDefPanel(); });
 $('defBoardClose').addEventListener('click', () => { $('defBoard').hidden = true; });
+$('defNetClose').addEventListener('click', () => { $('defNet').hidden = true; });
 $('defRevClose').addEventListener('click', () => { $('defRev').hidden = true; });
 $('defAutoBtn').addEventListener('click', () => { if (!defState) return; defState.autoRev = !defState.autoRev; renderDefRev(true); });
 $('defUpBtn').addEventListener('click', defUpgrade);
