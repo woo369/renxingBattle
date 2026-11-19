@@ -128,9 +128,9 @@ h2{margin:0 0 8px;font-size:26px;font-weight:800}
 .row{display:flex;gap:10px;justify-content:center;flex-wrap:wrap}
 #defIntro{position:fixed;inset:0;z-index:40;background:#0a1824;overflow:hidden}
 #introCv{position:absolute;inset:0;width:100%;height:100%}
-#introCap{position:absolute;left:50%;bottom:calc(64px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);width:min(760px,calc(100% - 32px));padding:12px 18px;border-radius:12px;background:rgba(4,12,20,.78);border:1px solid rgba(160,210,225,.25);color:#e6f2f5;font-size:clamp(13px,1.9vw,16px);line-height:1.65;text-align:center;opacity:0;transition:opacity .45s}
-#introLoad{position:absolute;left:50%;bottom:calc(22px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);display:flex;align-items:center;gap:10px;color:#9fc3cc;font-size:12px}
-#introBar{width:min(320px,50vw);height:6px;border-radius:3px;background:rgba(255,255,255,.12);overflow:hidden}#introBar i{display:block;height:100%;width:0;background:#7fd4ff;transition:width .3s}
+#introCap{position:absolute;left:50%;bottom:calc(92px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);width:min(760px,calc(100% - 32px));padding:12px 18px;border-radius:12px;background:rgba(4,12,20,.78);border:1px solid rgba(160,210,225,.25);color:#e6f2f5;font-size:clamp(13px,1.9vw,16px);line-height:1.65;text-align:center;opacity:0;transition:opacity .45s}
+#introTip{position:absolute;left:50%;bottom:calc(14px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);margin:0;width:min(30em,calc(100% - 32px));background:rgba(11,34,48,.88)}
+#introWait{position:absolute;left:50%;top:42%;transform:translate(-50%,-50%);color:#9fc3cc;font-size:15px;letter-spacing:.1em}
 #introSkip{position:absolute;top:calc(14px + env(safe-area-inset-top,0px));right:calc(14px + env(safe-area-inset-right,0px));padding:7px 14px;border-radius:8px;border:1px solid rgba(255,255,255,.35);background:rgba(4,12,20,.6);color:#fff;font-size:13px;cursor:pointer}
 .def-help{text-align:left}.def-help h2{text-align:center}.def-help h4{margin:14px 0 4px;color:#7fd4ff;font-size:14px;letter-spacing:.05em}.def-help ul{margin:0;padding-left:1.3em;font-size:13px;line-height:1.6;color:#d6e4e8}.def-help li{margin:3px 0}.def-help b{color:#ffd28a}
 .help{margin:14px 0 0;font-size:13px;line-height:1.6;color:var(--muted)}
@@ -557,7 +557,7 @@ body.touch #testPanel{max-height:38vh}   /* 手機：不要擋到左下的移動
     <div class="row" style="margin-top:10px"><button id="defHelpBtn" class="btn" type="button" hidden>作戰說明</button></div>
   </div>
 </div>
-<div id="defIntro" hidden><canvas id="introCv"></canvas><div id="introCap"></div><div id="introLoad"><div id="introBar"><i></i></div><span id="introLoadTxt"></span></div><button id="introSkip" type="button">跳過 ▶</button></div>
+<div id="defIntro" hidden><canvas id="introCv"></canvas><div id="introCap"></div><div id="introWait">載入中…</div><div class="load-tip" id="introTip" hidden></div><button id="introSkip" type="button">跳過 ▶</button></div>
 <div id="defHelp" class="overlay" hidden>
   <div class="sheet def-help" style="max-width:560px">
     <h2>作戰說明</h2>
@@ -6085,7 +6085,7 @@ function showTip() {
   let i; do { i = Math.floor(Math.random() * TIPS.length); } while (TIPS.length > 1 && i === tipLast);
   tipLast = i;
   const [cid, text] = TIPS[i], def = CHARACTERS[cid];
-  for (const id of ['startTip', 'retryTip', 'selTip', 'codexTip', 'ecodexTip']) {
+  for (const id of ['startTip', 'retryTip', 'selTip', 'codexTip', 'ecodexTip', 'introTip']) {
     const box = $(id); if (!box) continue; box.textContent = '';
     const im = new Image(); im.alt = ''; if (def && previewOf(def)) im.src = previewOf(def); else im.hidden = true;
     const p = document.createElement('p'), sm = document.createElement('small'); sm.textContent = '人形小資訊';
@@ -6103,23 +6103,31 @@ function setLoadingTips(on, ids = ['startTip', 'retryTip']) {
 let gameLoading = false;
 /* ───────── 滅星行動：載入轉場 ─────────
    五名隊員（待機圖、白框）移動到多布羅加，那裡有木星砲；隊員拉出虛線遠端連線山區的九頭蛇，
-   九頭蛇開到木星砲旁邊開火，爆炸後把木星砲打叉。播放期間在背景載入素材，播完素材還沒好就停在最後一格顯示進度 */
+   九頭蛇開到木星砲旁邊開火，爆炸後把木星砲打叉。先載入動畫素材再播放；播放期間在背景載入其他素材，播完還沒好就停在最後一格（下方輪播人形小資訊） */
 let introRun = null;
-const INTRO_T = 11;
-function defIntroClose() { if (introRun) { introRun.dead = true; introRun = null; } $('defIntro').hidden = true; }
-function defIntroPlay(need, loadAll) {
+const INTRO_T = 19.5, INTRO_K = 1.65;   // 動畫總長 19.5 秒；畫面節奏放慢 1.65 倍，字幕才看得完
+function defIntroClose() { if (introRun) { introRun.dead = true; introRun = null; } if (!$('defIntro').hidden) setLoadingTips(false, ['introTip']); $('defIntro').hidden = true; }
+let introHeads = [];
+function defIntroOpen() {   // 打開轉場畫面（先顯示「載入中」與人形小資訊），回傳「動畫素材都準備好」的 Promise
   defIntroClose();
+  const ov = $('defIntro'); ov.hidden = false; $('introWait').hidden = false; $('introCap').style.opacity = 0; $('introSkip').hidden = true;
+  { const c = $('introCv'), g = c.getContext('2d'); g.setTransform(1, 0, 0, 1, 0, 0); g.fillStyle = '#0a1824'; g.fillRect(0, 0, c.width, c.height); }
+  setLoadingTips(true, ['introTip']);
+  const team = [selectedId, ...defSquad].slice(0, 5).map((id) => CHARACTERS[id]).filter(Boolean);
+  const decode = (src) => new Promise((res) => { const im = new Image(); im.onload = im.onerror = () => res(im); im.src = src || ''; if (!src) res(im); });
+  return Promise.all([ensurePack('intro'), ...[...new Set(team.map((d) => d.weapon.class))].map((c) => ensureClass(c).catch(() => {}))])
+    .then(() => Promise.all(team.map((d) => decode(previewOf(d))))).then((hs) => { introHeads = hs; $('introWait').hidden = true; });
+}
+function defIntroPlay(loadAll) {
   const R = introRun = { t0: 0, done: false, skip: false, dead: false, parts: [], booms: 0 };
   const ov = $('defIntro'), cv = $('introCv'), cap = $('introCap'), g = cv.getContext('2d');
-  ov.hidden = false; cap.style.opacity = 0; cap.textContent = '';
+  cap.style.opacity = 0; cap.textContent = '';
   const lv = LEVELS.find((l) => l.id === 'defense'), paras = lv.desc.split('\n');
   const team = [selectedId, ...defSquad].slice(0, 5).map((id) => CHARACTERS[id]).filter(Boolean);
-  const pic = (src) => { const im = new Image(); if (src) im.src = src; return im; };
-  const heads = team.map((d) => { const im = pic(previewOf(d)); if (!previewOf(d)) ensureClass(d.weapon.class).then(() => { im.src = previewOf(d) || ''; }).catch(() => {}); return im; });
+  const heads = introHeads;
   const box = () => imgs[packBox.intro] || {};
   let resolve; const p = new Promise((r) => { resolve = r; });
   let loaded = false; loadAll.then(() => { loaded = true; }, () => {});
-  ensurePack('intro').catch(() => {});
   $('introSkip').onclick = () => { R.skip = true; };
   const M = (lon, lat) => ({ x: (lon - 18) * 112.5, y: (49 - lat) * 159.1 });   // 經緯度 → 地圖圖片座標
   const BASE = M(27.8, 44.3), JUP = M(28.5, 44.72), HYD = M(28.05, 45.3);
@@ -6135,12 +6143,13 @@ function defIntroPlay(need, loadAll) {
   };
   const rr = (x, y, w, h, r) => { g.beginPath(); g.moveTo(x + r, y); g.arcTo(x + w, y, x + w, y + h, r); g.arcTo(x + w, y + h, x, y + h, r); g.arcTo(x, y + h, x, y, r); g.arcTo(x, y, x + w, y, r); g.closePath(); };
   const label = (txt, x, y, col, size) => { g.font = '800 ' + size + 'px sans-serif'; g.textAlign = 'center'; g.textBaseline = 'middle'; g.lineWidth = 4; g.strokeStyle = 'rgba(0,0,0,.7)'; g.strokeText(txt, x, y); g.fillStyle = col; g.fillText(txt, x, y); };
-  let capIdx = -1; const capAt = [0, 3, 6.4, 9.2];
-  let last = performance.now(), t = 0;
+  let capIdx = -1; const capAt = [0, 5, 10.4, 15];   // 每段字幕出現的時間（實際秒數）
+  let last = performance.now(), T = 0;
   function frame(now) {
     if (R.dead) return;
     const dt = Math.min(0.05, (now - last) / 1000); last = now;
-    if (R.skip) t = Math.max(t, INTRO_T); else t += dt;
+    if (R.skip) T = Math.max(T, INTRO_T); else T += dt;
+    const t = T / INTRO_K;   // 畫面用放慢後的時間
     const dpr = Math.min(2, window.devicePixelRatio || 1), W = innerWidth, H = innerHeight;
     if (cv.width !== Math.round(W * dpr) || cv.height !== Math.round(H * dpr)) { cv.width = Math.round(W * dpr); cv.height = Math.round(H * dpr); }
     g.setTransform(dpr, 0, 0, dpr, 0, 0); g.fillStyle = '#0a1824'; g.fillRect(0, 0, W, H);
@@ -6195,14 +6204,10 @@ function defIntroPlay(need, loadAll) {
     const ta = ease(seg(t, 9.6, 10.4));
     if (ta > 0) { g.globalAlpha = ta; label('滅星行動', W / 2, H * 0.12, '#ffffff', Math.round(Math.min(W, H) * 0.075)); g.globalAlpha = 1; }
     // 字幕（簡介的劇情）
-    let ci = 0; for (let i = 0; i < capAt.length; i++) if (t >= capAt[i]) ci = i;
+    let ci = 0; for (let i = 0; i < capAt.length; i++) if (T >= capAt[i]) ci = i;
     if (ci !== capIdx && paras[ci] != null) { capIdx = ci; cap.style.opacity = 0; setTimeout(() => { if (!R.dead) { cap.textContent = paras[ci]; cap.style.opacity = 1; } }, capIdx === 0 ? 0 : 250); }
-    // 載入進度
-    const n = need.filter((pid) => packReady[pid]).length;
-    $('introBar').firstChild.style.width = Math.round(n / Math.max(1, need.length) * 100) + '%';
-    $('introLoadTxt').textContent = loaded ? '載入完成' : '載入素材中… ' + n + ' / ' + need.length;
-    $('introSkip').hidden = t >= INTRO_T;
-    if (t >= INTRO_T && !R.done) { R.done = true; resolve(); }
+    $('introSkip').hidden = T >= INTRO_T;
+    if (T >= INTRO_T && !R.done) { R.done = true; resolve(); }
     requestAnimationFrame(frame);
   }
   requestAnimationFrame(frame);
@@ -6224,8 +6229,9 @@ function startGame() {
   const btns = [$('startBtn'), $('retryBtn')], labels = btns.map((b) => b.textContent);
   gameLoading = true; btns.forEach((b) => { b.disabled = true; b.textContent = '載入素材中…'; });
   if (need.some((pid) => !packReady[pid])) setLoadingTips(true);
-  const loadAll = Promise.all(need.map(ensurePack));
-  const intro = selectedLevel === 'defense' ? defIntroPlay(need, loadAll) : Promise.resolve();   // 滅星行動：播放劇情轉場，同時在背景載入素材
+  const prep = selectedLevel === 'defense' ? defIntroOpen() : null;   // 滅星行動：先載入轉場動畫要用的素材（地圖、木星砲、九頭蛇、隊員待機圖）
+  const loadAll = prep ? prep.then(() => Promise.all(need.map(ensurePack))) : Promise.all(need.map(ensurePack));
+  const intro = prep ? prep.then(() => defIntroPlay(loadAll)) : Promise.resolve();   // 動畫播放時再載入其他素材   // 滅星行動：播放劇情轉場，同時在背景載入素材
   Promise.all([loadAll, intro]).then(() => {
     defIntroClose();
     gameLoading = false; btns.forEach((b, i) => { b.disabled = false; b.textContent = labels[i]; });
