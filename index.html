@@ -47,6 +47,7 @@ body.touch .eff b{font-size:13px}
 .hud-label{display:block;font-size:11px;color:var(--muted);letter-spacing:.06em}
 .hud-num{font-size:22px;font-weight:800;font-variant-numeric:tabular-nums;line-height:1.1}
 #hudScore{display:flex;gap:16px}
+#defBlock:not([hidden]){display:flex;gap:16px}
 #hudHp{flex:1;min-width:90px;max-width:320px;margin:0 auto}
 #hpTrack{height:9px;border-radius:99px;background:#263d45;border:1px solid #45636a;overflow:hidden;margin-top:5px}
 #hpFill{height:100%;width:100%;background:linear-gradient(90deg,var(--aqua),var(--gold));transition:width .15s}
@@ -413,10 +414,11 @@ body.touch #testPanel{max-height:38vh}   /* 手機：不要擋到左下的移動
   <div class="hud-block" id="hudScore">
     <div><span class="hud-label">分數</span><span class="hud-num" id="score">0</span></div>
   </div>
+  <div class="hud-block" id="defModem" hidden><span class="hud-label">數據機</span><span class="hud-num" id="ctrlNum">1000</span></div>
   <div class="hud-block" id="phaseBlock" hidden><span class="hud-label" id="phaseName">第一階段</span><span class="hud-num" id="phaseTime">3:00</span>
 </div>
   <div class="hud-block" id="partsBlock" hidden><span class="hud-label">零件</span><span class="hud-num" id="partsNum">0</span></div>
-  <div class="hud-block" id="defBlock" hidden><span class="hud-label">電池</span><span class="hud-num" id="battNum">0</span><span class="hud-label">核心</span><span class="hud-num" id="coreNum">0</span><span class="hud-label">數據機</span><span class="hud-num" id="ctrlNum">1000</span></div>
+  <div class="hud-block" id="defBlock" hidden><div><span class="hud-label">零件</span><span class="hud-num" id="defParts">0</span></div><div><span class="hud-label">電池</span><span class="hud-num" id="battNum">0</span></div><div><span class="hud-label">核心</span><span class="hud-num" id="coreNum">0</span></div></div>
   <div class="hud-block" id="hudHp">
     <div id="hpText"><span>生命</span><span><span id="hpNum">150 / 150</span><span id="shieldNum"></span><span id="goldNum"></span></span></div>
     <div id="hpTrack"><div id="hpFill"></div><div class="shield-fill" id="shieldFill"></div><div class="shield-fill" id="shieldFill2"></div><div class="shield-fill" id="goldFill"></div></div>
@@ -2464,6 +2466,7 @@ const NIGHT_PHASES = [
   WAR_PHASES[1], WAR_PHASES[2],   // 3:00～6:00 第二階段、之後第三階段（暫時沿用亂序戰事的敵人表，之後換成夜戰專用的）
 ].map((p) => ({ ...p, packs: [...p.packs, 'night'], night: true, commEvery: 40 }));
 // 滅星行動：白天（前 8 分鐘）不受黑夜影響；地圖用夜戰的野外地形，基地在地圖中心。目前只做了第一時段（準備時段）
+const DEF_ELITE1 = ['ouroboros', 'architect', 'interferer', 'scarecrow'];   // 鐵血工造的一階精英
 // 滅星行動的一階敵人強化倍率
 const DEF_SC = { dino: { hp: 1.5, evade: 1.2 }, jaguar: { lock: 1.2 }, wasp: { hp: 1.3, dmg: 1.2 }, ripper: { hp: 1.4 }, beast: { evade: 1.5 }, lion: { hp: 1.2, dmg: 1.2 } };
 const defT = (T, w) => ({ T, w, sc: DEF_SC[T.sprite] });
@@ -2473,8 +2476,8 @@ const DEF_T2 = [defT(DINO, 12), defT(JAGUAR, 8), defT(WASP, 12), defT(RIPPER, 10
 const DEFENSE_PHASES = [
   { name: '準備時段', end: 120, spawnTable: DEF_T1, initial: 2, spawn: { every: 9, min: 7, max: 6 }, prep: true },   // 0:00～2:00：少量敵人，時間到進入下一時段
   { name: '第二時段', end: 240, spawnTable: DEF_T2, initial: 2, spawn: { every: 5, min: 3, max: 12 } },              // 2:00～6:00：出現二階敵人，出怪更頻繁
-  { name: '第三時段（製作中）', end: 600, spawnTable: DEF_T2, initial: 0, spawn: { every: 5, min: 3, max: 12 } },     // 之後的時段還沒做：暫時沿用第二時段；16:00 時間到＝任務失敗
-].map((p) => ({ ...p, packs: ['dino', 'jaguar', 'wasp', 'ripper', 'beast', 'lion', 'striker', 'jaeg', 'dragoon', 'guard', 'jupiter', 'scorp', 'night', 'defbase'], night: true, defense: true, day: true, bossPool: null, medkitEvery: 30, medkitHeal: 10 }));
+  { name: '第三時段（製作中）', end: 600, spawnTable: DEF_T2, initial: 0, spawn: { every: 5, min: 3, max: 12 }, eliteWave: 2 },   // 6:00 第二時段結束：基地東側出現 2 隻鐵血工造一階精英     // 之後的時段還沒做：暫時沿用第二時段；16:00 時間到＝任務失敗
+].map((p) => ({ ...p, packs: ['dino', 'jaguar', 'wasp', 'ripper', 'beast', 'lion', 'striker', 'jaeg', 'dragoon', 'guard', 'jupiter', 'scorp', 'night', 'defbase', 'ouro', 'arch', 'intr', 'scarecrow'], night: true, defense: true, day: true, bossPool: null, medkitEvery: 30, medkitHeal: 10 }));
 const LEVEL_PHASES = { defense: DEFENSE_PHASES, night: NIGHT_PHASES, war: WAR_PHASES, duel: DUEL_PHASES, test: TEST_PHASES, battle: BATTLE_PHASES, versus: VERSUS_PHASES };   // 有分階段的關卡
 const levelPhases = () => LEVEL_PHASES[selectedLevel] || null;
 let phase = null, phaseIdx = 0, phaseStart = 0, spawnIdx = 0;   // 目前階段、階段開始時間、輪到第幾種敵人
@@ -5936,7 +5939,7 @@ function pickSpawn(table) {
 }
 function addEnemy() {
   const maxN = phase ? phase.spawn.max : Math.min(14, 9 + Math.floor(gameTime / 60));
-  if (enemies.filter((x) => !x.sentry && !x.defJup).length >= maxN) return;   // 據點守軍和木星砲不算在上限裡
+  if (enemies.filter((x) => !x.sentry && !x.defJup && !x.defElite).length >= maxN) return;   // 據點守軍和木星砲不算在上限裡
   const a = rand(0, Math.PI * 2), ca = Math.cos(a), sa = Math.sin(a);
   let d = 150;
   while (d < 4000 && onScreen(proj(player.x + ca * d, player.y + sa * d), 90)) d += 40;
@@ -6106,7 +6109,7 @@ function beginGame() {
   mapOpen = false;
   if (bigMap()) { const b = MAPGEN.bases[0]; player.x = b.x; player.y = b.y; cam = { x: b.x, y: b.y }; parts = []; chunks.clear(); coverCache = null; stream(); resetCapture(); }   // 戰局：從藍方基地出發
   if (phase && phase.versus) vsBegin();
-  if (isDef()) defBegin(); else { $('defBlock').hidden = true; $('boardBtn').hidden = true; $('defBoard').hidden = true; $('defRev').hidden = true; $('specBanner').hidden = true; }   // 對戰：建立雙方隊伍（玩家在自己隊伍的大本營出發）
+  if (isDef()) defBegin(); else { $('defBlock').hidden = true; $('defModem').hidden = true; $('boardBtn').hidden = true; $('defBoard').hidden = true; $('defRev').hidden = true; $('specBanner').hidden = true; }   // 對戰：建立雙方隊伍（玩家在自己隊伍的大本營出發）
   $('score').textContent = '0'; refreshCharHud();
   setState('play'); last = performance.now();
   if (selectedLevel === 'war' || selectedLevel === 'night' || selectedLevel === 'defense') bgmStart('normal', 3); else if (selectedLevel === 'versus') bgmStart('normal', 5); else bgmStop(true);   // 背景音樂：亂序戰事從普通歌單抽 3 首、雲圖對戰抽 5 首（菁英對決只有 Boss 歌單）
@@ -6385,7 +6388,8 @@ function defBegin() {
   { const T = scaleStats(SCORP, { hp: DEF.sentry.hpMul });   // 據點四個角落的蠍甲獸守軍
     for (const [dx, dy] of DEF.sentry.posts) { const x = DEF.jupiter.x + dx, y = DEF.jupiter.y + dy;
       enemies.push({ T, x, y, r: T.radius, hp: T.hp, ammo: T.magazine, angle: 0, cool: rand(1, 1.6), touchCd: 0, def: cfg, shot: 0, moving: false, phase: rand(0, 6), orbitA: 0, off: rand(-0.8, 0.8), kvx: 0, kvy: 0, faceLeft: dx > 0, sentry: { x, y } }); } }
-  $('defBlock').hidden = false; $('defBoard').hidden = true; $('defRev').hidden = true; $('specBanner').hidden = true; updDefHud(); updateSwap();
+  $('defBlock').hidden = false; $('defModem').hidden = false; $('hudScore').style.display = 'none'; $('partsBlock').hidden = true;   // 滅星行動：不顯示分數，原位置放數據機；零件、電池、核心放同一格
+  $('defBoard').hidden = true; $('defRev').hidden = true; $('specBanner').hidden = true; updDefHud(); updateSwap();
 }
 function updDefHud() { $('battNum').textContent = defState.batt; $('coreNum').textContent = defState.cores; $('ctrlNum').textContent = Math.ceil(defState.ctrl); }
 function defSpawnItem() {
@@ -6413,6 +6417,13 @@ function defTick(dt) {
     const has = medkits.filter((m) => m.base);
     if (has.length < DEF.medMax) { S.medT = 0; const sp = DEF.medSpots.find((q) => !has.some((m) => m.spot === q)); const pt = nightSpot(sp.x, sp.y, 14); medkits.push({ x: pt.x, y: pt.y, ph: rand(0, 6), base: true, spot: sp }); burst(pt.x, pt.y, '#7dff9a', 10); }
     else S.medT = DEF.medEvery;
+  }
+  if (phase && phase.eliteWave && !S.eliteDone) {   // 第二時段結束：基地東側隨機出現兩隻鐵血工造一階精英
+    S.eliteDone = true; const ids = [...DEF_ELITE1].sort(() => Math.random() - 0.5).slice(0, phase.eliteWave);
+    ids.forEach((id, k) => { const B = BOSSES[id], p = nightSpot(rand(1000, 1300), DEF.yb + (k ? 380 : -120) + rand(-80, 80), B.radius || 30);
+      enemies.push({ boss: true, B, id, defElite: true, x: p.x, y: p.y, r: B.radius, hp: B.hp, maxHp: B.hp, ammo: B.magazine, reloadT: 0, magsDone: 0, special: null, cool: 0.8, barrel: 0, angle: 0, strafe: 1, strafeT: 0, jinkT: 0, jx: 0, jy: 0, vx: 0, vy: 0,
+        touchCd: 0, debuffT: 0, faceLeft: true, aiming: false, shot: 0, phase: 0 }); burst(p.x, p.y, '#ff6b6b', 16); });
+    defNotice('鐵血工造的精英出現在基地東側：' + ids.map((id) => BOSSES[id].name).join('、'), '#ff6b6b');
   }
   if (S.winT != null) { S.winT -= dt; if (S.winT <= 0) { S.winT = null; endGame(true); return; } }
   { const j = enemies.find((x) => x.defJup), near = j && j.jMode && j.jMode !== 'off' && Math.hypot(j.x - player.x, j.y - player.y) < 1300;   // 木星砲啟動後，靠近時顯示上方血條
@@ -6570,7 +6581,7 @@ function defJobGoal(f, tgt, goal) {
     return { x: P.x, y: P.y };
   }
   // 外出蒐集：每 2 秒確認一次自己的狀態，血量 < 50% 或離基地太遠就先回基地（血少時順便拿基地的醫療包），之後再出去
-  if (gameTime >= (f.chkT || 0)) { f.chkT = gameTime + 2; if (!f.goHome && (f.hp < f.maxHp * 0.5 || Math.hypot(f.x - DEF.home.x, f.y - DEF.home.y) > DEF.farR)) { f.goHome = true; f.restUntil = null; f.goalItem = null; floatText(f.x, f.y - 56, f.def.name + '：返回基地', '#ffe9b8'); } }
+  if (gameTime >= (f.homeChkT || 0)) { f.homeChkT = gameTime + 2; if (!f.goHome && (f.hp < f.maxHp * 0.5 || Math.hypot(f.x - DEF.home.x, f.y - DEF.home.y) > DEF.farR)) { f.goHome = true; f.restUntil = null; f.goalItem = null; floatText(f.x, f.y - 56, f.def.name + '：返回基地', '#ffe9b8'); } }
   if (f.goHome) {
     if (!inBase(f)) return tgt && Math.hypot(tgt.x - f.x, tgt.y - f.y) < 200 ? goal : { x: DEF.home.x, y: DEF.home.y };
     if (f.restUntil == null) f.restUntil = gameTime + (f.hp < f.maxHp * 0.5 ? 30 : 0);   // 血少：在基地最多等 30 秒醫療包
@@ -8144,7 +8155,7 @@ function spawnPart() {
 }
 function updateParts() {
   if (phase && phase.infiniteParts) partCount = 99;   // 測試模式：零件無限
-  $('partsNum').textContent = phase && phase.infiniteParts ? '∞' : partCount;
+  $('partsNum').textContent = phase && phase.infiniteParts ? '∞' : partCount; if ($('defParts')) $('defParts').textContent = partCount;
   const cost = isDef() ? DEF.enhCost : expandCost(isNight() ? cfg : cloneSrcDef());
   const night = isNight(), lv = isDef() && defState ? defState.enh : (player && player.enh) || 0;
   const can = state === 'play' && phase && !phase.noParts && partCount >= cost && (night ? lv < NIGHT_ENH.max : clones.length < CLONE.maxCount);
@@ -11926,7 +11937,7 @@ function draw(t) {
     if (k === 'k') { drawCamp(it); continue; }
     if (k === 'f') { drawFlag(it); continue; }
     if (k === 'c') drawCrate(it);
-    else if (k === 'e' && it.boss) { if (it !== boss && phase && (phase.test || it.defJup)) drawMiniBossLater.push(it); (BOSS_DRAW[it.B.ai] || drawBoss)(it); }
+    else if (k === 'e' && it.boss) { if (it !== boss && phase && (phase.test || it.defJup || it.defElite)) drawMiniBossLater.push(it); (BOSS_DRAW[it.B.ai] || drawBoss)(it); }
     else if (k === 'm') {
       // 擴編分身
       ctx.save(); drawCharacter(it, false); ctx.restore(); drawSakura(it); drawHuntAim(it);
