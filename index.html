@@ -416,7 +416,7 @@ body.touch #testPanel{max-height:38vh}   /* 手機：不要擋到左下的移動
     <div><span class="hud-label">分數</span><span class="hud-num" id="score">0</span></div>
   </div>
   <div class="hud-block" id="defModem" hidden><span class="hud-label">數據機</span><span class="hud-num" id="ctrlNum">1000</span></div>
-  <div class="hud-block" id="phaseBlock" hidden><span class="hud-label" id="phaseName">第一階段</span><span class="hud-num" id="phaseTime">3:00</span><button id="skipPhaseBtn" hidden style="margin-left:6px;padding:2px 8px;font-size:12px;border-radius:6px;border:1px solid #ffb36b;background:rgba(40,20,0,.7);color:#ffb36b;cursor:pointer">跳過</button><button id="addBattBtn" hidden style="margin-left:4px;padding:2px 8px;font-size:12px;border-radius:6px;border:1px solid #7fd4ff;background:rgba(0,20,40,.7);color:#7fd4ff;cursor:pointer">+20電池</button>
+  <div class="hud-block" id="phaseBlock" hidden><span class="hud-label" id="phaseName">第一階段</span><span class="hud-num" id="phaseTime">3:00</span>
 </div>
   <div class="hud-block" id="partsBlock" hidden><span class="hud-label">零件</span><span class="hud-num" id="partsNum">0</span></div>
   <div class="hud-block" id="defBlock" hidden><div><span class="hud-label">零件</span><span class="hud-num" id="defParts">0</span></div><div><span class="hud-label">電池</span><span class="hud-num" id="battNum">0</span></div><div><span class="hud-label">核心</span><span class="hud-num" id="coreNum">0</span></div></div>
@@ -561,7 +561,7 @@ body.touch #testPanel{max-height:38vh}   /* 手機：不要擋到左下的移動
       <li><b>0:00～2:00 準備時段</b>：到基地外蒐集零件和核心。會有少量一階敵人出現，有的追擊在外的隊員，有的從基地出入口進攻。</li>
       <li><b>2:00～6:00 第二時段</b>：開始出現二階敵人，出怪也更頻繁。</li>
       <li><b>6:00～10:00 第三時段</b>：出現三階敵人和數隻一組的兵團；時段一開始會有兩名精英來襲，擊敗前時間會暫停。8:00 入夜，視野變小，敵人也更難打中。</li>
-      <li><b>10:00～16:00 最終時段</b>：二階精英和王牌兵團來襲，其餘敵人退回鐵血營地防守。這時可以到網路控制室花電池連線東北方廢棄基地的九頭蛇（一台 20 電池、兩台 40 電池），操控它反攻。</li>
+      <li><b>10:00～16:00 最終時段</b>：兩名二階精英、一名三階精英和王牌兵團來襲，擊敗前時間會暫停；其餘敵人退回鐵血營地防守。這時可以到網路控制室花電池連線東北方廢棄基地的九頭蛇（一台 20 電池、兩台 40 電池），操控它反攻。</li>
     </ul>
     <h4>基地</h4>
     <ul>
@@ -2497,6 +2497,7 @@ const NIGHT_PHASES = [
 // 滅星行動：白天（前 8 分鐘）不受黑夜影響；地圖用夜戰的野外地形，基地在地圖中心。目前只做了第一時段（準備時段）
 const DEF_ELITE1 = ['ouroboros', 'architect', 'interferer', 'scarecrow'];   // 鐵血工造的一階精英
 const DEF_ELITE2 = ['ouroboros_elite', 'dreamer', 'judge'];                 // 鐵血工造的二階精英
+const DEF_ELITE3 = ['agent', 'witch'];                                      // 鐵血工造的三階精英
 // 滅星行動的一階敵人強化倍率
 const DEF_SC = { dino: { hp: 1.5, evade: 1.2 }, jaguar: { lock: 1.2 }, wasp: { hp: 1.3, dmg: 1.2 }, ripper: { hp: 1.4 }, beast: { evade: 1.5 }, lion: { hp: 1.2, dmg: 1.2 } };
 const defT = (T, w) => ({ T, w, sc: DEF_SC[T.sprite] });
@@ -2522,23 +2523,12 @@ const DEFENSE_PHASES = [
   { name: '準備時段', end: 120, spawnTable: DEF_T1, initial: 2, spawn: { every: 9, min: 7, max: 6 }, prep: true },   // 0:00～2:00：少量敵人，時間到進入下一時段
   { name: '第二時段', end: 240, spawnTable: DEF_T2, initial: 2, spawn: { every: 5, min: 3, max: 12 } },              // 2:00～6:00：出現二階敵人，出怪更頻繁
   { name: '第三時段', end: 240, spawnTable: DEF_T3, sc: DEF_SC3, initial: 2, spawn: { every: 5, min: 3, max: 10 }, eliteWave: 2, legion: { max: 2, first: 8, every: 20 } },   // 6:00～10:00：三階普通敵人＋兵團；最多 10 隻（8:00 入夜）
-  { name: '最終時段', end: 360, spawnTable: DEF_T3, sc: DEF_SC3, initial: 0, spawn: { every: 6, min: 4, max: 6 }, eliteWave: 2, elitePool: 'tier2', aceLegion: true, campDefend: true, mechs: true, legion: { max: 2, first: 6, every: 15 } },   // 10:00～16:00：敵人往鐵血營地集結防守（最多 6 隻、2 個兵團）；可以操作九頭蛇   // 6:00 第二時段結束：基地東側出現 2 隻鐵血工造一階精英     // 之後的時段還沒做：暫時沿用第二時段；16:00 時間到＝任務失敗
-].map((p) => ({ ...p, packs: ['dino', 'jaguar', 'wasp', 'ripper', 'beast', 'lion', 'striker', 'jaeg', 'dragoon', 'guard', 'jupiter', 'scorp', 'night', 'defbase', 'ouro', 'ouroE', 'dreamer', 'arch', 'intr', 'scarecrow', 'goliath', 'gfac', 'judge', 'hydra'], night: true, defense: true, day: true, bossPool: null, medkitEvery: 30, medkitHeal: 10 }));
+  { name: '最終時段', end: 360, spawnTable: DEF_T3, sc: DEF_SC3, initial: 0, spawn: { every: 6, min: 4, max: 6 }, eliteWave: 3, elitePool: 'tier2', aceLegion: true, campDefend: true, mechs: true, legion: { max: 2, first: 6, every: 15 } },   // 10:00～16:00：敵人往鐵血營地集結防守（最多 6 隻、2 個兵團）；可以操作九頭蛇   // 6:00 第二時段結束：基地東側出現 2 隻鐵血工造一階精英     // 之後的時段還沒做：暫時沿用第二時段；16:00 時間到＝任務失敗
+].map((p) => ({ ...p, packs: ['dino', 'jaguar', 'wasp', 'ripper', 'beast', 'lion', 'striker', 'jaeg', 'dragoon', 'guard', 'jupiter', 'scorp', 'night', 'defbase', 'ouro', 'ouroE', 'dreamer', 'agent', 'witch', 'arch', 'intr', 'scarecrow', 'goliath', 'gfac', 'judge', 'hydra'], night: true, defense: true, day: true, bossPool: null, medkitEvery: 30, medkitHeal: 10 }));
 const LEVEL_PHASES = { defense: DEFENSE_PHASES, night: NIGHT_PHASES, war: WAR_PHASES, duel: DUEL_PHASES, test: TEST_PHASES, battle: BATTLE_PHASES, versus: VERSUS_PHASES };   // 有分階段的關卡
 const levelPhases = () => LEVEL_PHASES[selectedLevel] || null;
 let phase = null, phaseIdx = 0, phaseStart = 0, spawnIdx = 0;   // 目前階段、階段開始時間、輪到第幾種敵人
 const phaseClock = () => gameTime - phaseStart;
-// 【臨時測試】跳過目前時段：時間軸直接快轉到時段結束，場上的精英一併移除
-setTimeout(() => { const a = document.getElementById('addBattBtn'); if (a) { a.addEventListener('click', (ev) => { ev.stopPropagation(); if (isDef() && state === 'play') { defState.batt += 20; updDefHud(); } a.blur(); }); a.addEventListener('pointerdown', (ev) => ev.stopPropagation()); a.addEventListener('touchstart', (ev) => ev.stopPropagation(), { passive: true }); } }, 0);   // 【臨時測試】+20 電池
-setTimeout(() => { const b = document.getElementById('skipPhaseBtn'); if (b) { b.addEventListener('click', (ev) => { ev.stopPropagation(); skipDefPhase(); b.blur(); }); b.addEventListener('pointerdown', (ev) => ev.stopPropagation()); b.addEventListener('touchstart', (ev) => ev.stopPropagation(), { passive: true }); } }, 0);
-function skipDefPhase() {
-  if (!phase || !phase.defense || state !== 'play' || !levelPhases()[phaseIdx + 1]) return;
-  for (const e of enemies) if (e.defElite) { e.hp = 0; e.dead = true; }
-  enemies = enemies.filter((e) => !e.defElite);
-  defPaused = false;
-  const left = Math.max(0, phase.end - phaseClock());
-  phaseStart -= left; defPauseT -= left;
-}
 let defPaused = false, defPauseT = 0;   // 滅星行動：精英在場時暫停時間軸（累計暫停秒數）
 
 /* ───────── 戰局：100×100 格的大地圖 ─────────
@@ -5023,7 +5013,7 @@ const BOSSES = {
     tier: 3,                     // 精英等級：三階（干擾者的升級版）
     ai: 'witch',                 // 使用終幕魔女專用的行為
     duelOnly: true,              // 只加入菁英對決（亂序戰事不抽）
-    where: '菁英對決',
+    where: '菁英對決、滅星行動（最終時段）',
     weapon: '機槍、魔杖',
     desc: '干擾者的強化型，手持機槍保持中距離持續掃射（每發 15 傷害、每秒 5 發，彈匣 20 發，換彈 3.2 秒）。每次換彈完成後，有 50% 機率改用魔杖施法（魔法彈）：召喚三隻兵蟻，並射出一顆會追蹤目標的魔法球（速度 225、8 秒後消失），命中造成 20 點無視護甲的傷害，並讓目標移動速度 −30%、易傷 10%，持續 8 秒。',
     specialDesc: '過熱模式：每打完兩輪彈匣，停在原地花 2 秒切換槍型，接著朝目標掃射 3 秒（每秒 10 發，每發 5 傷害）。',
@@ -5668,7 +5658,7 @@ function eliteWhere(id) {
   if (!B.duelOnly) L.push(B.tier === 1 ? '亂序戰事（第一階段）' : B.tier === 2 ? '亂序戰事、夜戰（第二階段）' : '亂序戰事、夜戰（第三階段）');
   L.push('菁英對決');
   if (DEF_ELITE1.includes(id)) L.push('滅星行動（第三時段）');
-  if (DEF_ELITE2.includes(id)) L.push('滅星行動（最終時段）');
+  if (DEF_ELITE2.includes(id) || DEF_ELITE3.includes(id)) L.push('滅星行動（最終時段）');
   if (VS_GUARD_POOL.includes(id)) L.push('雲圖對戰（守衛）');
   return L.join('、');
 }
@@ -6203,7 +6193,6 @@ function beginGame() {
   // 依關卡決定敵人數值
   phase = levelPhases() ? levelPhases()[0] : null; phaseIdx = 0; phaseStart = 0; spawnIdx = 0;
   $('phaseBlock').hidden = !phase || !!phase.bigmap;   // 戰局：時間照算但不顯示
-  $('skipPhaseBtn').hidden = $('addBattBtn').hidden = !(phase && phase.defense);   // 【臨時測試】滅星行動才顯示跳過時段按鈕
   MAPGEN = phase && phase.versus ? (VERSUS_MAP || (VERSUS_MAP = genVersusMap())) : phase && phase.night ? NIGHT_MAP : BATTLE_MAP; miniCanvas = null;
   if (phase && phase.night) capPoints = [];
   nightReset();   // 依模式換地圖
@@ -6561,9 +6550,10 @@ function defTick(dt) {
     else S.medT = DEF.medEvery;
   }
   if (phase && phase.eliteWave && S.eliteDone !== phase) {   // 時段開始：基地東側隨機出現兩隻鐵血工造精英（第三時段一階、最終時段二階＋王牌精銳兵團）
-    S.eliteDone = phase; const ids = [...(phase.elitePool === 'tier2' ? DEF_ELITE2 : DEF_ELITE1)].sort(() => Math.random() - 0.5).slice(0, phase.eliteWave);
+    S.eliteDone = phase; const shuf = (L, n) => [...L].sort(() => Math.random() - 0.5).slice(0, n);
+    const ids = phase.elitePool === 'tier2' ? [...shuf(DEF_ELITE2, 2), ...shuf(DEF_ELITE3, 1)] : shuf(DEF_ELITE1, phase.eliteWave);   // 最終時段：兩隻二階＋一隻三階
     if (phase.aceLegion) defSpawnLegion(phase.sc || {}, DEF_LEGIONS.find((t) => t.name === '精銳王牌團'), true);
-    ids.forEach((id, k) => { const B = BOSSES[id], p = nightSpot(rand(1000, 1300), DEF.yb + (k ? 380 : -120) + rand(-80, 80), B.radius || 30);
+    ids.forEach((id, k) => { const B = BOSSES[id], p = nightSpot(rand(1000, 1300), DEF.yb + [-120, 380, 130][k % 3] + rand(-80, 80), B.radius || 30);
       enemies.push({ boss: true, B, id, defElite: true, x: p.x, y: p.y, r: B.radius, hp: B.hp, maxHp: B.hp, ammo: B.magazine, reloadT: 0, magsDone: 0, special: null, cool: 0.8, barrel: 0, angle: 0, strafe: 1, strafeT: 0, jinkT: 0, jx: 0, jy: 0, vx: 0, vy: 0,
         touchCd: 0, debuffT: 0, faceLeft: true, aiming: false, shot: 0, phase: 0 }); burst(p.x, p.y, '#ff6b6b', 16); });
   }
@@ -6878,7 +6868,10 @@ function defRoute(f, g) {
 // AI 隊友的工作
 function defJobGoal(f, tgt, goal) {
   if (f.revTask) return { x: DEF.rev.x, y: DEF.rev.y };   // 去復活台復活隊友（最優先）
-  if (f.job === 'guard') {   // 駐守：在左右兩個出口之間來回巡邏，有敵人靠近就在營區裡迎戰
+  const eliteDef = f.job === 'collect' && enemies.some((e) => e.defElite && e.hp > 0);   // 外出蒐集：場上有精英時先回基地防守，精英都倒下再出去
+  if (eliteDef && !f.eliteHome) { f.eliteHome = true; f.goalItem = null; f.goHome = false; f.wander = null; floatText(f.x, f.y - 60, '返回基地防守', '#ffb36b'); }
+  else if (!eliteDef && f.eliteHome) { f.eliteHome = false; f.pi = null; }
+  if (f.job === 'guard' || eliteDef) {   // 駐守：在左右兩個出口之間來回巡邏，有敵人靠近就在營區裡迎戰
     const W = DEF.patrol;
     if (f.pi == null) { f.pi = f.post ? W.length - 1 : 0; f.pd = f.post ? -1 : 1; }
     if (tgt && Math.hypot(tgt.x - f.x, tgt.y - f.y) <= vsRange(f.def) * 1.05 && !losBlocked(f.x, f.y, tgt.x, tgt.y) && (inBase(tgt) || nearGate(tgt))) return goal && inBase(goal) ? goal : { x: f.x, y: f.y };   // 敵人進到射程（且看得到）才停下迎戰，否則繼續巡邏
