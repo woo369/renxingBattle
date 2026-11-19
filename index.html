@@ -2522,7 +2522,7 @@ const DEFENSE_PHASES = [
   { name: '第二時段', end: 240, spawnTable: DEF_T2, initial: 2, spawn: { every: 5, min: 3, max: 12 } },              // 2:00～6:00：出現二階敵人，出怪更頻繁
   { name: '第三時段', end: 240, spawnTable: DEF_T3, sc: DEF_SC3, initial: 2, spawn: { every: 5, min: 3, max: 10 }, eliteWave: 2, legion: { max: 2, first: 8, every: 20 } },   // 6:00～10:00：三階普通敵人＋兵團；最多 10 隻（8:00 入夜）
   { name: '最終時段', end: 360, spawnTable: DEF_T3, sc: DEF_SC3, initial: 0, spawn: { every: 6, min: 4, max: 6 }, eliteWave: 2, elitePool: 'tier2', aceLegion: true, campDefend: true, mechs: true, legion: { max: 2, first: 6, every: 15 } },   // 10:00～16:00：敵人往鐵血營地集結防守（最多 6 隻、2 個兵團）；可以操作九頭蛇   // 6:00 第二時段結束：基地東側出現 2 隻鐵血工造一階精英     // 之後的時段還沒做：暫時沿用第二時段；16:00 時間到＝任務失敗
-].map((p) => ({ ...p, packs: ['dino', 'jaguar', 'wasp', 'ripper', 'beast', 'lion', 'striker', 'jaeg', 'dragoon', 'guard', 'jupiter', 'scorp', 'night', 'defbase', 'ouro', 'arch', 'intr', 'scarecrow', 'goliath', 'gfac', 'judge', 'hydra'], night: true, defense: true, day: true, bossPool: null, medkitEvery: 30, medkitHeal: 10 }));
+].map((p) => ({ ...p, packs: ['dino', 'jaguar', 'wasp', 'ripper', 'beast', 'lion', 'striker', 'jaeg', 'dragoon', 'guard', 'jupiter', 'scorp', 'night', 'defbase', 'ouro', 'ouroE', 'dreamer', 'arch', 'intr', 'scarecrow', 'goliath', 'gfac', 'judge', 'hydra'], night: true, defense: true, day: true, bossPool: null, medkitEvery: 30, medkitHeal: 10 }));
 const LEVEL_PHASES = { defense: DEFENSE_PHASES, night: NIGHT_PHASES, war: WAR_PHASES, duel: DUEL_PHASES, test: TEST_PHASES, battle: BATTLE_PHASES, versus: VERSUS_PHASES };   // 有分階段的關卡
 const levelPhases = () => LEVEL_PHASES[selectedLevel] || null;
 let phase = null, phaseIdx = 0, phaseStart = 0, spawnIdx = 0;   // 目前階段、階段開始時間、輪到第幾種敵人
@@ -5340,9 +5340,9 @@ function loadShotSamples(a) {
   }
 }
 // 播放槍聲取樣：同一槍種 0.04 秒內不重複播，同時最多 10 個聲音；音高隨機 ±4% 避免機械感
-function playShot(cls, vol = 1, key = cls) {
+function playShot(cls, vol = 1, key = cls, gap) {
   const a = muted ? null : AC, b = shotBuf[cls]; if (!a || !b) return false;
-  const now = a.currentTime; if (now - (shotLast[key] || -1) < (SHOT_GAP[cls] || 0.04) || shotVoices >= 10) return true;
+  const now = a.currentTime; if (now - (shotLast[key] || -1) < (gap ?? SHOT_GAP[cls] ?? 0.04) || shotVoices >= 10) return true;
   shotLast[key] = now; shotVoices++;
   const src = a.createBufferSource(), g = a.createGain();
   src.buffer = b; src.playbackRate.value = 0.96 + Math.random() * 0.08; g.gain.value = (SHOT_VOL[cls] ?? 0.5) * vol;
@@ -6486,7 +6486,7 @@ let defSquad = [], defPicked = false, defState = null, defCores = [], defDead = 
 let defPilot = null, defMechs = [];   // 滅星行動：正在操作的九頭蛇、廢棄基地的兩台九頭蛇
 // 廢棄基地的九頭蛇（連線後）：生命 ×10、護甲 ×2、傷害 ×2、鎖敵距離 ×2、移動速度 ×1.2，永久 50% 抗性
 const HYDRA_M = { ...HYDRA, name: '九頭蛇（連線）', hp: HYDRA.hp * 10, armor: HYDRA.armor * 2, bulletDmg: HYDRA.bulletDmg * 2, lockRange: HYDRA.lockRange * 2, speed: HYDRA.speed * 1.2,
-  sweep: { ...HYDRA.sweep, dmg: HYDRA.sweep.dmg * 2 }, resist: 0.5, mgCd: 8 };
+  sweep: { ...HYDRA.sweep, dmg: HYDRA.sweep.dmg * 2 }, resist: 0.5, mgCd: 2, fireCooldown: 0.25 };   // 每秒 4 發；高速機槍冷卻 2 秒
 const MECH_DEF = { id: 'hydra_mech', name: '九頭蛇', speed: HYDRA_M.speed, armor: { value: HYDRA_M.armor }, weapon: { class: 'MECH', damage: HYDRA_M.bulletDmg, range: HYDRA_M.lockRange, magazine: HYDRA_M.magazine, reload: HYDRA_M.reload }, anim: {}, skill: null };
 const MECH_MG = { ...MECH_DEF, weapon: { ...MECH_DEF.weapon, damage: HYDRA_M.sweep.dmg } };
 const campPost = (r0, r1) => { const a = rand(0, Math.PI * 2), r = rand(r0, r1); return defClamp({ x: DEF.jupiter.x + Math.cos(a) * r, y: DEF.jupiter.y + Math.sin(a) * r * 0.8 }, 120); };
@@ -6514,7 +6514,7 @@ function defBegin() {
   });
   for (let i = 0; i < 8; i++) defSpawnItem();
   { const B = { ...BOSSES.jupiter, lockRange: 1500, boom: { ...BOSSES.jupiter.boom, r: 200 } };   // 木星砲（滅星行動：鎖敵距離 1500、砲彈爆炸範圍 200）：東方營地中央，平時待機，有目標靠近才啟動；摧毀它就完成任務
-    enemies.push({ boss: true, B, id: 'jupiter', defJup: true, x: DEF.jupiter.x, y: DEF.jupiter.y, r: B.radius, hp: B.hp, maxHp: B.hp, ammo: B.magazine, reloadT: 0, magsDone: 0, special: null, cool: 0.8, angle: 0,
+    enemies.push({ boss: true, B, id: 'jupiter', defJup: true, fixed: true, x: DEF.jupiter.x, y: DEF.jupiter.y, r: B.radius, hp: B.hp, maxHp: B.hp, ammo: B.magazine, reloadT: 0, magsDone: 0, special: null, cool: 0.8, angle: 0,
       touchCd: 0, debuffT: 0, faceLeft: true, aiming: false, shot: 0, phase: 0 }); }
   { const T = scaleStats(SCORP, { hp: DEF.sentry.hpMul });   // 據點四個角落的蠍甲獸守軍
     for (const [dx, dy] of DEF.sentry.posts) { const x = DEF.jupiter.x + dx, y = DEF.jupiter.y + dy;
@@ -6675,10 +6675,15 @@ function mechCannon(c) {
   const T = c.T; if (c.reloadT > 0 || c.cool > 0 || c.sweepT != null) return;
   const mz = spriteMuzzle(c), a = c.aim, sp = T.bulletSpeed * 1.4;
   bullets.push({ x: mz.x, y: mz.y, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp, age: 0, life: T.lockRange / sp + 0.15, r: 7, team: 'p', def: MECH_DEF, src: c, mcn: true, fromClone: true });
-  burst(mz.x, mz.y, '#ffd27a', 6); c.cool = T.fireCooldown; c.atkT = 0; shake = Math.max(shake, c === defPilot ? 2 : 0);
+  burst(mz.x, mz.y, '#ffd27a', 6); c.cool = T.fireCooldown; c.atkT = 0; shake = Math.max(shake, c === defPilot ? 3 : 0);
+  mechSfx(c, 'MCN', 1);
   if (--c.ammo <= 0) c.reloadT = T.reload;
 }
-function mechSkill(c) {   // 高速機槍：舉槍後 2 秒內打完 16 發（冷卻 8 秒）
+function mechSfx(c, cls, k) {   // 九頭蛇開火聲：自己操作的跟人形開火一樣大聲，護衛的依距離變小
+  const d = c === defPilot ? 0 : Math.hypot(c.x - player.x, c.y - player.y), vol = c === defPilot ? k : 0.45 * k * (1 - d / 1300);
+  if (vol > 0.04) playShot(cls, vol, cls + (c === defPilot ? ':pilot' : ':mech'), cls === 'MCN' ? 0.2 : undefined);
+}
+function mechSkill(c) {   // 高速機槍：舉槍後 2 秒內打完 16 發（冷卻 2 秒）
   if (!c || c.sweepT != null || c.mgCd > 0) return;
   c.sweepT = 0; c.sweepN = 0; c.mgCd = c.T.mgCd; c.moving = false;
 }
@@ -6725,7 +6730,7 @@ function mechTick(c, dt) {
     c.sweepT += dt; const st = m.sweep.raise_;
     while (c.sweepN < W.n && c.sweepT >= st + c.sweepN * W.time / W.n) {
       const aimPt = { x: c.x + Math.cos(c.aim) * 300, y: c.y + Math.sin(c.aim) * 300 }, bl = hydraSweepShot(c, W, c.sweepN, aimPt);
-      bl.team = 'p'; bl.def = MECH_MG; bl.dmg = undefined; bl.eff = undefined; bl.fromClone = true; bl.vx *= 1.2; bl.vy *= 1.2; bullets.push(bl); c.sweepN++;
+      bl.team = 'p'; bl.def = MECH_MG; bl.dmg = undefined; bl.eff = undefined; bl.fromClone = true; bl.vx *= 1.2; bl.vy *= 1.2; bullets.push(bl); c.sweepN++; mechSfx(c, 'ACS', 0.9);
     }
     if (c.sweepT >= st + W.time) c.sweepT = null;
   }
@@ -6737,7 +6742,7 @@ function drawMech(c) {
   upright(q, c.x, c.y);
   const k = Math.max(0, c.hp) / c.maxHp; ctx.fillStyle = 'rgba(0,0,0,0.6)'; ctx.fillRect(c.x - 31, c.y - 92, 62, 7); ctx.fillStyle = '#4fd36a'; ctx.fillRect(c.x - 30, c.y - 91, 60 * k, 5);
   ctx.font = '800 11px sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'bottom'; ctx.fillStyle = c === defPilot ? '#7fd4ff' : '#bfe8c8';
-  ctx.fillText(c === defPilot ? '九頭蛇（你）' + (c.mgCd > 0 ? '　機槍 ' + c.mgCd.toFixed(0) : '') : '九頭蛇（護衛）', c.x, c.y - 95);
+  ctx.fillText(c === defPilot ? '九頭蛇（你）' + (c.mgCd > 0 ? '　機槍 ' + c.mgCd.toFixed(1) : '') : '九頭蛇（護衛）', c.x, c.y - 95);
   ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
 }
 function drawParkedHydra(m) {   // 停在棚下、蒙上灰塵的九頭蛇（未連線）
@@ -8344,7 +8349,8 @@ function separateEnemies() {
       const b = list[j], dx = b.x - a.x, dy = b.y - a.y, min = (a.r + b.r) * SEP_K, d2 = dx * dx + dy * dy;
       if (d2 >= min * min) continue;
       const d = Math.sqrt(d2) || 0.01, ux = d2 ? dx / d : Math.cos(i + j), uy = d2 ? dy / d : Math.sin(i + j);
-      const wa = a.r * a.r * (a.boss ? 4 : 1), wb = b.r * b.r * (b.boss ? 4 : 1), push = (min - d) * 0.5;   // 每幀推開一半，看起來比較柔和
+      if (a.fixed && b.fixed) continue;
+      const wa = a.fixed ? 1e9 : a.r * a.r * (a.boss ? 4 : 1), wb = b.fixed ? 1e9 : b.r * b.r * (b.boss ? 4 : 1), push = (min - d) * 0.5;   // fixed：固定不動的建築（木星砲），只推開別人   // 每幀推開一半，看起來比較柔和
       moveWithCover(a, -ux * push * wb / (wa + wb) * 2, -uy * push * wb / (wa + wb) * 2);
       moveWithCover(b, ux * push * wa / (wa + wb) * 2, uy * push * wa / (wa + wb) * 2);
     }
@@ -11922,6 +11928,7 @@ function update(dt) {
   tickTyphonBeams(dt);
   if (isNight()) nightAfterEnemies(dt);
   separateEnemies();
+  if (isDef()) for (const e of enemies) if (e.defJup) { e.x = DEF.jupiter.x; e.y = DEF.jupiter.y; e.kvx = e.kvy = 0; }   // 木星砲固定在原位（擊退、拉扯都不會移動）
   updateJamWaves(dt);
 
   const blocks = covers();
