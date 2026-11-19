@@ -572,7 +572,7 @@ body.touch #testPanel{max-height:38vh}   /* 手機：不要擋到左下的移動
     </ul>
     <h4>基地</h4>
     <ul>
-      <li>基地每 30 秒產出 3 零件、1 電池；花 5 核心可以讓產出速度 +20%。</li>
+      <li>基地每 30 秒產出 3 零件、2 電池；花 5 核心可以讓產出速度 +20%。</li>
       <li>20 零件可以強化全隊，最多 5 次。</li>
       <li>待在基地裡迴避率 +20%。</li>
     </ul>
@@ -1919,7 +1919,7 @@ const LEVELS = [
   { id: 'war', name: '亂序戰事', open: true, desc: '三階段的亂序戰事，敵人會階段性地變強，每個階段末尾都會出現 Boss，擊敗第三階段的 Boss 即過關。' },
   { id: 'duel', name: '菁英對決', open: true, desc: '入場 5 秒後出現一名隨機精英敵人，擊敗它即可過關。精英以三階的強度為基準，一階、二階精英會依類型強化到相同水準。場上會定時出現零件與醫療箱。' },
   { id: 'night', name: '夜戰', open: true, desc: '在漆黑的野外作戰，分成三個階段，跟亂序戰事一樣每階段末尾會出現 Boss。每名人形都有自己的視野：手槍 500，其他槍種只有 200（隊伍裡有手槍人形時提高到 450），且每名手槍人形讓全隊命中 +20%；所有單位迴避率 +20%。只能帶一名人形出擊，撿到通訊器後可以呼叫遠處的友方人形支援，最多再帶三名隊友，並且可以切換操控；零件全隊共用，改用來強化目前操控的人形（子彈傷害、生命 ×1.2，最多 5 次）。前 3 分鐘是準備階段，敵人很少。' },
-  { id: 'defense', name: '滅星行動', open: true, desc: '鐵血工造在羅馬尼亞的多布羅加高地建立了一座木星砲。由於海拔的差異，他們能夠輕易地透過木星砲封鎖多瑙河下游一帶，掐住格里芬的補給線。\n玩家和四名人形一起組隊，來到座落於多布羅加的高功率網路基地站，使用遠端連線到報廢在山區的正規軍營站，並操控軍方機甲九頭蛇，摧毀木星砲。\n由於行動被鐵血工造偵察到，他們也調動大量的兵力來防守並奪取網路基地站，玩家需要保衛住基地站並為其充電。\n需要在鐵血工造的大軍抵達前搶先摧毀木星砲，否則將迎來全滅的下場。' },
+  { id: 'defense', name: '滅星行動', open: true, desc: '鐵血工造在羅馬尼亞的多布羅加高地建立了一座木星砲。由於海拔的差異，他們能夠輕易地透過木星砲封鎖多瑙河下游一帶，掐住格里芬的補給線。\n玩家和四名人形一起組隊，來到座落於多布羅加的高功率網路基地站，使用遠端連線到報廢在山區的正規軍營站，並操控軍方機甲九頭蛇，摧毀木星砲。\n由於行動被鐵血工造偵察到，他們也調動大量的兵力來防守並奪取網路基地站，玩家需要保衛住基地站並為其充電，使其能夠連線上遠處的九頭蛇。需要在鐵血工造的大軍抵達前搶先摧毀木星砲，否則將迎來全滅的下場。' },
   { id: 'test', name: '測試模式', open: true, desc: '不會自動出怪，可以自選召喚任何敵人或精英，零件無限。' },
   { id: 'battle', name: '戰局', open: true, desc: '（開發中）100×100 格的大地圖，之後會做成 7 打 7 的戰局。地圖上有三個佔領點，站在點上就能佔領；山、房屋、樹木會擋路與子彈，樹林會遮擋視線。左上角是小地圖，按 M 或點小地圖可以打開全圖（單位會變成點）。' },
   { id: 'versus', name: '雲圖對戰', open: true, desc: '（開發中）5 打 5 的團隊對戰，所有人形的生命都是原本的 3 倍，60×30 格的長條地圖，藍隊、紅隊的大本營在左右兩側。擊倒敵方人形本體得 1 分，先到 30 分獲勝；初始零件 10，地圖中間會出現零件和醫療包，擊倒敵人可拿走對方 50% 的零件。可以加入普通或精銳 AI，倒下 5 秒後重生。大本營有會無限重生的守衛，會攻擊太靠近的敵人。' },
@@ -6143,7 +6143,7 @@ function defIntroPlay(loadAll) {
   };
   const rr = (x, y, w, h, r) => { g.beginPath(); g.moveTo(x + r, y); g.arcTo(x + w, y, x + w, y + h, r); g.arcTo(x + w, y + h, x, y + h, r); g.arcTo(x, y + h, x, y, r); g.arcTo(x, y, x + w, y, r); g.closePath(); };
   const label = (txt, x, y, col, size) => { g.font = '800 ' + size + 'px sans-serif'; g.textAlign = 'center'; g.textBaseline = 'middle'; g.lineWidth = 4; g.strokeStyle = 'rgba(0,0,0,.7)'; g.strokeText(txt, x, y); g.fillStyle = col; g.fillText(txt, x, y); };
-  let capIdx = -1; const capAt = [0, 5, 10.4, 15];   // 每段字幕出現的時間（實際秒數）
+  let capIdx = -1; const capAt = [0, 5.5, 11.5];   // 每段字幕出現的時間（實際秒數）
   let last = performance.now(), T = 0;
   function frame(now) {
     if (R.dead) return;
@@ -6544,7 +6544,7 @@ const DEF = { bounds: { x0: -1800, x1: 6200, y0: -1700, y1: 1500 },   // 地圖�
   yb: -100, R: 536, depth: 260, x0: -536, x1: 536, safe: 176, gap: 0.27,
   board: { x: -220, y: -80 }, rev: { x: 292, y: -80 }, net: { x: -10, y: -85 }, useR: 110,   // net：網路控制室（中間的操作桌，最終時段在這裡連線九頭蛇）
   posts: [{ x: -440, y: -20 }, { x: 440, y: -20 }],            // 駐守點：左右出入口內側
-  prodEvery: 30, prodParts: 3, prodBatt: 1, upCost: 5, upMul: 0.2, enhCost: 20, time: 960, ctrlHp: 1000, baseEv: 0.2,
+  prodEvery: 30, prodParts: 3, prodBatt: 2, upCost: 5, upMul: 0.2, enhCost: 20, time: 960, ctrlHp: 1000, baseEv: 0.2,
   revWait: 10, revCost: 2, revCostGold: 3,
   fieldParts: 14, fieldCores: 4, coreChance: 0.28, itemEvery: 4, itemMin: 650, itemMax: 2100, detect: 420, imgFloor: 52 };
 // 出入口：左右兩端＋下半弧兩個（角度從 +x 軸往下量）
@@ -6845,6 +6845,8 @@ function mechTick(c, dt) {
     c.moving = L > 0.08 && c.sweepT == null;
     if (c.moving) { const v = T.speed * Math.min(1, L) * dt; moveWithCover(c, ix / L * v, iy / L * v); keepInMap(c); c.moveA = Math.atan2(iy, ix); }
     if (!isTouch() && mouse.seen) { const mw = mouseWorld(); c.aim = Math.atan2(mw.y - c.y, mw.x - c.x); }
+    else if (manualAim() && fireHeld && touchLockOk()) c.aim = Math.atan2(touchLock.y - c.y, touchLock.x - c.x) + touchOff;   // 手機手動瞄準：鎖定目標＋微調
+    else if (manualAim() && fireHeld && touchAim != null) c.aim = touchAim;                                                    // 手機手動瞄準：拖曳的方向
     else c.aim = tgt ? Math.atan2(tgt.y - c.y, tgt.x - c.x) : c.moving ? c.moveA : c.aim;
     if ((mouseDown || fireHeld || keys.has('Space') || keys.has('KeyJ'))) mechCannon(c);
     $('ammoNum').textContent = c.sweepT != null ? '機槍掃射' : c.reloadT > 0 ? '填裝中 ' + c.reloadT.toFixed(1) : c.ammo + ' / ' + T.magazine;
@@ -7532,12 +7534,14 @@ tFire.addEventListener('pointerdown', (e) => {
 });
 let touchLock = null, touchOff = 0;
 const AIM_FINE = 0.5;   // 微調範圍：搖桿推到底約 ±0.5 弧度（再乘靈敏度 0.8，約 ±23°）
+const aimSrc = () => (defPilot && clones.includes(defPilot) ? defPilot : player);   // 瞄準的中心：操作九頭蛇時是九頭蛇
+const aimRange = () => (defPilot && clones.includes(defPilot) ? defPilot.T.lockRange : bulletRange(cfg));
 function touchNearest() {
-  let best = Infinity, t = null;
-  for (const e of enemies) { if (e.dead) continue; const d = Math.hypot(e.x - player.x, e.y - player.y); if (d <= bulletRange(cfg) && d < best) { best = d; t = e; } }
+  let best = Infinity, t = null; const o = aimSrc(), R = aimRange();
+  for (const e of enemies) { if (e.dead || e.hp <= 0 || (isNight() && !teamSees(e))) continue; const d = Math.hypot(e.x - o.x, e.y - o.y); if (d <= R && d < best) { best = d; t = e; } }
   return t;
 }
-const touchLockOk = () => touchLock && !touchLock.dead && enemies.includes(touchLock) && Math.hypot(touchLock.x - player.x, touchLock.y - player.y) <= bulletRange(cfg) * 1.25;
+const touchLockOk = () => touchLock && !touchLock.dead && touchLock.hp > 0 && enemies.includes(touchLock) && Math.hypot(touchLock.x - aimSrc().x, touchLock.y - aimSrc().y) <= aimRange() * 1.25;
 tFire.addEventListener('pointermove', (e) => {
   if (!fireHeld || !manualAim() || !player) return;
   const r = tFire.getBoundingClientRect(), dx = e.clientX - (r.left + r.width / 2), dy = e.clientY - (r.top + r.height / 2);
@@ -7546,13 +7550,13 @@ tFire.addEventListener('pointermove', (e) => {
   $('fireKnob').style.transform = 'translate(' + kx + 'px,' + ky + 'px)';
   if (touchLockOk()) {
     // 有鎖定目標：只取「垂直於目標方向」的拖曳量當微調角度
-    const base = Math.atan2(touchLock.y - player.y, touchLock.x - player.x), q0 = proj(player.x, player.y), q1 = proj(player.x + Math.cos(base) * 100, player.y + Math.sin(base) * 100);
+    const o = aimSrc(), base = Math.atan2(touchLock.y - o.y, touchLock.x - o.x), q0 = proj(o.x, o.y), q1 = proj(o.x + Math.cos(base) * 100, o.y + Math.sin(base) * 100);
     const ul = Math.hypot(q1.x - q0.x, q1.y - q0.y) || 1, ux = (q1.x - q0.x) / ul, uy = (q1.y - q0.y) / ul;
     touchOff = clamp((ux * dy - uy * dx) / lim, -1, 1) * AIM_FINE * AIM_SENS;
     return;
   }
   if (dd < 10) return;   // 只是按著：沿用上一次的方向
-  const q = proj(player.x, player.y), w = unproj(q.x + dx * 4, q.y + dy * 4), want = Math.atan2(w.y - player.y, w.x - player.x);
+  const o = aimSrc(), q = proj(o.x, o.y), w = unproj(q.x + dx * 4, q.y + dy * 4), want = Math.atan2(w.y - o.y, w.x - o.x);
   // 靈敏度 0.8：每次只轉到目標方向的 80%（連續拖曳時會平順地跟上）
   touchAim = touchAim == null ? want : touchAim + Math.atan2(Math.sin(want - touchAim), Math.cos(want - touchAim)) * AIM_SENS;
 });
@@ -11891,7 +11895,7 @@ function update(dt) {
     }
     if (snap) a = Math.atan2(snap.y - player.y, snap.x - player.x);
     target = snap || (fireHeld && touchLockOk() ? touchLock : null); player.angle = a;
-    if (!wantsFire) touchAim = null;
+    if (!wantsFire && !(defPilot && fireHeld)) touchAim = null;   // 操作九頭蛇時按住開火鍵：保留拖曳方向給九頭蛇
   } else {
     if (target && (wantsFire || player.shot > 0 || !player.moving)) player.angle = Math.atan2(target.y - player.y, target.x - player.x);
     else if (player.moving) player.angle = player.moveAngle;
@@ -11904,6 +11908,7 @@ function update(dt) {
   // 手機版：停下來、沒有鎖定敵人、也沒在開火 → 播原本的待機動畫（不瞄準）
   // 電腦版永遠跟著滑鼠準星瞄準，所以不套用
   player.rest = isTouch() && !player.moving && !lockedTarget && player.shot <= 0 && player.aimT <= 0 && player.dodgeT <= 0 && !(manualAim() && fireHeld);
+  if (defPilot) { player.aiming = false; player.aimT = 0; player.rest = true; lockedTarget = null; }   // 操作九頭蛇：控制室裡的人形只待機，不瞄準、不開火
   if (player.dodgeT <= 0 && player.moving && Math.abs(Math.cos(player.moveAngle)) > 0.2) player.faceLeft = Math.cos(player.moveAngle) < 0;
   // 瞄準中且移動方向與面向相反＝後退
   player.backward = player.aiming && player.moving && Math.cos(player.moveAngle) * (Math.cos(player.angle) < 0 ? -1 : 1) < -0.3;
