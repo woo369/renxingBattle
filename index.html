@@ -2492,7 +2492,7 @@ const DEF_LEGIONS = [
 const DEFENSE_PHASES = [
   { name: '準備時段', end: 120, spawnTable: DEF_T1, initial: 2, spawn: { every: 9, min: 7, max: 6 }, prep: true },   // 0:00～2:00：少量敵人，時間到進入下一時段
   { name: '第二時段', end: 240, spawnTable: DEF_T2, initial: 2, spawn: { every: 5, min: 3, max: 12 } },              // 2:00～6:00：出現二階敵人，出怪更頻繁
-  { name: '第三時段', end: 240, spawnTable: DEF_T3, sc: DEF_SC3, initial: 2, spawn: { every: 5, min: 3, max: 10 }, eliteWave: 2, legion: { max: 1, first: 8, every: 20 } },   // 6:00～10:00：三階普通敵人＋兵團；最多 10 隻（8:00 入夜）
+  { name: '第三時段', end: 240, spawnTable: DEF_T3, sc: DEF_SC3, initial: 2, spawn: { every: 5, min: 3, max: 10 }, eliteWave: 2, legion: { max: 2, first: 8, every: 20 } },   // 6:00～10:00：三階普通敵人＋兵團；最多 10 隻（8:00 入夜）
   { name: '最終時段', end: 360, spawnTable: DEF_T3, sc: DEF_SC3, initial: 0, spawn: { every: 6, min: 4, max: 6 }, eliteWave: 2, elitePool: 'tier2', aceLegion: true, campDefend: true, mechs: true, legion: { max: 2, first: 6, every: 15 } },   // 10:00～16:00：敵人往鐵血營地集結防守（最多 6 隻、2 個兵團）；可以操作九頭蛇   // 6:00 第二時段結束：基地東側出現 2 隻鐵血工造一階精英     // 之後的時段還沒做：暫時沿用第二時段；16:00 時間到＝任務失敗
 ].map((p) => ({ ...p, packs: ['dino', 'jaguar', 'wasp', 'ripper', 'beast', 'lion', 'striker', 'jaeg', 'dragoon', 'guard', 'jupiter', 'scorp', 'night', 'defbase', 'ouro', 'arch', 'intr', 'scarecrow', 'goliath', 'gfac', 'judge', 'hydra'], night: true, defense: true, day: true, bossPool: null, medkitEvery: 30, medkitHeal: 10 }));
 const LEVEL_PHASES = { defense: DEFENSE_PHASES, night: NIGHT_PHASES, war: WAR_PHASES, duel: DUEL_PHASES, test: TEST_PHASES, battle: BATTLE_PHASES, versus: VERSUS_PHASES };   // 有分階段的關卡
@@ -6514,7 +6514,6 @@ function defTick(dt) {
     ids.forEach((id, k) => { const B = BOSSES[id], p = nightSpot(rand(1000, 1300), DEF.yb + (k ? 380 : -120) + rand(-80, 80), B.radius || 30);
       enemies.push({ boss: true, B, id, defElite: true, x: p.x, y: p.y, r: B.radius, hp: B.hp, maxHp: B.hp, ammo: B.magazine, reloadT: 0, magsDone: 0, special: null, cool: 0.8, barrel: 0, angle: 0, strafe: 1, strafeT: 0, jinkT: 0, jx: 0, jy: 0, vx: 0, vy: 0,
         touchCd: 0, debuffT: 0, faceLeft: true, aiming: false, shot: 0, phase: 0 }); burst(p.x, p.y, '#ff6b6b', 16); });
-    defNotice('鐵血工造的精英出現在基地東側：' + ids.map((id) => BOSSES[id].name).join('、') + '。時間暫停，擊敗精英才會繼續', '#ff6b6b');
   }
   if (phase && phase.legion) {   // 兵團
     const Lg = phase.legion, alive = new Set(enemies.filter((x) => x.legion).map((x) => x.legion));
@@ -6586,7 +6585,6 @@ function defSpawnLegion(SC, pick, attack) {
       enemies.push({ dGoal: L.dGoal, legion: L, T, x: p.x, y: p.y, r: T.radius, hp: T.hp, ammo: T.magazine, angle: 0, cool: rand(1.2, 2), touchCd: 0, def: cfg, shot: 0, moving: true, phase: rand(0, 6), sentry: camp ? { x: p.x, y: p.y } : undefined });
     }
   }
-  defNotice((camp ? '鐵血工造兵團在營地集結：' : '鐵血工造兵團出現：') + tp.name, '#ffb36b');
 }
 // 兵團成員：趕路時速度不超過最慢的成員；離兵團中心太遠就不再往外走（等其他人跟上）；交戰中只限制不要散開
 function legionStep(e, dt) {
@@ -7943,7 +7941,15 @@ function useSkill() {
     if (!isTouch() && mouse.seen) { const m = mouseWorld(); tx = m.x; ty = m.y; }
     else if (lockedTarget) { tx = lockedTarget.x; ty = lockedTarget.y; }
     else { tx = player.x + Math.cos(player.angle) * 150; ty = player.y + Math.sin(player.angle) * 150; }
-    const dx = tx - player.x, dy = ty - player.y, d = Math.hypot(dx, dy) || 1, k = Math.min(1, sk.throwRange / d);
+    // 自動瞄準：投擲距離內有敵人就丟在敵人身上（電腦選最靠近準星的，手機選最近的），並預判飛行時間內的移動
+    let auto = null, best = Infinity;
+    for (const e of enemies) {
+      if (e.dead || e.hp <= 0 || Math.hypot(e.x - player.x, e.y - player.y) > sk.throwRange + e.r || !teamSees(e)) continue;
+      const dd = !isTouch() && mouse.seen ? Math.hypot(e.x - tx, e.y - ty) : Math.hypot(e.x - player.x, e.y - player.y);
+      if (dd < best) { best = dd; auto = e; }
+    }
+    if (auto) { tx = auto.x + (auto.vx || 0) * sk.flight * 0.8; ty = auto.y + (auto.vy || 0) * sk.flight * 0.8; }
+    const dx = tx - player.x, dy = ty - player.y, d = Math.hypot(dx, dy) || 1, k = Math.min(1, (sk.throwRange + (auto ? auto.r : 0)) / d);
     const lv = sk.levels[player.stacks];
     grenades.push({ sx: player.x, sy: player.y, tx: player.x + dx * k, ty: player.y + dy * k, t: 0, T: sk.flight, lv, level: player.stacks });
     player.stacks = Math.min(3, player.stacks + 1);
@@ -11752,7 +11758,7 @@ function update(dt) {
       else if (phase.defense) { endGame(false); return; }   // 滅星行動：16 分鐘到了還沒摧毀木星砲＝任務失敗
       else { endGame(true); return; }
     }
-    if (phase.defense) { const t = Math.max(0, DEF.time - (gameTime - defPauseT)); $('phaseName').textContent = defPaused ? '擊敗精英以繼續' : phase.name; $('phaseTime').textContent = Math.floor(t / 60) + ':' + String(Math.floor(t % 60)).padStart(2, '0'); }   // 滅星行動：顯示任務剩餘時間
+    if (phase.defense) { const t = Math.max(0, DEF.time - (gameTime - defPauseT)); $('phaseName').textContent = defPaused ? '擊敗敵人' : phase.name; $('phaseTime').textContent = Math.floor(t / 60) + ':' + String(Math.floor(t % 60)).padStart(2, '0'); }   // 滅星行動：顯示任務剩餘時間
     if (boss) { $('phaseTime').textContent = 'BOSS'; }
     // 保險：Boss 生命歸零卻沒被結算、或 Boss 已經不在場上卻沒排進下一階段 → 補上
     for (const e of enemies.filter((x) => x.boss && x.hp <= 0)) killEnemy(e);
