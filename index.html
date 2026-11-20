@@ -447,7 +447,7 @@ body.touch #testPanel{max-height:38vh}   /* 手機：不要擋到左下的移動
 <button id="boardBtn" type="button" hidden title="佈告欄（B）">佈告欄<small class="only-mouse">B</small></button>
 <div id="defBoard" class="def-panel" hidden><h3>佈告欄</h3><div class="sub">安排 AI 隊友的工作（真人玩家不受影響）。駐守基地：守在左右出入口的掩體；跟隨玩家：跟著你行動；外出蒐集：到基地外撿零件和核心。</div><div id="defJobs"></div><div class="def-row"><span id="defUpTxt"></span><button id="defUpBtn" type="button">升級基地（5 核心）</button></div><div class="def-row"><button id="defBoardClose" type="button">關閉（B）</button></div></div>
 <div id="trainPanel" class="def-panel" hidden style="border-color:#6fe8ff"><h3 id="trainTitle">操作台</h3><div class="sub" id="trainSub"></div><div class="def-row train-btns" id="trainBtns"></div><div class="sub" id="trainStatus"></div><div class="def-row"><button id="trainClose" type="button">關閉（B）</button></div></div>
-<div id="defClone" class="def-panel" hidden><h3>數據機：複製防禦人形</h3><div class="sub">全隊強化 5 段後，可以花零件複製隊伍裡的人形。防禦人形的數值是強化 5 段的 50% 生命、70% 傷害，只會在基地裡沿著外側巡邏，不會閃避子彈，最多 10 個。</div><div class="sub" id="defCloneTxt"></div><div class="def-row train-btns" id="defCloneBtns"></div><div class="def-row"><button id="defCloneClose" type="button">關閉（B）</button></div></div>
+<div id="defClone" class="def-panel" hidden><h3>數據機：複製防禦人形</h3><div class="sub">全隊強化 5 段後，可以花零件複製隊伍裡的人形。防禦人形的數值是強化 5 段的 50% 生命、70% 傷害，只會在基地裡沿著外側巡邏，開槍時會停下來，不會閃避子彈也不會用技能（王牌會優先打血最少的敵人），最多 5 個。普通 20 零件、王牌 25 零件。</div><div class="sub" id="defCloneTxt"></div><div class="def-row train-btns" id="defCloneBtns"></div><div class="def-row"><button id="defCloneClose" type="button">關閉（B）</button></div></div>
 <div id="defNet" class="def-panel" hidden><h3>網路控制室</h3><div class="sub">最終時段可以花電池遠端連線東北方廢棄基地的九頭蛇。操作時本人會留在控制室。</div><div class="def-row" id="defMechRow"><span id="defMechTxt"></span><button id="defMech1" type="button">操作一台（20 電池）</button><button id="defMech2" type="button">兩台一起（40 電池）</button></div><div class="def-row"><button id="defNetClose" type="button">關閉（B）</button></div></div>
 <div id="defRev" class="def-panel" hidden><h3>復活台</h3><div class="sub">倒下 10 秒後可以花核心復活：一般 2 核心、王牌（精銳 AI）3 核心。打開「自動復活 AI」後，有 AI 倒下時其他 AI 會自己來這裡幫忙復活。</div><div id="defRevList"></div><div class="def-row"><span id="defRevTxt" class="sub"></span></div><div class="def-row"><button id="defAutoBtn" type="button">自動復活 AI：關</button><button id="defRevClose" type="button">關閉（B）</button></div></div>
 <div id="specBanner" hidden></div><div id="defFeed"></div>
@@ -7132,20 +7132,20 @@ function legionStep(e, dt) {
 }
 // ── 九頭蛇：最終時段在網路控制室花電池連線。操作一台（本人留在原地），兩台時另一台當護衛 AI
 /* 防禦人形：強化 5 段後，在數據機花零件複製隊伍裡的人形（普通 10、王牌 15 零件），最多 10 個。
-   數值＝強化 5 段的 50% 生命、70% 傷害；只在基地裡沿著靠外側的路線巡邏，不閃避子彈 */
-const DEF_GUARD = { max: 10, cost: 10, aceCost: 15, hp: 0.5, dmg: 0.7 };
+   數值＝強化 5 段的 50% 生命、70% 傷害；只在基地裡沿著靠外側的路線巡邏，不閃避子彈、不用技能，開槍時會停下來；王牌優先打血最少的敵人 */
+const DEF_GUARD = { max: 5, cost: 20, aceCost: 25, hp: 0.5, dmg: 0.7 };
 function defTeamList() { const L = defLobby ? defLobby.slots : []; return [{ id: selectedId, ace: false }, ...defSquad.map((id, i) => ({ id, ace: !!(L[i] && L[i].level === 'elite') }))].filter((x) => CHARACTERS[x.id]); }
 function defMakeGuard(id, ace) {
   const S = defState, D = CHARACTERS[id], cost = ace ? DEF_GUARD.aceCost : DEF_GUARD.cost;
-  if (!D || S.enh < 5 || partCount < cost || guardCount() >= DEF_GUARD.max) return;
-  partCount -= cost; updateParts();
-  ensurePack(packOf(D.assets)).then(() => {
+  if (!D || S.enh < 5 || partCount < cost || guardCount() + (S.gPend || 0) >= DEF_GUARD.max) return;   // gPend：素材還在載入、還沒出現的
+  partCount -= cost; updateParts(); S.gPend = (S.gPend || 0) + 1;
+  ensurePack(packOf(D.assets)).then(() => { S.gPend--;
     const k5 = Math.pow(NIGHT_ENH.mul, 5), u = makePlayer(D), p = nightSpot(DEF.modem.x + rand(-60, 60), DEF.modem.y - 70, D.radius || 20);
     u.maxHp = Math.round(u.maxHp * k5 * DEF_GUARD.hp); u.hp = u.maxHp;
     Object.assign(u, { x: p.x, y: p.y, clone: true, defGuard: true, eliteAI: ace, guardMul: k5 * DEF_GUARD.dmg, slot: CLONE_SLOTS[0], invT: 0.6, moving: false, aiming: false, shot: 0, trail: [], cool: 0, reload: 0, ammo: D.weapon.magazine,
       gIdx: Math.floor(Math.random() * 12), gDir: Math.random() < 0.5 ? 1 : -1 });
     clones.push(u); burst(u.x, u.y, '#7fd4ff', 16); floatText(u.x, u.y - 60, '防禦人形：' + D.name + (ace ? '（王牌）' : ''), '#7fd4ff'); sfx.skill(); renderDefClone();
-  }).catch(() => { partCount += cost; updateParts(); });
+  }).catch(() => { S.gPend--; partCount += cost; updateParts(); });
 }
 // 巡邏點：基地半圓裡靠外側的一圈
 const defGuardPt = (i) => { const n = 12, a = 0.22 + (Math.PI - 0.44) * (i / (n - 1)); return { x: Math.cos(a) * (DEF.R - 80), y: DEF.yb + Math.sin(a) * (DEF.R - 80) }; };
@@ -7154,16 +7154,17 @@ function defGuardTick(c, dt) {
   c.invT = Math.max(0, (c.invT || 0) - dt); c.cool = Math.max(0, (c.cool || 0) - dt); c.shot = Math.max(0, (c.shot || 0) - dt); c.skillCd = Math.max(0, (c.skillCd || 0) - dt);
   if (c.reload > 0) { c.reload -= dt; if (c.reload <= 0) { c.reload = 0; c.ammo = wp.magazine; } }
   let tgt = null, bs = Infinity, bd = Infinity;
-  for (const e of enemies) { if (e.hp <= 0 || e.defJup || !teamSees(e)) continue; const d = Math.hypot(e.x - c.x, e.y - c.y); if (d > D.lockRange) continue; const sc = c.eliteAI ? e.hp / (e.maxHp || e.hp || 1) * 300 + d * 0.3 : d; if (sc < bs) { bs = sc; bd = d; tgt = e; } }
+  const rng = bulletRange(D) * 0.98;
+  for (const e of enemies) { if (e.hp <= 0 || e.defJup || !teamSees(e)) continue; const d = Math.hypot(e.x - c.x, e.y - c.y); if (d > rng) continue; const sc = c.eliteAI ? e.hp : d; if (sc < bs) { bs = sc; bd = d; tgt = e; } }   // 射程內：普通打最近的，王牌打血最少的
   c.moving = false;
-  const shooting = tgt && bd <= bulletRange(D) * 0.98;
+  const shooting = !!tgt;   // 有目標就停下來開槍，不邊跑邊射
   if (!shooting) {   // 沒在開火就沿著外側巡邏
     let P = defGuardPt(c.gIdx); if (Math.hypot(P.x - c.x, P.y - c.y) < 30) { c.gIdx += c.gDir; if (c.gIdx < 0 || c.gIdx > 11) { c.gDir *= -1; c.gIdx += 2 * c.gDir; } P = defGuardPt(c.gIdx); }
     const dx = P.x - c.x, dy = P.y - c.y, d = Math.hypot(dx, dy) || 1, sp = D.speed * 0.75 * speedMul(c);
     moveWithCover(c, dx / d * Math.min(d, sp * dt), dy / d * Math.min(d, sp * dt)); c.moving = true; c.moveAngle = Math.atan2(dy, dx); c.curSpeed = sp;
   }
   if (tgt) c.angle = Math.atan2(tgt.y - c.y, tgt.x - c.x); else if (c.moving) c.angle = c.moveAngle;
-  c.aiming = !!tgt || !c.moving; c.faceLeft = Math.cos(c.angle) < 0; c.backward = c.moving && Math.cos(c.angle - c.moveAngle) < 0;
+  c.aiming = !!tgt; c.faceLeft = Math.cos(c.angle) < 0; c.backward = c.moving && Math.cos(c.angle - c.moveAngle) < 0;
   if (shooting && c.cool <= 0 && c.reload <= 0 && c.ammo > 0) nightAllyShoot(c, c.angle);
   if (c.ammo <= 0 && c.reload <= 0) c.reload = wp.reloadMode === 'shell' ? wp.reload * wp.magazine : reloadOf(c, D);
 }
@@ -7173,7 +7174,7 @@ function renderDefClone() {
   $('defCloneTxt').textContent = lock ? '全隊強化到 5 段後才能複製（目前 ' + S.enh + ' 段）' : '防禦人形 ' + n + ' / ' + DEF_GUARD.max + '　零件 ' + partCount;
   if (!box.dataset.built) { box.dataset.built = 1; box.textContent = '';
     for (const t of defTeamList()) { const b = document.createElement('button'); b.type = 'button'; b.dataset.id = t.id; b.dataset.ace = t.ace ? 1 : ''; b.textContent = CHARACTERS[t.id].name + (t.ace ? '（王牌）' : '') + '　' + (t.ace ? DEF_GUARD.aceCost : DEF_GUARD.cost) + ' 零件'; b.addEventListener('click', () => { defMakeGuard(t.id, t.ace); renderDefClone(); }); box.appendChild(b); } }
-  box.querySelectorAll('button').forEach((b) => { b.disabled = lock || n >= DEF_GUARD.max || partCount < (b.dataset.ace ? DEF_GUARD.aceCost : DEF_GUARD.cost); });
+  box.querySelectorAll('button').forEach((b) => { b.disabled = lock || n + (S.gPend || 0) >= DEF_GUARD.max || partCount < (b.dataset.ace ? DEF_GUARD.aceCost : DEF_GUARD.cost); });
 }
 function defMechStart(n) {
   const S = defState, idle = defMechs.filter((m) => m.parked);
@@ -12504,6 +12505,15 @@ function update(dt) {
   tickTyphonBeams(dt);
   if (isNight()) nightAfterEnemies(dt);
   separateEnemies();
+  if (isDef()) {   // 防禦人形的碰撞：跟敵人互推；碰到彼此平分；碰到玩家、隊友就自己讓開
+    const G = clones.filter((c) => c.defGuard && c.hp > 0);
+    if (G.length) { const O = [...enemies.filter((e) => !isFlying(e) && !e.fixed), ...G, player, ...nightAllies()];
+      for (const g of G) for (const o of O) { if (o === g || o.hp <= 0) continue; const dx = g.x - o.x, dy = g.y - o.y, min = (g.r + o.r) * SEP_K, d2 = dx * dx + dy * dy; if (d2 >= min * min) continue;
+        const d = Math.sqrt(d2) || 0.01, ux = d2 ? dx / d : 1, uy = d2 ? dy / d : 0, push = (min - d) * 0.5;
+        if (o.defGuard) { moveWithCover(g, ux * push, uy * push); moveWithCover(o, -ux * push, -uy * push); }
+        else if (o === player || o.nightAlly) moveWithCover(g, ux * push * 2, uy * push * 2);
+        else { const wa = g.r * g.r, wb = o.r * o.r * (o.boss ? 4 : 1); moveWithCover(g, ux * push * wb / (wa + wb) * 2, uy * push * wb / (wa + wb) * 2); moveWithCover(o, -ux * push * wa / (wa + wb) * 2, -uy * push * wa / (wa + wb) * 2); } } }
+  }
   if (isDef()) for (const e of enemies) if (e.defJup) { e.x = DEF.jupiter.x; e.y = DEF.jupiter.y; e.kvx = e.kvy = 0; }   // 木星砲固定在原位（擊退、拉扯都不會移動）
   updateJamWaves(dt);
 
