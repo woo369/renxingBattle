@@ -2520,6 +2520,21 @@ const defT3 = (T, w) => ({ T, w, sc: DEF_SC3[T.sprite] });
 const DEF_T3 = [defT3(DINO, 11), defT3(JAGUAR, 7), defT3(WASP, 11), defT3(RIPPER, 9), defT3(BEAST, 9), defT3(LION, 7),   // 一階 54%
   defT3(STRIKER, 9), defT3(JAEG, 10), defT3(DRAGOON, 9), defT3(GUARD, 8),                                                 // 二階 36%
   { T: SCORP, w: 5 }, { T: GFAC, w: 5 }];                                                                                 // 三階 10%（蠍甲獸、歌利亞工廠各 5%；歌利亞不單獨出現，只由工廠生產）
+/* 夜戰的出敵清單：開局前隨機抽一份（目前只有鐵血工造，之後會加正規軍、帕拉蒂斯）。
+   每份清單有三個階段：出現的敵人與機率（含倍率）、敵人上限、生成速度、開場敵人數 */
+const cpT = (L) => L.map((o) => ({ ...o, sc: o.sc ? { ...o.sc } : undefined }));   // 複製一份（之後改夜戰的不會動到滅星行動）
+const NIGHT_ROSTERS = {
+  sf: { name: '鐵血工造', phases: [
+    { spawnTable: [{ T: DINO, w: 30 }, { T: JAGUAR, w: 20 }, { T: WASP, w: 30 }, { T: RIPPER, w: 20 }], initial: 2, spawn: { every: 9, min: 7, max: 6 }, packs: ['dino', 'jaguar', 'wasp', 'ripper'] },   // 第一階段：一階敵人（不套倍率）
+    { spawnTable: cpT(DEF_T2), initial: 2, spawn: { every: 5, min: 3, max: 12 }, packs: ['dino', 'jaguar', 'wasp', 'ripper', 'beast', 'lion', 'striker', 'jaeg', 'dragoon', 'guard'] },                  // 第二階段：一階 60%（套倍率）＋二階 40%
+    { spawnTable: cpT(DEF_T3), initial: 2, spawn: { every: 5, min: 3, max: 10 }, packs: ['dino', 'jaguar', 'wasp', 'ripper', 'beast', 'lion', 'striker', 'jaeg', 'dragoon', 'guard', 'scorp', 'gfac', 'goliath'] },   // 第三階段：一二階強化＋三階 10%
+  ] },
+};
+let nightRoster = 'sf';
+function pickNightRoster() {   // 夜戰開局前：抽這場用哪一份出敵清單，套到三個階段上
+  const ids = Object.keys(NIGHT_ROSTERS); nightRoster = ids[Math.floor(Math.random() * ids.length)];
+  NIGHT_ROSTERS[nightRoster].phases.forEach((r, i) => { const P = NIGHT_PHASES[i]; if (!P) return; P.spawnTable = r.spawnTable; P.initial = r.initial; P.spawn = { ...r.spawn }; P.packs = [...r.packs, 'night']; });
+}
 // 兵團：數隻一組一起出現、一起行動（成員不算在最大敵人數裡；移動速度以最慢的成員為準，不會走散）
 const DEF_LEGIONS = [
   { name: '遠程打擊團', w: 25, list: [[JAGUAR, 3], [JAEG, 2]] },
@@ -5694,61 +5709,61 @@ const ENEMY_CODEX = () => [
     where: '出現：亂序戰事、夜戰、滅星行動' },
   { id: 'ripper', rank: 'normal', T: RIPPER, name: '切割者', weapon: '雙槍', img: ASSETS.ui.codex_ripper,
     desc: '鐵血工造的雙槍人形，身法靈活。在近距離停下，用兩把槍輪流射擊；看到子彈飛來會往旁邊閃開（閃避冷卻 15 秒），四發打完要換彈 4 秒。',
-    where: '出現：滅星行動' },
+    where: '出現：夜戰、滅星行動' },
   { id: 'striker', rank: 'normal', T: STRIKER, name: '痛擊者', weapon: '加特林', img: ASSETS.ui.codex_striker,
     desc: '鐵血工造的加特林人形，在中距離停下來連續掃射，一個彈匣 10 發；打完要換彈 6 秒，是靠近反擊的好時機。',
-    where: '出現：滅星行動（第二時段起）' },
+    where: '出現：夜戰（第二階段起）、滅星行動（第二時段起）' },
   { id: 'beast', rank: 'normal', T: BEAST, name: '殘獸', weapon: '近戰刀刃', img: ASSETS.ui.codex_beast,
     desc: '高速衝鋒的近戰敵人，貼近後原地蓄力 0.5 秒，朝前方扇形範圍砍一刀，刀刃會穿透 10 點護甲；出刀後會退開等待下一次機會，不會閃躲子彈。',
-    where: '出現：亂序戰事、夜戰、滅星行動（第二時段起）' },
+    where: '出現：亂序戰事、夜戰（第二階段起）、滅星行動（第二時段起）' },
   { id: 'scep', rank: 'normal', T: SCEPTER, name: '靈蛇權杖', weapon: '光束機槍', img: ASSETS.ui.codex_scep,
     desc: '扛著光束機槍的人形，光束子彈飛得更快更遠，還會穿透擴編人形。被光束打中會干擾瞄準：每中一發命中率 −1%，可以疊加，4 秒內沒再被打中才會消失。',
-    where: '出現：亂序戰事、夜戰（第三階段）' },
+    where: '出現：亂序戰事（第三階段）' },
   { id: 'aegis', rank: 'normal', T: AEGIS, name: '聖盾GA', weapon: '盾牌、電磁刀', img: ASSETS.ui.codex_aegis,
     desc: '由鐵血工造的聖盾改造而來，手持大盾與電磁刀的重裝肉盾，移動緩慢但非常耐打，貼身時撞到也很痛。靠近後會舉盾蓄力，地上出現狹窄的扇形預警，接著用電磁刀突刺——電磁傷害無視護甲、無法迴避，只能趁蓄力時離開範圍或閃避。',
-    where: '出現：亂序戰事、夜戰（第三階段）' },
+    where: '出現：亂序戰事（第三階段）' },
   { id: 'guard', rank: 'normal', T: GUARD, name: '聖盾', weapon: '電磁刀、機械硬盾', img: ASSETS.ui.codex_guard,
     desc: '手持電磁刀與盾牌的重裝人形。移動非常緩慢，靠近後會舉盾蓄力，地上出現狹窄的扇形預警，接著用電磁刀突刺——電磁傷害無視護甲、無法迴避，只能趁蓄力時離開範圍或閃避。貼身時撞到也很痛。',
-    where: '出現：滅星行動（第二時段起）' },
+    where: '出現：夜戰（第二階段起）、滅星行動（第二時段起）' },
   { id: 'dino', rank: 'normal', T: DINO, name: '兵蟻', weapon: '背載小砲', img: ASSETS.ui.codex_dino,
     desc: '鐵血工造的小型偵察機器人，體型小、跑得飛快，會一路衝到近距離再用背上的小砲射擊。火力很弱，但不太容易打中。',
-    where: '出現：滅星行動' },
+    where: '出現：夜戰、滅星行動' },
   { id: 'jaeg', rank: 'normal', T: JAEG, name: '獵鷗', weapon: '狙擊槍', img: ASSETS.ui.codex_jaeg,
     desc: '鐵血工造的狙擊人形。進到射程後會停下蹲好才開槍，一發 20 點傷害、射程很遠；每槍之間間隔很長（單發彈匣，每槍都要填裝）。蹲著的時候不會移動，要等目標跑遠了才起身追。',
-    where: '出現：滅星行動（第二時段起）' },
+    where: '出現：夜戰（第二階段起）、滅星行動（第二時段起）' },
   { id: 'dragoon', rank: 'normal', T: DRAGOON, name: '龍騎兵', weapon: '機槍', img: ASSETS.ui.codex_dragoon,
     desc: '坐在步行機械腿上的鐵血工造人形，移動快，靠近後用機槍連續掃射，一個彈匣 8 發；機械腿很重，被撞到很痛。',
-    where: '出現：滅星行動（第二時段起）' },
+    where: '出現：夜戰（第二階段起）、滅星行動（第二時段起）' },
   { id: 'jaguar', rank: 'normal', T: JAGUAR, name: '捷豹', weapon: '火箭發射器', img: ASSETS.ui.codex_jaguar,
     desc: '鐵血工造的迷你機甲，背著一具火箭發射器。會在很遠的距離停下，每 4 秒朝目標所在的位置拋射一發火箭，落地爆炸（半徑 25）。地上會出現落點紅圈，看到就趕快移開。',
-    where: '出現：滅星行動' },
+    where: '出現：夜戰、滅星行動' },
   { id: 'goliath', rank: 'normal', T: GOLIATH, name: '歌利亞', weapon: '自爆裝置', img: ASSETS.ui.codex_goliath,
     desc: '鐵血工造的自爆機器人，由歌利亞工廠生產。發現目標後慢慢逼近，貼近到 50 以內就停下蓄力 1 秒，然後自爆，炸出半徑 300、100 點傷害的大爆炸。地上的紅圈就是爆炸範圍——看到它停下來就全力逃離，或趁蓄力時把它打掉。',
-    where: '出現：滅星行動（由歌利亞工廠生產）' },
+    where: '出現：夜戰、滅星行動（由歌利亞工廠生產）' },
   { id: 'gfac', rank: 'normal', T: GFAC, name: '歌利亞工廠', weapon: '歌利亞生產線', img: ASSETS.ui.codex_gfac,
     desc: '鐵血工造的步行工廠，本身沒有武器，但會不斷生產歌利亞：出現後第 3 秒放出第一個，之後每 16 秒一個——停下來打開肚子下的艙門，讓歌利亞跑出來再關上。場上每有一座工廠，最多可以有 3 個歌利亞。越早拆掉越好。',
-    where: '出現：滅星行動（第三時段起）' },
+    where: '出現：夜戰（第三階段）、滅星行動（第三時段起）' },
   { id: 'lion', rank: 'normal', T: LION, name: '鋼獅', weapon: '機甲砲', img: ASSETS.ui.codex_lion,
     desc: '笨重的機甲，有 10 點護甲，非常耐打。射擊時會停在原地，停下與重新起步都要花上一點時間。擊敗後可以獲得 1 個零件。',
-    where: '出現：亂序戰事、夜戰、滅星行動（第二時段起）' },
+    where: '出現：亂序戰事、夜戰（第二階段起）、滅星行動（第二時段起）' },
   { id: 'scout', rank: 'normal', T: SCOUT, name: '偵查士', weapon: '腹部機砲', img: ASSETS.ui.codex_scout,
     desc: '高瘦的機甲，腹部裝著一門機砲，子彈無視護甲。身上有 50 點護盾，打光後 20 秒恢復。沒在開火時看到子彈飛來，會往上跳躍 1.5 秒躲開（冷卻 8 秒），趁它開火或換彈時攻擊最有效。擊敗後可以獲得 1 個零件。',
-    where: '出現：亂序戰事、夜戰（第三階段）' },
+    where: '出現：亂序戰事（第三階段）' },
   { id: 'hammer', rank: 'normal', T: HAMMER, name: '重錘士', weapon: '重錘、電磁槍', img: ASSETS.ui.codex_hammer,
     desc: '笨重的機甲，護甲高達 20，起步和停下都慢半拍。目標在 200 以外時，會站定蓄力 0.5 秒發射電磁閃電球，打中會降低 50% 移動速度 4 秒。目標靠近到 200 以內，或身上有任何緩速效果（包含其他敵人造成的）時，就會走過去揮下重錘，砸出半徑 70 的圓形範圍傷害——地上出現紅圈時趕快離開。電磁砲打完冷卻 2 秒，重錘攻擊完冷卻 1 秒。擊敗後可以獲得 3 個零件。',
-    where: '出現：亂序戰事、夜戰（第三階段）' },
+    where: '出現：亂序戰事（第三階段）' },
   { id: 'aeq', rank: 'normal', T: AEQUES, name: '埃奎斯', weapon: '防空導彈發射架 ×4', img: ASSETS.ui.codex_aeq,
     desc: '兩用防空導彈戰車。展開雷達鎖定 4 秒時（頭上出現「雷達鎖定」）會移動到離目標 400～600 的位置，接著兩管輪流發射追蹤導彈。導彈離目標超過 200 會持續轉向追蹤，進入 200 以內就鎖定位置直飛，地上會標出爆炸範圍——這時候閃開就能躲掉。填裝要 14 秒，填裝時會停在原地。不會閃躲子彈，擊敗後可以獲得 3 個零件。',
-    where: '出現：亂序戰事、夜戰（第三階段）' },
+    where: '出現：亂序戰事（第三階段）' },
   { id: 'lcan', rank: 'normal', T: LIGHTCANNON, name: '光炮士', weapon: '大型光束武器', img: ASSETS.ui.codex_lcan,
     desc: '扛著大型光束武器的人形。進入射程後會停下來架槍瞄準 0.8 秒（地上出現藍色落點警示，會跟著目標移動），接著以低弧度拋射光束彈，落地爆炸。被炸到會受到干擾：射速 −15%、移動速度 −10%，持續 3 秒。',
-    where: '出現：亂序戰事、夜戰（第三階段）' },
+    where: '出現：亂序戰事（第三階段）' },
   { id: 'hind', rank: 'normal', T: HIND, name: '牝鹿', weapon: '機砲 ×2', img: ASSETS.ui.codex_hind,
     desc: '鋼獅的改進型機甲，護甲高達 20，兩門機砲輪流開火。和鋼獅一樣笨重，停下與重新起步都要時間，只在站定時射擊；彈匣打空後要換彈 10 秒。擊敗後可以獲得 2 個零件。',
-    where: '出現：亂序戰事、夜戰（第三階段）' },
+    where: '出現：亂序戰事（第三階段）' },
   { id: 'scorp', rank: 'normal', T: SCORP, name: '蠍甲獸', weapon: '主砲', img: ASSETS.ui.codex_scorp,
     desc: '鐵血工造自產的四足重型機甲，只裝了一門主砲。和鋼獅一樣停下、起步都要時間，只在站定時開火；主砲每秒 3 發，3 發打完要填裝 3 秒。擊敗後可以獲得 2 個零件。',
-    where: '出現：滅星行動（第三時段起）' },
+    where: '出現：夜戰（第三階段）、滅星行動（第三時段起）' },
   { id: 'hydra', rank: 'normal', T: HYDRA, name: '九頭蛇', weapon: '主砲、高速機槍 ×2', img: ASSETS.ui.codex_hydra,
     desc: '正規軍買入鐵血工造的蠍甲獸後改造而成的四足重型機甲，護甲 15。和鋼獅一樣停下、起步都要時間，只在站定時用主砲開火（每秒 1 發，彈匣 4 發，填裝 2 秒）；被主砲打中會獲得 10% 易傷，持續 2 秒，可以疊加，再中會重設時間。擊敗後可以獲得 3 個零件。',
     specialDesc: '機槍掃射：每打完兩輪彈匣，改用上方兩挺高速機槍掃射，2 秒內射出 16 發子彈，每發 5 點傷害；被打中時移動速度 −20%，持續 2 秒（不會疊加，再中只重設時間）。掃射完才填裝。',
@@ -5763,19 +5778,19 @@ const ENEMY_CODEX = () => [
     where: '出現：無' },
   { id: 'cyclops', rank: 'normal', T: CYCLOPS, name: '獨眼巨人', weapon: '步槍', img: ASSETS.ui.codex_cyc,
     desc: '亂序戰事的主力敵人，在稍遠的距離停下來連續射擊，打完一個彈匣才換彈。',
-    where: '出現：亂序戰事、夜戰（第二階段）' },
+    where: '出現：亂序戰事（第二階段）' },
   { id: 'sws', rank: 'normal', T: SWORDSHIELD, name: '劍盾士', weapon: '光束武器', img: ASSETS.ui.codex_sws,
     desc: '手持光束武器的敵人，身上有 40 點護盾，要先打破護盾才傷得到本體；護盾被打光 15 秒後會恢復。光束子彈飛得更快更遠，還會穿透擴編人形。距離太遠或太近時會用閃避調整位置（冷卻 5 秒）。擊敗後可以獲得 1 個零件。',
-    where: '出現：亂序戰事、夜戰（第二、三階段）' },
+    where: '出現：亂序戰事（第二、三階段）' },
   { id: 'cent', rank: 'normal', T: CENTAUR, name: '肯陶羅斯', weapon: '複合弓', img: ASSETS.ui.codex_cent,
     desc: '手持複合弓的弓箭手，會在 400 的距離停下，朝目標當下的位置往高處拋射箭矢；地上會先出現落點預警。被貼近到 100 以內就會轉身後撤，拉開距離再繼續攻擊。',
-    where: '出現：亂序戰事、夜戰（第二、三階段）' },
+    where: '出現：亂序戰事（第二、三階段）' },
   { id: 'ceye', rank: 'normal', T: COMPOUND_EYE, name: '複眼巨人', weapon: '機槍', img: ASSETS.ui.codex_ceye,
     desc: '手持機槍的敵人，停在中距離高速連射，5 發一個彈匣；打完要換彈 4 秒，是靠近輸出的空檔。',
-    where: '出現：亂序戰事、夜戰（第二階段）' },
+    where: '出現：亂序戰事（第二階段）' },
   { id: 'meye', rank: 'normal', T: MULTI_EYE, name: '多眼巨人', weapon: '霰彈槍', img: ASSETS.ui.codex_meye,
     desc: '半肉盾半輸出的敵人，有 5 點護甲，會貼近到 200 的距離再用霰彈槍轟擊；兩發打完要換彈 6 秒，是反擊的好時機。',
-    where: '出現：亂序戰事、夜戰（第二階段）' },
+    where: '出現：亂序戰事（第二階段）' },
   ...ELITE_POOL.map((id) => ({ id, rank: 'elite', B: BOSSES[id], name: BOSSES[id].name, weapon: BOSSES[id].weapon,
     img: ASSETS.ui['codex_' + id], desc: BOSSES[id].desc, special: BOSSES[id].specialDesc, passive: BOSSES[id].passiveDesc,
     where: '出現：' + (BOSSES[id].where || eliteWhere(id)) })),
@@ -6232,6 +6247,7 @@ function startGame() {
   for (const k in capBlock) delete capBlock[k]; smoothT = 0; perfMs = perfN = 0;   // 自動畫質：每次開局都重新往上試
   if (gameLoading) return;
   audio();
+  if (selectedLevel === 'night' && !netGuest()) pickNightRoster();   // 夜戰：抽出敵清單
   phaseBoss = levelPhases() ? levelPhases().map((ph) => ph.bossPool ? pickBoss(ph.bossPool) : null) : [];   // 開局就抽好各階段的 Boss
   if (netGuest()) {
     // 加入的玩家：只能等房主按開始
@@ -6595,6 +6611,7 @@ function beginGame() {
   if (isTrain()) trainBegin(); else { trainState = null; $('trainPanel').hidden = true; }
   if (isDef()) defBegin(); else { $('defBlock').hidden = true; $('defModem').hidden = true; $('boardBtn').hidden = true; $('defBoard').hidden = true; $('defRev').hidden = true; $('defNet').hidden = true; $('specBanner').hidden = true; }   // 對戰：建立雙方隊伍（玩家在自己隊伍的大本營出發）
   $('score').textContent = '0'; refreshCharHud();
+  if (selectedLevel === 'night') floatText(player.x, player.y - 80, '敵方勢力：' + NIGHT_ROSTERS[nightRoster].name, '#ff9a8a');   // 夜戰：這場抽到的出敵清單
   setState('play'); last = performance.now();
   if (selectedLevel === 'war' || selectedLevel === 'night' || selectedLevel === 'defense') bgmStart('normal', 3); else if (selectedLevel === 'versus') bgmStart('normal', 5); else bgmStop(true);   // 背景音樂：亂序戰事從普通歌單抽 3 首、雲圖對戰抽 5 首（菁英對決只有 Boss 歌單）
 }
