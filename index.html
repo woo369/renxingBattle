@@ -6845,7 +6845,7 @@ function mechTick(c, dt) {
     c.moving = L > 0.08 && c.sweepT == null;
     if (c.moving) { const v = T.speed * Math.min(1, L) * dt; moveWithCover(c, ix / L * v, iy / L * v); keepInMap(c); c.moveA = Math.atan2(iy, ix); }
     if (!isTouch() && mouse.seen) { const mw = mouseWorld(); c.aim = Math.atan2(mw.y - c.y, mw.x - c.x); }
-    else if (manualAim() && fireHeld && touchLockOk()) c.aim = Math.atan2(touchLock.y - c.y, touchLock.x - c.x) + touchOff;   // 手機手動瞄準：鎖定目標＋微調
+    else if (manualAim() && fireHeld && touchLockOk()) { const mz = spriteMuzzle(c); c.aim = Math.atan2(touchLock.y - mz.y, touchLock.x - mz.x) + touchOff; }   // 手機手動瞄準：鎖定目標＋微調（從炮口算）
     else if (manualAim() && fireHeld && touchAim != null) c.aim = touchAim;                                                    // 手機手動瞄準：拖曳的方向
     else c.aim = tgt ? Math.atan2(tgt.y - c.y, tgt.x - c.x) : c.moving ? c.moveA : c.aim;
     if ((mouseDown || fireHeld || keys.has('Space') || keys.has('KeyJ'))) mechCannon(c);
@@ -11895,6 +11895,9 @@ function update(dt) {
     }
     if (snap) a = Math.atan2(snap.y - player.y, snap.x - player.x);
     target = snap || (fireHeld && touchLockOk() ? touchLock : null); player.angle = a;
+    if (target) {   // 子彈從槍口射出：改用「槍口 → 目標」的方向，彈道才會真的穿過目標（先用人形中心的角度擺好槍，再從槍口重算兩次）
+      for (let k = 0; k < 2; k++) { const mz = muzzleWorld(player); player.angle = Math.atan2(target.y - mz.y, target.x - mz.x) + (target === touchLock && !snap ? touchOff : 0); }
+    }
     if (!wantsFire && !(defPilot && fireHeld)) touchAim = null;   // 操作九頭蛇時按住開火鍵：保留拖曳方向給九頭蛇
   } else {
     if (target && (wantsFire || player.shot > 0 || !player.moving)) player.angle = Math.atan2(target.y - player.y, target.x - player.x);
@@ -12731,11 +12734,13 @@ function draw(t) {
       ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
     }
     if (manualAim() && fireHeld && state === 'play' && !vsDead()) {
-      // 手機手動瞄準：從人形往瞄準方向畫一條虛線到射程盡頭
-      const q0 = proj(player.x, player.y), R = bulletRange(cfg), q1 = proj(player.x + Math.cos(player.angle) * R, player.y + Math.sin(player.angle) * R);
+      // 手機手動瞄準：從槍口沿著子彈的方向畫一條虛線到射程盡頭（就是實際的彈道）；操作九頭蛇時從九頭蛇的炮口畫
+      const pc = defPilot && clones.includes(defPilot) ? defPilot : null;
+      const mz = pc ? spriteMuzzle(pc) : muzzleWorld(player), A = pc ? pc.aim : player.angle, R = pc ? pc.T.lockRange : bulletRange(cfg);
+      const q0 = proj(mz.x, mz.y), q1 = proj(mz.x + Math.cos(A) * R, mz.y + Math.sin(A) * R);
       ctx.setTransform(DPR, 0, 0, DPR, 0, 0); ctx.strokeStyle = 'rgba(249,207,112,0.7)'; ctx.lineWidth = 1; ctx.setLineDash([5, 5]);
-      ctx.beginPath(); ctx.moveTo(q0.x, q0.y - 10); ctx.lineTo(q1.x, q1.y - 10); ctx.stroke(); ctx.setLineDash([]);
-      ctx.beginPath(); ctx.arc(q1.x, q1.y - 10, 5, 0, Math.PI * 2); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(q0.x, q0.y); ctx.lineTo(q1.x, q1.y); ctx.stroke(); ctx.setLineDash([]);
+      ctx.beginPath(); ctx.arc(q1.x, q1.y, 5, 0, Math.PI * 2); ctx.stroke();
     }
     if (!isTouch() && mouse.seen) {
       ctx.strokeStyle = '#f9cf70'; ctx.lineWidth = 2; ctx.beginPath();
