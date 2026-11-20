@@ -6737,7 +6737,7 @@ function defPlayerDown() {
 function defSpecNext(dir) { const A = nightAllies(); if (!A.length) return; const i = A.indexOf(defSpec); defSpec = A[(i + dir + A.length) % A.length]; }
 // 滅星行動：隊友倒下 → 登記到復活台（佈告欄也看得到），並跳出通知
 function defSpawnElite(id, x, y, extra) {   // 鐵血工造精英出場（defElite：在場時時間軸暫停、外出蒐集的 AI 回防）
-  const B = BOSSES[id], p = nightSpot(x, y, B.radius || 30);
+  const B0 = BOSSES[id], B = { ...B0, hp: Math.round(B0.hp * (B0.tier === 3 ? 1.5 : 2)) }, p = nightSpot(x, y, B.radius || 30);   // 滅星行動：一、二階精英生命 ×2，三階 ×1.5
   const e = { boss: true, B, id, defElite: true, x: p.x, y: p.y, r: B.radius, hp: B.hp, maxHp: B.hp, ammo: B.magazine, reloadT: 0, magsDone: 0, special: null, cool: 0.8, barrel: 0, angle: 0, strafe: 1, strafeT: 0, jinkT: 0, jx: 0, jy: 0, vx: 0, vy: 0,
     touchCd: 0, debuffT: 0, faceLeft: true, aiming: false, shot: 0, phase: 0, ...(extra || {}) };
   enemies.push(e); burst(p.x, p.y, '#ff6b6b', 16); return e;
@@ -6776,12 +6776,14 @@ function legionStep(e, dt) {
   const L = e.legion, M = enemies.filter((x) => x.legion === L);
   if (L.gate == null) L.gate = nearestGate(e);
   e.gate = L.gate;
+  if (e.sentry) { e.lx = e.x; e.ly = e.y; return; }   // 守營地的兵團：各自守自己的崗位，不套用兵團的集體移動（不然回崗位的方向剛好背離兵團中心時會永遠卡住）
   if (e.lx != null && M.length > 1) {
     const cx = M.reduce((a, x) => a + x.x, 0) / M.length, cy = M.reduce((a, x) => a + x.y, 0) / M.length;
     let dx = e.x - e.lx, dy = e.y - e.ly; const mv = Math.hypot(dx, dy), fight = e.ntg && !e.ntg.fake, cap = L.speed * dt * 1.05;
     if (!fight && mv > cap) { dx *= cap / mv; dy *= cap / mv; e.x = e.lx + dx; e.y = e.ly + dy; }
     const ox = e.x - cx, oy = e.y - cy, od = Math.hypot(ox, oy);
-    if (od > (fight ? 240 : 150) && ox * dx + oy * dy > 0) { e.x = e.lx; e.y = e.ly; }   // 離中心太遠還往外走：停下等隊友
+    if (od > (fight ? 240 : 150) && ox * dx + oy * dy > 0 && (e.legWait || 0) < 2.5) { e.x = e.lx; e.y = e.ly; e.legWait = (e.legWait || 0) + dt; }   // 離中心太遠還往外走：停下等隊友（最多等 2.5 秒，避免互等卡死）
+    else if (od <= (fight ? 240 : 150)) e.legWait = 0;
   }
   e.lx = e.x; e.ly = e.y;
 }
@@ -8511,6 +8513,14 @@ function moveWithCover(en, dx, dy) {
   const x0 = en.x, y0 = en.y;
   if (!en.fighter && en.jamUntil > gameTime) { dx *= 0.7; dy *= 0.7; }   // 干擾圈：一般敵人移速 −30%
   const list = covers();
+  { // 已經卡進障礙物裡（被推擠、擊退推進去）：這一步不擋，並順便往外推出來，避免永遠卡在原地踏步
+    const r = en.r * 0.55, inB = list.find((b) => Math.abs(x0 - b.x) < r + b.r && Math.abs(y0 - b.y) < r + b.r);
+    if (inB || ((bigMap() || isNight()) && mapSolidAt(x0, y0, r))) {
+      en.x += dx; en.y += dy;
+      if (inB) { const ox = en.x - inB.x, oy = en.y - inB.y, od = Math.hypot(ox, oy) || 1; en.x += ox / od * 2; en.y += oy / od * 2; }
+      return;
+    }
+  }
   for (const axis of ['x', 'y']) {
     const next = en[axis] + (axis === 'x' ? dx : dy);
     const px = axis === 'x' ? next : en.x, py = axis === 'y' ? next : en.y;
