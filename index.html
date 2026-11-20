@@ -5164,7 +5164,7 @@ let best = Number(store.get('rxxlc-best')) || 0;
    每個人形／敵人的動畫圖放在 assets/<素材包>.json；網頁本身只帶設定（meta）與介面圖（ui）。
    離線單檔版會把圖片直接打包進網頁，這時就不用另外下載。 */
 const ASSET_BASE = 'assets/';
-const ASSET_VER = {"triple_crown":"42a6eaf59e","hk433":"df9cc9f7f7","type82":"19d6eb08aa","mh":"d23c2759a3","ouro":"ab4a21e936","cyc":"e3e7f09e34","meye":"a41da84ea9","hb":"dba320370d","dreamer":"87285c47db","scarecrow":"498db0f898","xm":"08da1bca4f","wasp":"0d68029acb","beast":"c322e71a84","lion":"3c116d5e13","intr":"e0de4d19e7","ceye":"82a6aca9a7","cent":"c58be64dbf","sws":"54ff5cb0d8","ouroE":"28421ec974","arch":"fcf8a15108","judge":"0904b780f7","lycan":"21ec39a3b9","aegis":"722f1b93d1","scep":"80de946a2c","hind":"a262c79af5","ti":"07477aefc9","lcan":"5b4b46404f","aeq":"3b96bb238d","scout":"cd3b141af2","hammer":"b9220bbb9f","gsw":"43b26bea32","mino":"169c3bf368","agent":"462fa8a126","de":"a0d77eed11","vhs":"48d898f5b3","sp9":"d43d1c3717","sat8":"59d571a15b","m110":"12ad1ce260","kord":"f4dbe7d0e1","t561":"5c635a3d9d","rpk":"29db8d90a9","x95":"7e54a51692","carc":"e53118059f","hydra":"b369a4278c","quail":"5bc9991ecd","wb":"a1920ee4d7","aa12":"c0b5a9004a","t100":"63d9404ba2","mg4":"b55fb8363b","an94":"3070abd310","m950":"e7757f6551","ntw":"7b558a5c50","dp12":"02850f045c","pal":"c6a4206a6c","typ":"fc83ca75b5","ladon":"c871fa41a6","ripper":"0177fde288","striker":"a53db882b5","guard":"40371cd495","dino":"7ccee24d47","scorp":"3fd7432e18","jaeg":"5a8356a33b","dragoon":"2e490725b9","jaguar":"70994c9621","goliath":"a619ae409b","gfac":"c2d3a20712","jupiter":"9825161850","defbase":"6cd68c880e","night":"71559edb8d","lancer":"38f55fae5b","glad":"e0c43bf51c","hanni":"9670d97095","elea":"e316fdb054","witch":"10de8bfb4b","intro":"cd1b684ead","train":"f634483918","class_SG":"431e39b392","class_AR":"f86d58b274","class_SMG":"fceb08bbb1","class_RF":"c107da1c64","class_HG":"f6305e910b","class_MG":"be1790479a","codexf_sf":"619386267b","codexf_kcco":"975523a4f6","codexf_paradeus":"d197beda55","codex_menu":"b74f26d585"};   // 素材檔的內容雜湊（拆檔版）：網址帶版本，更新後不會吃到瀏覽器裡的舊快取
+const ASSET_VER = {"triple_crown":"42a6eaf59e","hk433":"df9cc9f7f7","type82":"19d6eb08aa","mh":"d23c2759a3","ouro":"ab4a21e936","cyc":"e3e7f09e34","meye":"a41da84ea9","hb":"dba320370d","dreamer":"87285c47db","scarecrow":"498db0f898","xm":"08da1bca4f","wasp":"0d68029acb","beast":"c322e71a84","lion":"3c116d5e13","intr":"e0de4d19e7","ceye":"82a6aca9a7","cent":"c58be64dbf","sws":"54ff5cb0d8","ouroE":"28421ec974","arch":"fcf8a15108","judge":"0904b780f7","lycan":"21ec39a3b9","aegis":"722f1b93d1","scep":"80de946a2c","hind":"a262c79af5","ti":"07477aefc9","lcan":"5b4b46404f","aeq":"3b96bb238d","scout":"cd3b141af2","hammer":"b9220bbb9f","gsw":"43b26bea32","mino":"169c3bf368","agent":"462fa8a126","de":"a0d77eed11","vhs":"48d898f5b3","sp9":"d43d1c3717","sat8":"59d571a15b","m110":"12ad1ce260","kord":"f4dbe7d0e1","t561":"5c635a3d9d","rpk":"29db8d90a9","x95":"7e54a51692","carc":"e53118059f","hydra":"b369a4278c","quail":"5bc9991ecd","wb":"a1920ee4d7","aa12":"c0b5a9004a","t100":"63d9404ba2","mg4":"b55fb8363b","an94":"3070abd310","m950":"e7757f6551","ntw":"7b558a5c50","dp12":"02850f045c","pal":"c6a4206a6c","typ":"fc83ca75b5","ladon":"c871fa41a6","ripper":"0177fde288","striker":"a53db882b5","guard":"40371cd495","dino":"7ccee24d47","scorp":"3fd7432e18","jaeg":"5a8356a33b","dragoon":"2e490725b9","jaguar":"70994c9621","goliath":"a619ae409b","gfac":"c2d3a20712","jupiter":"9825161850","defbase":"6cd68c880e","night":"71559edb8d","lancer":"38f55fae5b","glad":"e0c43bf51c","hanni":"9670d97095","elea":"e316fdb054","witch":"10de8bfb4b","intro":"cd1b684ead","train":"a4311db90c","class_SG":"431e39b392","class_AR":"f86d58b274","class_SMG":"fceb08bbb1","class_RF":"c107da1c64","class_HG":"f6305e910b","class_MG":"be1790479a","codexf_sf":"619386267b","codexf_kcco":"975523a4f6","codexf_paradeus":"d197beda55","codex_menu":"b74f26d585"};   // 素材檔的內容雜湊（拆檔版）：網址帶版本，更新後不會吃到瀏覽器裡的舊快取
 const assetUrl = (name) => ASSET_BASE + name + '.json' + (ASSET_VER[name] ? '?v=' + ASSET_VER[name] : '');
 const packOf = (assets) => Object.keys(ASSETS).find((k) => ASSETS[k] === assets);
 const packBox = {};                                  // 素材包 → 解碼後的圖片放在 imgs 的哪一格
@@ -6302,9 +6302,10 @@ const TRAIN = {
   arena: { x0: -1500, x1: 1500, y0: -1100, y1: 1100 },
   biomeTop: 1180, cell: { w: 750, h: 880, gapY: 80 }, perRow: 4,
   biomes: [{ id: 'forest', name: '森林地' }, { id: 'ruin', name: '殘破廢墟' }, { id: 'snow', name: '雪地' }, { id: 'mud', name: '爛泥地' }],   // 新地形加在這裡，滿四個會自動往下開新的一排
-  consoles: [{ id: 'shadow', name: '影子敵人', x: -570, y: -420, img: 'c_shadow', col: '#78e6ff' }, { id: 'sf', name: '鐵血工造', x: -190, y: -420, img: 'c_sf', col: '#ff6a5a' },
-    { id: 'kcco', name: '正規軍', x: 190, y: -420, img: 'c_kcco', col: '#6eff96' }, { id: 'para', name: '帕拉蒂斯', x: 570, y: -420, img: 'c_para', col: '#dcf0ff' }],
-  useR: 130, solids: [], ground: [], grid: new Map(), G: 400, built: false,
+  consoles: [{ id: 'shadow', name: '影子敵人', x: -480, y: -420, img: 'c_shadow', col: '#78e6ff' }, { id: 'sf', name: '鐵血工造', x: -240, y: -420, img: 'c_sf', col: '#ff6a5a' },
+    { id: 'kcco', name: '正規軍', x: 0, y: -420, img: 'c_kcco', col: '#6eff96' }, { id: 'para', name: '帕拉蒂斯', x: 240, y: -420, img: 'c_para', col: '#dcf0ff' },
+    { id: 'ally', name: '友方人形', x: 480, y: -420, img: 'c_ally', col: '#ffd76a' }],
+  useR: 90, solids: [], ground: [], grid: new Map(), G: 400, built: false,
 };
 TRAIN.biomes.forEach((b, i) => { const r = Math.floor(i / TRAIN.perRow), c = i % TRAIN.perRow; b.x0 = TRAIN.arena.x0 + c * TRAIN.cell.w; b.x1 = b.x0 + TRAIN.cell.w; b.y0 = TRAIN.biomeTop + r * (TRAIN.cell.h + TRAIN.cell.gapY); b.y1 = b.y0 + TRAIN.cell.h; });
 TRAIN.bounds = { x0: TRAIN.arena.x0, x1: TRAIN.arena.x1, y0: TRAIN.arena.y0, y1: Math.max(...TRAIN.biomes.map((b) => b.y1)) + 80 };
@@ -6314,7 +6315,7 @@ function trainBuild() {   // 地形只建一次（固定亂數種子，每次進
   let sd = 20261120; const R = () => ((sd = Math.imul(sd ^ (sd >>> 15), 2246822519) + 0x6d2b79f5 | 0) >>> 0) / 4294967296, rr = (a, b) => a + R() * (b - a);
   const S = TRAIN.solids, Gd = TRAIN.ground;
   const free = (x, y, r) => !S.some((o) => o.w ? Math.abs(x - o.x) < o.w / 2 + r && Math.abs(y - o.y) < o.h / 2 + r : Math.hypot(x - o.x, y - o.y) < o.r + r);
-  for (const c of TRAIN.consoles) S.push({ kind: 'console', x: c.x, y: c.y, w: 190, h: 56, con: c });
+  for (const c of TRAIN.consoles) S.push({ kind: 'console', x: c.x, y: c.y, w: 88, h: 30, con: c });
   for (const b of TRAIN.biomes) {
     const m = 50, X0 = b.x0 + m, X1 = b.x1 - m, Y0 = b.y0 + 90, Y1 = b.y1 - m;
     const scatter = (n, r, mk, tries = 40) => { for (let i = 0, k = 0; i < n && k < n * tries; k++) { const x = rr(X0, X1), y = rr(Y0, Y1); if (free(x, y, r)) { S.push(mk(x, y)); i++; } } };
@@ -6417,24 +6418,25 @@ function drawTrainThing(o) {
   if (o.kind === 'console') { drawConsole(o); return; }
 }
 function drawConsole(o) {
-  const c = o.con, im = imgs[packBox.train] && imgs[packBox.train][c.img], q = proj(o.x, o.y), on = trainState && trainState[c.id] && trainState[c.id].on;
-  ground(q, o.x, o.y + o.h / 2); ctx.fillStyle = 'rgba(0,0,0,0.4)'; ctx.beginPath(); ctx.ellipse(o.x, o.y + o.h / 2, 120, 26, 0, 0, Math.PI * 2); ctx.fill();
-  if (on) { ctx.fillStyle = c.col; ctx.globalAlpha = 0.18 + 0.1 * Math.sin(performance.now() / 300); ctx.beginPath(); ctx.ellipse(o.x, o.y + o.h / 2, 150, 40, 0, 0, Math.PI * 2); ctx.fill(); ctx.globalAlpha = 1; }
+  const c = o.con, im = imgs[packBox.train] && imgs[packBox.train][c.img], q = proj(o.x, o.y), on = trainState && (c.id === 'ally' ? nightAllies().length > 0 : trainState[c.id] && trainState[c.id].on);
+  ground(q, o.x, o.y + o.h / 2); ctx.fillStyle = 'rgba(0,0,0,0.4)'; ctx.beginPath(); ctx.ellipse(o.x, o.y + o.h / 2, 58, 13, 0, 0, Math.PI * 2); ctx.fill();
+  if (on) { ctx.fillStyle = c.col; ctx.globalAlpha = 0.18 + 0.1 * Math.sin(performance.now() / 300); ctx.beginPath(); ctx.ellipse(o.x, o.y + o.h / 2, 74, 20, 0, 0, Math.PI * 2); ctx.fill(); ctx.globalAlpha = 1; }
   const qb = proj(o.x, o.y + o.h / 2); upright(qb, o.x, o.y + o.h / 2);
-  const w = 216, h = 225, bx = o.x - w / 2, by = o.y + o.h / 2 - h;
+  const w = 100, h = 104, bx = o.x - w / 2, by = o.y + o.h / 2 - h;
   if (im && im.complete && im.naturalWidth) ctx.drawImage(im, bx, by, w, h); else { ctx.fillStyle = '#334'; ctx.fillRect(bx + 18, by + 60, w - 36, h - 60); }
-  if (on) { ctx.fillStyle = c.col; for (let i = 0; i < 4; i++) { ctx.globalAlpha = 0.5 + 0.5 * Math.abs(Math.sin(performance.now() / 250 + i)); ctx.beginPath(); ctx.arc(bx + w * (0.338 + i * 0.1125), by + h * 0.197, 6, 0, Math.PI * 2); ctx.fill(); } ctx.globalAlpha = 1; }
-  ctx.font = '800 15px sans-serif'; ctx.textAlign = 'center'; ctx.lineWidth = 4; ctx.strokeStyle = 'rgba(0,0,0,0.7)'; const ty = by - 8;
+  if (on) { ctx.fillStyle = c.col; for (let i = 0; i < 4; i++) { ctx.globalAlpha = 0.5 + 0.5 * Math.abs(Math.sin(performance.now() / 250 + i)); ctx.beginPath(); ctx.arc(bx + w * (0.338 + i * 0.1125), by + h * 0.197, 3.2, 0, Math.PI * 2); ctx.fill(); } ctx.globalAlpha = 1; }
+  ctx.font = '800 13px sans-serif'; ctx.textAlign = 'center'; ctx.lineWidth = 4; ctx.strokeStyle = 'rgba(0,0,0,0.7)'; const ty = by - 6;
   ctx.strokeText(c.name, o.x, ty); ctx.fillStyle = c.col; ctx.fillText(c.name, o.x, ty);
   ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
 }
 // ── 操作台：生成敵人的開關 ──
 // 普通敵人的階級（鐵血工造照滅星行動；正規軍、帕拉蒂斯照亂序戰事各階段出現的順序）
-const TRAIN_POOL = {
-  sf: [[DINO, JAGUAR, WASP, RIPPER, BEAST, LION], [STRIKER, JAEG, DRAGOON, GUARD], [SCORP, GFAC]],
-  kcco: [[CYCLOPS, MULTI_EYE, COMPOUND_EYE], [CENTAUR, AEGIS, HIND], [AEQUES, HYDRA]],
-  para: [[SWORDSHIELD, SCEPTER], [LIGHTCANNON, SCOUT, HAMMER], [LANCER, GLAD]],
-};
+// 普通敵人：陣營照圖鑑的分類，階級照每種敵人資料上的 tier；某一階沒有敵人就先空著（例如帕拉蒂斯目前沒有一階，之後補上就會自動出現）
+let trainPoolCache = null;
+function TRAIN_POOL_OF(fid) {
+  if (!trainPoolCache) { trainPoolCache = {}; for (const e of ENEMY_CODEX()) { if (e.rank !== 'normal' || !e.T || e.shadow || !e.T.tier) continue; const f = factionOf(e.id), k = f === 'paradeus' ? 'para' : f; const L = (trainPoolCache[k] = trainPoolCache[k] || [[], [], []]); if (L[e.T.tier - 1]) L[e.T.tier - 1].push(e.T); } }
+  return trainPoolCache[fid] || [[], [], []];
+}
 const TRAIN_ELITES = { sf: 'sf', kcco: 'kcco', para: 'paradeus' };
 const trainEliteIds = (fid) => ECODEX_FACTIONS.find((f) => f[0] === TRAIN_ELITES[fid])[2].filter((id) => BOSSES[id] && !BOSSES[id].building && BOSSES[id].ai !== 'jupiter');
 const tPack = (T) => { const t = TEST_ENEMIES.find(([, g]) => g() === T); return t ? t[2] : null; };
@@ -6442,7 +6444,7 @@ const TRAIN_TIER_TXT = ['一階普通敵人', '一～二階普通敵人', '一�
 let trainState = null;
 function trainBegin() {
   trainBuild();
-  trainState = { shadow: { on: false, t: 0, clock: 0 }, sf: { on: false, tier: 0, clock: 0 }, kcco: { on: false, tier: 0, clock: 0 }, para: { on: false, tier: 0, clock: 0 }, open: null };
+  trainState = { allyLoading: false, shadow: { on: false, t: 0, clock: 0 }, sf: { on: false, tier: 0, clock: 0 }, kcco: { on: false, tier: 0, clock: 0 }, para: { on: false, tier: 0, clock: 0 }, open: null };
   player.x = 0; player.y = 0; cam.x = 0; cam.y = 0; $('trainPanel').hidden = true;
 }
 function trainSpot(r) {   // 玩家周圍（地圖內、沒有擋路的地方）
@@ -6470,16 +6472,18 @@ function trainTick(dt) {
   if (sh.on) { sh.t += dt; sh.clock += dt; const every = Math.max(0.45, 2.6 * Math.pow(0.5, sh.t / 90)); if (sh.clock >= every && trainCount('shadow') < 40) { sh.clock = 0; trainSpawn(ENEMY, 'shadow'); } }
   for (const fid of ['sf', 'kcco', 'para']) {
     const F = S[fid]; if (!F.on || F.loading) continue; F.clock += dt;
-    if (F.clock >= 2.2 && trainCount(fid) < 12) { F.clock = 0; const pool = TRAIN_POOL[fid].slice(0, F.tier + 1).flat(), T = pool[Math.floor(Math.random() * pool.length)]; const pk = tPack(T); if (!pk || packReady[pk]) trainSpawn(T, fid); }
+    if (F.clock >= 2.2 && trainCount(fid) < 12) { F.clock = 0; const pool = TRAIN_POOL_OF(fid).slice(0, F.tier + 1).flat(); if (!pool.length) continue; const T = pool[Math.floor(Math.random() * pool.length)]; const pk = tPack(T); if (!pk || packReady[pk]) trainSpawn(T, fid); }
   }
+  for (const c of clones) if (c.nightAlly) c.skillCd = Math.max(0, (c.skillCd || 0) - dt);   // 友方人形：技能冷卻
+  if (clones.some((c) => c.nightAlly && c.hp <= 0)) clones = clones.filter((c) => !(c.nightAlly && c.hp <= 0));
   // 靠近操作台：顯示按鈕（B）
-  let near = null; for (const c of TRAIN.consoles) if (Math.hypot(player.x - c.x, player.y - (c.y + 40)) < TRAIN.useR + 30) near = c;
+  let near = null; for (const c of TRAIN.consoles) if (Math.hypot(player.x - c.x, player.y - (c.y + 30)) < TRAIN.useR) near = c;
   $('boardBtn').hidden = !near; if (near) $('boardBtn').firstChild.textContent = near.name + '操作台';
   if (!near && !$('trainPanel').hidden) $('trainPanel').hidden = true;
   if (!$('trainPanel').hidden) renderTrainPanel();
 }
 function openTrainPanel() {
-  let near = null; for (const c of TRAIN.consoles) if (Math.hypot(player.x - c.x, player.y - (c.y + 40)) < TRAIN.useR + 30) near = c;
+  let near = null; for (const c of TRAIN.consoles) if (Math.hypot(player.x - c.x, player.y - (c.y + 30)) < TRAIN.useR) near = c;
   if (!near) return; trainState.open = near.id; $('trainPanel').hidden = false; renderTrainPanel(true);
 }
 function renderTrainPanel(full) {
@@ -6488,18 +6492,24 @@ function renderTrainPanel(full) {
   if (full || box.dataset.id !== c.id) {
     box.dataset.id = c.id; box.textContent = ''; $('trainTitle').textContent = c.name + '操作台'; $('trainTitle').style.color = c.col;
     const add = (label, fn, id) => { const b = document.createElement('button'); b.type = 'button'; b.textContent = label; if (id) b.dataset.k = id; b.addEventListener('click', () => { fn(); renderTrainPanel(true); }); box.appendChild(b); return b; };
-    if (c.id === 'shadow') {
+    if (c.id === 'ally') {
+      $('trainSub').textContent = '選擇要召喚的人形，召出來會跟隨你作戰（最多 ' + TRAIN_ALLY_MAX + ' 名）。隊友倒下就會離隊，可以再召喚。';
+      for (const id of Object.keys(CHARACTERS)) { const D = CHARACTERS[id]; if (!D.assets) continue; add(D.name, () => trainAlly(id), 'a_' + id); }
+      add('解散所有隊友', () => { for (const u of nightAllies()) burst(u.x, u.y, '#ffd76a', 10); clones = clones.filter((u) => !u.nightAlly); nightTeam = nightTeam.filter((u) => u === player); }, 'off');
+    } else if (c.id === 'shadow') {
       $('trainSub').textContent = '開啟後開始計時並持續生成影子敵人，時間越久生成得越快。關閉會清除影子敵人並重置時間。';
       add(S.shadow.on ? '關閉（清除敵人、重置時間）' : '開始生成影子敵人', () => { const sh = S.shadow; if (sh.on) { sh.on = false; sh.t = 0; sh.clock = 0; trainClear('shadow'); } else { sh.on = true; sh.t = 0; sh.clock = 99; } }, 'tog');
     } else {
       $('trainSub').textContent = '選一種生成範圍後會在你周圍持續生成敵人（最多同時 12 隻）；精英以菁英對決的強度出現。關閉會清除這台生成的所有敵人。';
       const F = S[c.id];
-      TRAIN_TIER_TXT.forEach((t, i) => add((F.on && F.tier === i ? '● ' : '') + t, () => trainSetTier(c.id, i), 't' + i));
+      TRAIN_TIER_TXT.forEach((t, i) => { const none = !TRAIN_POOL_OF(c.id).slice(0, i + 1).flat().length, b = add((F.on && F.tier === i ? '● ' : '') + t + (none ? '（目前沒有）' : ''), () => trainSetTier(c.id, i), 't' + i); b.disabled = none; });
       add('召喚一名隨機精英', () => trainElite(c.id), 'elite');
       add('關閉並清除敵人', () => { F.on = false; trainClear(c.id); }, 'off');
     }
   }
   const F = S[c.id];
+  if (c.id === 'ally') { const n = nightAllies().length; $('trainStatus').textContent = (S.allyLoading ? '載入素材中…　' : '') + '隊友 ' + n + ' / ' + TRAIN_ALLY_MAX + (n ? '：' + nightAllies().map((u) => u.def.name).join('、') : '');
+    box.querySelectorAll('[data-k^="a_"]').forEach((b) => { b.disabled = n >= TRAIN_ALLY_MAX || !!S.allyLoading; }); const off = box.querySelector('[data-k="off"]'); if (off) off.disabled = !n; return; }
   if (c.id === 'shadow') { const sh = S.shadow, every = Math.max(0.45, 2.6 * Math.pow(0.5, sh.t / 90)); $('trainStatus').textContent = sh.on ? '計時 ' + Math.floor(sh.t / 60) + ':' + String(Math.floor(sh.t % 60)).padStart(2, '0') + '　生成間隔 ' + every.toFixed(2) + ' 秒　場上 ' + trainCount('shadow') + ' 隻' : '未啟動'; }
   else {
     const el = enemies.filter((e) => e.trainSrc === c.id && e.boss).length;
@@ -6507,9 +6517,21 @@ function renderTrainPanel(full) {
     const off = box.querySelector('[data-k="off"]'); if (off) off.disabled = !F.on && !enemies.some((e) => e.trainSrc === c.id);
   }
 }
+const TRAIN_ALLY_MAX = 4;
+function trainAlly(id) {
+  const D = CHARACTERS[id], S = trainState; if (!D || nightAllies().length >= TRAIN_ALLY_MAX || S.allyLoading) return;
+  S.allyLoading = true;
+  Promise.all([ensurePack(packOf(D.assets)), ensureClass(D.weapon.class).catch(() => {})]).then(() => {
+    S.allyLoading = false; if (!isTrain() || state !== 'play' || nightAllies().length >= TRAIN_ALLY_MAX) return;
+    const a = rand(0, Math.PI * 2), p = nightSpot(player.x + Math.cos(a) * 70, player.y + Math.sin(a) * 70, 20);
+    const u = makePlayer(D); u.x = p.x; u.y = p.y; u.angle = Math.PI / 2; u.faceLeft = false;
+    Object.assign(u, { clone: true, nightAlly: true, slot: CLONE_SLOTS[nightAllies().length % 4], invT: 0.6, moving: false, aiming: false, shot: 0, trail: [] });
+    clones.push(u); nightOrder(); nightTeam.push(u); burst(u.x, u.y, '#ffd76a', 18); floatText(u.x, u.y - 60, D.name + ' 加入隊伍', '#ffd76a'); sfx.skill();
+  }, () => { S.allyLoading = false; floatText(player.x, player.y - 60, '素材載入失敗', '#ff8f83'); });
+}
 function trainSetTier(fid, tier) {
   const F = trainState[fid]; F.on = true; F.tier = tier; F.clock = 99;
-  const need = [...new Set(TRAIN_POOL[fid].slice(0, tier + 1).flat().map(tPack).concat(fid === 'sf' && tier >= 2 ? ['goliath'] : []))].filter((p) => p && !packReady[p]);
+  const need = [...new Set(TRAIN_POOL_OF(fid).slice(0, tier + 1).flat().map(tPack).concat(fid === 'sf' && tier >= 2 ? ['goliath'] : []))].filter((p) => p && !packReady[p]);
   if (need.length) { F.loading = true; Promise.all(need.map(ensurePack)).then(() => { F.loading = false; }, () => { F.loading = false; F.on = false; floatText(player.x, player.y - 60, '素材載入失敗', '#ff8f83'); }); }
 }
 function trainElite(fid) {
@@ -6560,7 +6582,7 @@ function beginGame() {
   vs = null; aiAllies = []; vsNades = []; vsShells = [];
   const testing = !!(phase && phase.test && !phase.train);   // 訓練場借用測試模式的精英處理，但不顯示測試面板
   $('testPanel').hidden = !testing; if (testing) buildTestPanel();
-  $('hudScore').hidden = testing;
+  $('hudScore').hidden = testing || !!(phase && phase.train);   // 訓練場不計分
   if (testing) $('phaseBlock').hidden = true;   // 測試模式不顯示分數與模式
   boss = null; bossSpawned = false; phaseAdvT = 0;
   jamWaves = []; homers = []; parts = []; partCount = (phase && phase.startParts) || 0; partClock = 0; clones = []; missiles = []; smokes = []; aegisT = 0; medkits = []; medClock = 0; slashWaves = []; magicOrbs = []; shockWaves = [];
@@ -6587,7 +6609,7 @@ const NIGHT_ENH = { max: 5, mul: 1.2 };         // 強化：子彈傷害、生�
 const NIGHT_ELITE = { chance: 0.15, cost: 10, dodgeCd: 2.5 };   // 通訊器有 15% 機率呼叫到精銳 AI 的人形，邀請時多花 10 零件
 const NIGHT = { teamMax: 3, inviteR: 150, spawnMin: 900, spawnMax: 1300, bgScale: 0.8 };   // 最多 2 名隊友；靠近支援人形 150 內可以邀請；支援人形出現在 900～1300 外
 // 每名人形各自的視野：手槍人形 500；隊伍裡有手槍人形時其他人形 450；沒有就 200
-const visionOf = (u) => (isDef() && phase.day ? 3000 : u.def.weapon.class === 'HG' ? NIGHT_VISION.HG : nightOrder().some((c) => c.def.weapon.class === 'HG') ? NIGHT_VISION.withHG : NIGHT_VISION.other);
+const visionOf = (u) => ((isDef() && phase.day) || isTrain() ? 3000 : u.def.weapon.class === 'HG' ? NIGHT_VISION.HG : nightOrder().some((c) => c.def.weapon.class === 'HG') ? NIGHT_VISION.withHG : NIGHT_VISION.other);
 const visionR = () => (isNight() && player ? visionOf(player) : Infinity);
 // 敵人有沒有被隊伍裡任何一名人形看到（看到的才能鎖定）
 const MECH_VISION = 900;   // 九頭蛇的夜戰視野
@@ -7707,12 +7729,13 @@ function endGame(cleared) {
   $('overTitle').textContent = warClear ? '恭喜通關！' : cleared && isDef() ? '任務完成：木星砲已摧毀！' : cleared ? (phase ? phase.name : '') + '完成！' : '本回合結束';
   $('clearBanner').hidden = !warClear; $('clearBanner').textContent = '亂序戰事 全三階段完成';
   $('scoreLabel').textContent = warClear ? '通關分數' : '你的最終得分';
+  const noScore = isTrain(); $('scoreLabel').hidden = noScore; $('finalScore').hidden = noScore;   // 訓練場不計分
   $('bossBar').hidden = true;
-  const isBest = score > best;
+  const isBest = !noScore && score > best;
   if (isBest) { best = score; store.set('rxxlc-best', String(best)); }
   $('finalScore').textContent = score.toLocaleString('zh-TW');
   const m = Math.floor(gameTime / 60), s = Math.floor(gameTime % 60), mmss = m + ':' + String(s).padStart(2, '0');
-  const bestTxt = isBest ? '新紀錄' : (best ? '最高分 ' + best.toLocaleString('zh-TW') : '');
+  const bestTxt = noScore ? '' : isBest ? '新紀錄' : (best ? '最高分 ' + best.toLocaleString('zh-TW') : '');
   $('clearTime').hidden = !warClear; $('clearTime').innerHTML = '通關時間 <b>' + mmss + '</b>';
   $('finalStats').textContent = warClear ? bestTxt : '存活 ' + mmss + (bestTxt ? ' · ' + bestTxt : '');
   showBest(); setState('over');
@@ -12293,7 +12316,7 @@ function update(dt) {
   const vb0 = viewBounds(), far = vs || isDef() ? 1e9 : Math.max(vb0.hw, -vb0.t, vb0.b) * 1.8;   // 對戰：遠處 AI 之間的子彈也要算
   const P0 = player;
   for (let i = enemies.length - 1; i >= 0; i--) {
-    const C0 = clones, nT = isNight() ? nightEnemyTarget(enemies[i]) : null;   // 夜戰：敵人會鎖定離自己最近的人形（含 AI 隊友）
+    const C0 = clones, nT = isNight() || isTrain() ? nightEnemyTarget(enemies[i]) : null;   // 夜戰：敵人會鎖定離自己最近的人形（含 AI 隊友）
     if (nT && nT !== P0) { player = nT; clones = C0.filter((c) => c !== nT); nightProxy = nT; }
     try {
     const e = enemies[i], toward = Math.atan2(player.y - e.y, player.x - e.x), dist = Math.hypot(player.x - e.x, player.y - e.y);
