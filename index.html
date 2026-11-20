@@ -2671,7 +2671,7 @@ function nightChunk(cx, cy) {
   const clear = (x, y, r) => Math.hypot(x, y) > 420 + r && solid.every((o) => o.kind !== 'lake' || Math.hypot(x - o.x, y - o.y) > o.r + r + 20);
   if (far) {
     const r0 = h(0);
-    if (r0 < 0.14) { const [x, y] = P(1, 2), r = 90 + h(3) * 80; solid.push({ kind: 'lake', x, y, r }); solid.push({ kind: 'lake', x: x + r * (h(4) - 0.5) * 1.2, y: y + r * (h(5) - 0.3) * 0.8, r: r * (0.55 + h(6) * 0.25) }); }
+    if (r0 < (isDef() ? 0.045 : 0.14)) { const [x, y] = P(1, 2), r = 90 + h(3) * 80; solid.push({ kind: 'lake', x, y, r }); solid.push({ kind: 'lake', x: x + r * (h(4) - 0.5) * 1.2, y: y + r * (h(5) - 0.3) * 0.8, r: r * (0.55 + h(6) * 0.25) }); }
     else if (r0 < 0.46) {
       const [x, y] = P(1, 2), r = 150 + h(3) * 90; ground.push({ kind: 'forest', x, y, r });
       for (let i = 0, n = 4 + Math.floor(h(4) * 5); i < n; i++) {
@@ -2688,7 +2688,7 @@ function nightChunk(cx, cy) {
     for (let i = 0, n = Math.floor(h(60) * 3); i < n; i++) { const [x, y] = P(61 + i * 2, 62 + i * 2); if (clear(x, y, 30) && solid.every((o) => Math.hypot(o.x - x, o.y - y) > (o.r || 20) + 60)) { const sz = 0.9 + h(70 + i) * 0.4; solid.push({ kind: 'tree', x, y, sz, r: 16 * sz }); } }
   }
   if (isDef()) {   // 滅星行動：基地周圍不長樹、不放岩石
-    const ok = (o) => { const r = o.r || 0, B = DEF.bounds; if (o.x < B.x0 - 120 || o.x > B.x1 + 120 || o.y < B.y0 - 120 || o.y > B.y1 + 120) return false; if (Math.hypot(o.x - DEF.jupiter.x, o.y - DEF.jupiter.y) < 420 + (o.w || 2 * r)) return false; if (o.x + r > DEF.ruin.pad.x0 - 80 && o.x - r < DEF.ruin.pad.x1 + 80 && o.y + r > -1700 && o.y - r < -1090) return false; return !(o.x + r > DEF.x0 - 300 && o.x - r < DEF.x1 + 300 && o.y + r > DEF.yb - 320 && o.y - r < DEF.yb + DEF.R + 300); };
+    const ok = (o) => { const r = o.r || 0, B = DEF.bounds; if (o.x < B.x0 - 120 || o.x > B.x1 + 120 || o.y < B.y0 - 120 || o.y > B.y1 + 120) return false; if (defInHill(o.x, o.y, r + 20)) return false; if (Math.hypot(o.x - DEF.jupiter.x, o.y - DEF.jupiter.y) < 420 + (o.w || 2 * r)) return false; if (o.x + r > DEF.ruin.pad.x0 - 80 && o.x - r < DEF.ruin.pad.x1 + 80 && o.y + r > -1700 && o.y - r < -1090) return false; return !(o.x + r > DEF.x0 - 300 && o.x - r < DEF.x1 + 300 && o.y + r > DEF.yb - 320 && o.y - r < DEF.yb + DEF.R + 300); };
     c = { solid: solid.filter(ok), ground: ground.filter(ok) };
   } else c = { solid, ground };
   if (nightChunks.size > 600) { nightChunks.clear(); nightNear.clear(); }
@@ -2737,7 +2737,7 @@ function drawNightGround(x0, x1, y0, y1) {
 let MAPGEN = BATTLE_MAP, VERSUS_MAP = null;   // 目前使用的地圖（對戰模式開局時換成對戰地圖）
 // 某個位置（半徑 r）有沒有撞到地形。bullet＝子彈：湖擋不住子彈
 function mapSolidAt(x, y, r, bullet) {
-  if (isDef()) { const B = DEF.bounds; if (x - r < B.x0 || x + r > B.x1 || y - r < B.y0 || y + r > B.y1) return DEF_EDGE; }   // 滅星行動：地圖邊界
+  if (isDef()) { const B = DEF.bounds; if (x - r < B.x0 || x + r > B.x1 || y - r < B.y0 || y + r > B.y1 || defInHill(x, y, r)) return DEF_EDGE; }   // 滅星行動：地圖邊界（含邊界上的丘陵山腳）
   if (isDef()) for (const o of DEF.walls) if (!(bullet && (o.kind === 'fence' || o.kind === 'prop' || o.kind === 'cover'))) if (o.h ? Math.abs(x - o.x) < o.w / 2 + r && Math.abs(y - o.y) < o.h / 2 + r : (x - o.x) ** 2 + (y - o.y) ** 2 < (o.r + r) ** 2) return o;   // 滅星行動：基地的後牆、半圓圍欄、沙包（擋人也擋子彈）
   for (const o of MAPGEN.near(x, y)) {
     if (o.kind === 'forest' || (bullet && (o.kind === 'lake' || o.kind === 'river' || o.kind === 'lowrock'))) continue;   // 子彈可以飛過湖、河、半磚掩體   // 子彈可以飛過湖和河
@@ -6597,6 +6597,47 @@ DEF.home = { x: 0, y: DEF.yb + DEF.R * 0.4 };   // 判斷「離基地多遠」�
 // 鐵血工造據點的守軍：營地四個角落各一隻蠍甲獸（生命 ×5），平時待在原地，有人進到警戒範圍就去攻擊，目標離開範圍就回原位
 DEF.sentry = { alert: 650, hpMul: 5, posts: [[-300, -280], [300, -280], [-300, 290], [300, 290]] };
 const DEF_EDGE = { kind: 'wall', x: 0, y: 0, w: 1, h: 1, edge: true };
+/* 丘陵：多布羅加是丘陵高地，每場在地圖上、左、右三條邊界隨機挑幾個地方堆出小山峰。
+   山體（橢圓）擋人也擋子彈；山腳伸進地圖裡的部分，地圖邊界就沿著山腳的形狀內縮。避開基地、木星砲營地、廢棄正規軍營地 */
+DEF.hills = [];
+const defInHill = (x, y, r = 0) => { for (const H of DEF.hills) { const dx = (x - H.x) / (H.rx + r), dy = (y - H.y) / (H.ry + r); if (dx * dx + dy * dy < 1) return H; } return null; };
+function defMakeHills() {
+  const B = DEF.bounds, R = DEF.ruin.pad, out = [];
+  const inE = (H, x, y, m) => { const dx = (x - H.x) / (H.rx + m), dy = (y - H.y) / (H.ry + m); return dx * dx + dy * dy < 1; };
+  const bad = (H) => inE(H, 0, DEF.yb, DEF.R + 520) || inE(H, DEF.jupiter.x, DEF.jupiter.y, 900)
+    || [[R.x0, R.y0], [R.x1, R.y0], [R.x0, R.y1], [R.x1, R.y1], [(R.x0 + R.x1) / 2, (R.y0 + R.y1) / 2]].some(([x, y]) => inE(H, x, y, 260))
+    || out.some((o) => Math.hypot(o.x - H.x, (o.y - H.y) * 1.2) < Math.max(o.rx, H.rx) * 0.95);
+  const tryAdd = (side, n) => { for (let k = 0, got = 0; k < n * 12 && got < n; k++) {
+    const rx = rand(300, 560), ry = rx * rand(0.62, 0.8), dep = rand(-0.7, 0.3);
+    const H = side === 'top' ? { x: rand(B.x0 + 150, B.x1 - 150), y: B.y0 + dep * ry, rx, ry } : side === 'left' ? { x: B.x0 + dep * rx, y: rand(B.y0 + 200, B.y1 - 250), rx, ry } : { x: B.x1 - dep * rx, y: rand(B.y0 + 200, B.y1 - 250), rx, ry };
+    if (bad(H)) continue; H.seed = Math.random() * 1e6 | 0; H.peaks = 1 + (Math.random() < 0.45 ? 1 : 0); out.push(H); got++; } };
+  tryAdd('top', 6); tryAdd('left', 2); tryAdd('right', 2);
+  DEF.hills = out; nightChunks.clear(); nightNear.clear();   // 換一批丘陵：樹、岩石重新生成（丘陵上不長）
+}
+// 丘陵：等高線一圈圈往上疊（越高越亮、往畫面上方偏移），山頂加幾塊岩石
+function drawDefHills() {
+  for (const H of DEF.hills) {
+    const q = proj(H.x, H.y); if (!onScreen(q, (H.rx + 200) * q.k)) continue;
+    ground(q, H.x, H.y);
+    ctx.fillStyle = 'rgba(10,18,12,0.45)'; ctx.beginPath(); ctx.ellipse(H.x, H.y + H.ry * 0.06, H.rx * 1.04, H.ry * 1.05, 0, 0, Math.PI * 2); ctx.fill();   // 山腳陰影
+    const cols = ['#2f3d2b', '#3a4a33', '#47573c', '#566446', '#677150', '#7a7d5c', '#8d8a6a'];
+    for (let i = 0; i < cols.length; i++) {
+      const k = 1 - i / cols.length * 0.86, lift = i * H.ry * 0.11;
+      ctx.fillStyle = cols[i]; ctx.beginPath();
+      for (let j = 0; j <= 40; j++) {   // 稍微不規則的等高線
+        const a = j / 40 * Math.PI * 2, w = 1 + 0.07 * Math.sin(a * 3 + H.seed % 7 + i) + 0.04 * Math.sin(a * 5 + (H.seed >> 3) % 11);
+        const x = H.x + Math.cos(a) * H.rx * k * w + (H.peaks > 1 ? Math.sin(i) * H.rx * 0.05 : 0), y = H.y - lift + Math.sin(a) * H.ry * k * w;
+        if (j) ctx.lineTo(x, y); else ctx.moveTo(x, y);
+      }
+      ctx.closePath(); ctx.fill();
+      ctx.strokeStyle = 'rgba(0,0,0,0.18)'; ctx.lineWidth = 3; ctx.stroke();
+    }
+    ctx.fillStyle = 'rgba(160,156,140,0.85)';
+    for (let i = 0; i < 7; i++) { const a = hash(i, 3, H.seed) * 6.28, d = hash(i, 5, H.seed) * H.rx * 0.18, top = H.y - (cols.length - 1) * H.ry * 0.11;
+      ctx.beginPath(); ctx.ellipse(H.x + Math.cos(a) * d, top + Math.sin(a) * d * 0.6, 10 + hash(i, 7, H.seed) * 16, 6 + hash(i, 9, H.seed) * 8, 0, 0, Math.PI * 2); ctx.fill(); }
+  }
+  ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+}
 const defClamp = (p, m = 60) => { const B = DEF.bounds; return { x: clamp(p.x, B.x0 + m, B.x1 - m), y: clamp(p.y, B.y0 + m, B.y1 - m) }; };
 let defSquad = [], defPicked = false, defState = null, defCores = [], defDead = [], defSpec = null;
 let defPilot = null, defMechs = [];   // 滅星行動：正在操作的九頭蛇、廢棄基地的兩台九頭蛇
@@ -6617,6 +6658,7 @@ const defEv = (u) => (isDef() && u && inBase(u) ? DEF.baseEv : 0);   // 基地�
 const revCost = (u) => (u.eliteAI || u.level === 'elite' ? DEF.revCostGold : DEF.revCost);   // 復活：一般 2 核心、王牌（精銳 AI）3 核心
 const DEF_JOBS = [['guard', '駐守基地'], ['follow', '跟隨玩家'], ['collect', '外出蒐集']];
 function defBegin() {
+  defMakeHills();
   for (const p of DEFENSE_PHASES) p.day = true;   // 每場從白天開始（8:00 入夜）
   defPilot = null; defMechs = DEF.ruin.parks.map((pk, i) => ({ park: pk, i, parked: true }));
   defPaused = false; defPauseT = 0;
@@ -12482,7 +12524,18 @@ function drawGround(t) {
     seg(B.x0, B.y0, B.x1, B.y0); seg(B.x1, B.y0, B.x1, B.y1); seg(B.x1, B.y1, B.x0, B.y1); seg(B.x0, B.y1, B.x0, B.y0);
     ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
     ctx.fillStyle = 'rgba(6,14,12,0.72)'; ctx.beginPath(); ctx.rect(-50, -50, W + 100, H + 100); edge.forEach(([x, y], i) => { const q = proj(x, y); if (i) ctx.lineTo(q.x, q.y); else ctx.moveTo(q.x, q.y); }); ctx.closePath(); ctx.fill('evenodd');
-    ctx.strokeStyle = 'rgba(255,214,120,0.55)'; ctx.lineWidth = 4; ctx.setLineDash([22, 14]); defPoly(edge); ctx.closePath(); ctx.stroke(); ctx.setLineDash([]);
+    drawDefHills();
+    // 邊線：矩形邊界被丘陵蓋住的地方不畫，改沿著伸進地圖裡的山腳畫
+    const inB = (x, y) => x >= B.x0 - 1 && x <= B.x1 + 1 && y >= B.y0 - 1 && y <= B.y1 + 1;
+    const runs = []; let cur = null;
+    const push = (x, y, ok) => { if (ok) { if (!cur) runs.push(cur = []); cur.push([x, y]); } else cur = null; };
+    const fine = []; const sg2 = (x0, y0, x1, y1) => { for (let i = 0; i <= 160; i++) fine.push([x0 + (x1 - x0) * i / 160, y0 + (y1 - y0) * i / 160]); };
+    sg2(B.x0, B.y0, B.x1, B.y0); sg2(B.x1, B.y0, B.x1, B.y1); sg2(B.x1, B.y1, B.x0, B.y1); sg2(B.x0, B.y1, B.x0, B.y0);
+    for (const [x, y] of fine) push(x, y, !defInHill(x, y)); cur = null;
+    for (const H of DEF.hills) { for (let j = 0; j <= 120; j++) { const a = j / 120 * Math.PI * 2, x = H.x + Math.cos(a) * H.rx, y = H.y + Math.sin(a) * H.ry; push(x, y, inB(x, y) && !DEF.hills.some((o) => o !== H && ((x - o.x) / o.rx) ** 2 + ((y - o.y) / o.ry) ** 2 < 1)); } cur = null; }
+    ctx.strokeStyle = 'rgba(255,214,120,0.55)'; ctx.lineWidth = 4; ctx.setLineDash([22, 14]);
+    for (const r of runs) if (r.length > 1) { ctx.beginPath(); r.forEach(([x, y], i) => { const q = proj(x, y); if (i) ctx.lineTo(q.x, q.y); else ctx.moveTo(q.x, q.y); }); ctx.stroke(); }
+    ctx.setLineDash([]);
   }
   for (const c of chunks.values()) for (const d of c.details) {
     const q = proj(d.x, d.y);
