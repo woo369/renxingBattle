@@ -325,6 +325,11 @@ body.touch #swapBtn img{width:38px;height:32px}
 /* 技能按鈕（HUD／手機） */
 #skillBtn{position:relative;width:40px;height:40px;padding:0;border-radius:50%;border:2px solid #31515d;background:#071a26c7;cursor:pointer;align-self:center}
 body.touch #skillBtn{display:none}
+#subBtn{position:relative;width:30px;height:30px;padding:0;border-radius:50%;border:2px solid #31515d;background:#071a26c7;cursor:pointer;align-self:center;font:800 14px sans-serif}
+body.touch #subBtn{display:none}
+#subBtn b,#tSub b{position:absolute;inset:0;display:grid;place-items:center}
+#subBtn .skill-key{font-size:9px}
+#tSub{width:36px;height:36px;padding:0;right:calc(max(20px,env(safe-area-inset-right,0px)) + 117px);bottom:calc(160px + env(safe-area-inset-bottom,0px));overflow:hidden;font-size:15px}
 #skillBtn img,#tSkill img{width:100%;height:100%;border-radius:50%;display:block}
 .skill-cd{position:absolute;inset:0;border-radius:50%;pointer-events:none}
 .skill-cd-num{position:absolute;inset:0;display:grid;place-items:center;font-weight:800;font-size:13px;color:#fff;text-shadow:0 1px 3px #000;pointer-events:none;font-variant-numeric:tabular-nums}
@@ -435,6 +440,7 @@ body.touch #testPanel{max-height:38vh}   /* 手機：不要擋到左下的移動
     <div class="hud-block" id="dodgeBlock"><span class="hud-label">閃避</span><div id="dodgePips"></div><div id="dodgeBar"></div></div>
     <div class="hud-block" id="ammoBlock"><span class="hud-label" id="ammoLabel">彈藥</span><span class="hud-num" id="ammoNum">3 / 3</span><div id="reloadBar"></div></div>
     <button id="skillBtn" type="button" aria-label="技能" title="技能（Q）"><img id="skillImg" alt=""><span class="skill-cd" id="skillCd"></span><span class="skill-cd-num" id="skillNum"></span><span class="skill-key">Q</span><span class="skill-stack" id="skillStack" hidden></span></button>
+    <button id="subBtn" type="button" aria-label="副技能" title="副技能（V）" hidden><b id="subMark"></b><span class="skill-cd" id="subCd"></span><span class="skill-cd-num" id="subNum"></span><span class="skill-key">V</span></button>
     <button class="icon-btn" id="muteBtn" type="button" aria-label="音效開關" title="音效">
       <svg viewBox="0 0 24 24"><path d="M4 9v6h4l5 4V5L8 9H4z"/><path id="muteWave" d="M16.5 8.5a5 5 0 0 1 0 7M19 6a8.5 8.5 0 0 1 0 12"/></svg>
     </button>
@@ -464,6 +470,7 @@ body.touch #testPanel{max-height:38vh}   /* 手機：不要擋到左下的移動
   <button class="tbtn" id="tReload" type="button">裝彈</button>
   <button class="tbtn" id="tDodge" type="button">閃避</button>
   <button class="tbtn" id="tSkill" type="button" aria-label="技能"><img id="tSkillImg" alt=""><span class="skill-cd" id="tSkillCd"></span><span class="skill-cd-num" id="tSkillNum"></span><span class="skill-stack" id="tSkillStack" hidden></span></button>
+  <button class="tbtn" id="tSub" type="button" aria-label="副技能" hidden><b id="tSubMark"></b><span class="skill-cd" id="tSubCd"></span><span class="skill-cd-num" id="tSubNum"></span></button>
   <button class="tbtn" id="tFire" type="button"><span class="fire-label">開火</span><span class="fire-knob" id="fireKnob">開火</span></button>
 </div>
 
@@ -1915,7 +1922,7 @@ const SIZE_NORM = { hk433: 0.8, type82: 0.8, martini: 0.86, triple_crown: 0.86 }
 const SIZE_CLASS = { HG: 0.95, SMG: 0.95, SG: 1.05, MG: 1.05 };
 for (const D of Object.values(CHARACTERS)) D.anim.scale *= (SIZE_NORM[D.id] || 1) * (SIZE_CLASS[D.weapon.class] || 1);
 const WEAPON_CLASSES = ['突擊步槍', '衝鋒槍', '手槍', '步槍', '霰彈槍', '機槍'];
-const CLASS_NAMES = { AR: '突擊步槍', SMG: '衝鋒槍', HG: '手槍', RF: '步槍', SG: '霰彈槍', MG: '機槍' };
+const CLASS_NAMES = { AR: '突擊步槍', SMG: '衝鋒槍', HG: '手槍', RF: '步槍', SG: '霰彈槍', MG: '機槍', PROTO: '協議同歸' };
 // 關卡：之後新增關卡就在這裡加
 const LEVELS = [
   { id: 'training', name: '訓練場', open: true, desc: '電子訓練空間。到操作台自由切換要對戰的敵人：影子敵人、鐵血工造、正規軍、帕拉蒂斯，也能召喚精英。地圖下方有森林地、殘破廢墟、雪地、爛泥地等地形區可以練習。' },
@@ -5233,6 +5240,226 @@ const BOSSES = {
     assets: ASSETS.scarecrow,
   },
 };
+/* ═══════════ 協議同歸：鐵血三階精英改成玩家可操作的角色 ═══════════
+   ・攻擊數值和敵方版本相同，生命為 30%
+   ・開火＝普通攻擊；主要技能（Q）＝特殊攻擊；副技能（V）＝第二種普通攻擊
+   ・角色資料不列舉（Object.keys 看不到）：AI 隊友、對戰隨機、圖鑑都不會抽到 */
+const PROTO_IDS = ['witch', 'moth', 'elk'];
+const PROTO = {
+  witch: { main: '過熱模式', sub: '魔法彈', mainCd: 22, subCd: 10, mark: '咒', color: '#c58cff' },
+  moth: { main: '無盡彈雨', sub: '強化彈', mainCd: 20, subCd: 8, mark: '蛾', color: '#9f8cff' },
+  elk: { main: '轟炸炮擊', sub: '雪球砲', mainCd: 22, subCd: 8, mark: '雪', color: '#bfe6ff' },
+};
+const PROTO_SUBDESC = {
+  witch: '魔杖揮出一顆追蹤魔法球（20 傷害），命中使目標移速 −30%、易傷 10%（8 秒）。敵方版本會同時召喚兵蟻，玩家版只有魔法球。',
+  moth: '停下轉槍瞄準，射出 3 倍速的高速子彈（15 傷害），命中使目標易傷 20%、移速 −20%（5 秒）。',
+  elk: '停在原地快速水平打出 12 發雪球（帶散佈），每發 5 傷害並緩速 70%（1 秒，不疊加，時間累加）。',
+};
+for (const id of PROTO_IDS) {
+  const B = BOSSES[id], P = PROTO[id], dmg = id === 'elk' ? B.shot.dmg : B.bulletDmg, spd = id === 'elk' ? B.shot.speed : B.bulletSpeed;
+  Object.defineProperty(CHARACTERS, 'p_' + id, { enumerable: false, value: defineCharacter({
+    id: 'p_' + id, proto: id, name: B.name, crit: 0.05, maxHp: Math.round(B.hp * 0.3), speed: B.speed, lockRange: B.lockRange, dodge: 10,
+    armor: { value: 0, blockLow: 0, blockHigh: 0 },
+    weapon: { name: B.weapon, class: 'PROTO', magazine: B.magazine, pellets: 1, damage: dmg, spread: 0, jitter: 0.03, speed: [spd, spd], radius: 5,
+      cooldown: B.fireCooldown, reloadMode: 'magazine', reload: B.reload, anim: 0.3 },
+    skill: { id: 'proto', name: P.main, icon: 'proto_' + id, cooldown: P.mainCd, desc: B.specialDesc },
+    sub: { name: P.sub, cooldown: P.subCd, desc: PROTO_SUBDESC[id] },
+    portrait: 'proto_' + id, radius: B.radius, assets: B.assets, runFx: false,
+  }) });
+}
+let pShells = [];   // 協議同歸的炸彈、魔法球（打敵人）
+const protoAlive = (e) => e && e.hp > 0 && enemies.includes(e);
+function protoPb(u) {
+  const D = u.def || cfg, id = D.proto;
+  if (!u.pb || u.pb.id !== id) u.pb = { id, B: BOSSES[id], x: u.x, y: u.y, r: 0, phase: rand(0, 6), faceLeft: false, atkT: 9, gun: 0 };
+  const pb = u.pb; pb.x = u.x; pb.y = u.y; pb.faceLeft = Math.cos(u.angle || 0) < 0;
+  pb.moving = !!u.moving && !pb.busy; pb.reloadT = u === player ? player.reload : 0;
+  if (u !== player) { const s = (u.shot || 0) > 0; if (s && !pb.wasShot) { pb.atkT = 0; pb.gun++; } pb.wasShot = s; }
+  return pb;
+}
+function drawProtoUnit(en, ghost) {
+  if (ghost) return;
+  const pb = protoPb(en);
+  ctx.save(); BOSS_DRAW[pb.id](pb); ctx.restore(); ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+}
+function protoMuzzle(en) { const pb = protoPb(en), m = pb.B.assets.meta; return spritePoint(pb, m, (pb.gun || 0) % 2 && m.muzzle2 ? m.muzzle2 : m.muzzle); }
+// 瞄準點：鎖定中的敵人；沒有就朝面向前方
+function protoAimPt(u) {
+  if (u === player && protoAlive(lockedTarget)) return { x: lockedTarget.x, y: lockedTarget.y };
+  const d = Math.min(u.def.lockRange, 320); return { x: u.x + Math.cos(u.angle) * d, y: u.y + Math.sin(u.angle) * d };
+}
+function protoBullet(u, mz, a, v, life, dmg, extra) {
+  bullets.push({ x: mz.x, y: mz.y, vx: Math.cos(a) * v, vy: Math.sin(a) * v, age: 0, life, maxLife: life, r: 5, team: 'p', def: u.def, pellet: false, dist: 0, purple: false,
+    buff: (1 + effSum(player, 'dmg')) * enhMul(player), res: 1 + effSum(player, 'dmg'), crit: unitCrit(player), flat: 0, apv: 0, pdmg: dmg, src: u, fromClone: u !== player, ...(extra || {}) });
+}
+// 普通攻擊（玩家與同角色的擴編人形）
+function protoShootFrom(u) {
+  const pb = protoPb(u), B = pb.B, m = B.assets.meta, id = pb.id, g2 = (pb.gun || 0) % 2 === 1;
+  pb.gun = (pb.gun || 0) + 1; pb.atkT = 0; pb.atkG = g2 ? 2 : 1;
+  const tg = protoAimPt(u);
+  if (id === 'elk') {
+    const p = spritePoint(pb, m, g2 ? m.muzzle2 : m.muzzle), a = Math.atan2(tg.y - u.y, tg.x - u.x) + rand(-0.03, 0.03);
+    pShells.push({ kind: 'flat', x: p.x, y: u.y, h: u.y - p.y, dx: Math.cos(a), dy: Math.sin(a), v: B.shot.speed, left: B.lockRange + 40, r: B.shot.r, dmg: B.shot.dmg });
+    burst(p.x, p.y, '#ffb347', 5);
+  } else {
+    const mz = spritePoint(pb, m, id === 'moth' && g2 ? m.muzzle2 : m.muzzle), a = Math.atan2(tg.y - mz.y, tg.x - mz.x) + rand(-0.04, 0.04);
+    protoBullet(u, mz, a, B.bulletSpeed, B.bulletLife * 1.15, B.bulletDmg);
+    burst(mz.x, mz.y, '#f6cb76', 4);
+  }
+}
+function protoShoot() {
+  if (player.ammo <= 0 || player.reload > 0) return false;
+  player.ammo--; updateAmmo(); sfx.shot(cfg.proto === 'elk' ? 'shotgun' : 'rifle');
+  protoShootFrom(player);
+  for (const c of clones) if (c.def === cfg && c.hp > 0) { c.angle = player.angle; protoShootFrom(c); }
+  return true;
+}
+// 主要技能＝特殊攻擊
+function protoMain() {
+  const pb = protoPb(player);
+  if (player.skillCd > 0 || pb.busy || player.dodgeT > 0) return;
+  pb.special = { t: 0, n: 0, fired: {}, clock: 0 }; pb.busy = true;
+  player.skillCd = cfg.skill.cooldown; updateSkill(); floatText(player.x, player.y - 90, cfg.skill.name, PROTO[pb.id].color);
+}
+// 副技能＝第二種普通攻擊
+function protoSub() {
+  if (!cfg || !cfg.proto || state !== 'play') return;
+  const pb = protoPb(player);
+  if ((player.subCd || 0) > 0 || pb.busy || player.dodgeT > 0) return;
+  if (pb.id === 'witch') { pb.magicT = 0; pb.cast = 0; }
+  else if (pb.id === 'moth') { pb.powerT = 0; pb.pFired = 0; }
+  else { pb.snowT = 0; pb.snowN = 0; }
+  pb.busy = true; player.subCd = cfg.sub.cooldown; protoSubUI(); floatText(player.x, player.y - 90, cfg.sub.name, PROTO[pb.id].color);
+}
+function protoEnemyEff(e, eff) {
+  if (eff.vuln) { e.vuln = Math.max(e.debuffT > 0 ? e.vuln || 0 : 0, eff.vuln); e.debuffT = Math.max(e.debuffT || 0, eff.time); e.evadeDown = e.evadeDown || 0; }
+  if (eff.stack) { e.vuln = Math.min(0.5, (e.debuffT > 0 ? e.vuln || 0 : 0) + eff.stack); e.debuffT = Math.max(e.debuffT || 0, eff.time); e.evadeDown = e.evadeDown || 0; }   // 無盡彈雨：易傷疊加
+  if (eff.spd) { e.pslow = -eff.spd; e.pslowT = eff.addTime ? Math.max(gameTime, e.pslowT || 0) + eff.time : Math.max(e.pslowT || 0, gameTime + eff.time); }
+}
+// 每幀：特殊攻擊／第二種普通攻擊的進行
+function protoTick(dt) {
+  if (!cfg || !cfg.proto || !player) return;
+  const pb = protoPb(player), B = pb.B, m = B.assets.meta, sp = B.special, id = pb.id, tg = protoAimPt(player);
+  if ((player.subCd || 0) > 0) { player.subCd = Math.max(0, player.subCd - dt); protoSubUI(); }
+  const aimFrom = (mz) => Math.atan2(tg.y - mz.y, tg.x - mz.x);
+  const S = pb.special;
+  if (S) {
+    S.t += dt;
+    if (id === 'witch') {
+      if (S.t >= sp.charge) {
+        S.clock -= dt;
+        while (S.clock <= 0 && S.t < sp.charge + sp.duration) {
+          const mz = spritePoint(pb, m, m.smuzzle); protoBullet(player, mz, aimFrom(mz) + rand(-0.06, 0.06), sp.speed, sp.life * 1.2, sp.damage, { r: sp.radius });
+          burst(mz.x, mz.y, '#ffd27a', 3); S.clock += 1 / sp.rate;
+        }
+      }
+      if (S.t >= sp.charge + sp.duration) pb.special = null;
+    } else if (id === 'moth') {
+      for (const g of sp.segs) {
+        const gt = g.t === 'pair' ? m.rain.pair : g.t, done = S.fired[g.t] || 0; if (S.t < gt || done >= g.n) continue;
+        const want = g.dur ? Math.min(g.n, Math.floor((S.t - gt) / (g.dur / g.n)) + 1) : g.n;
+        for (let k = done; k < want; k++) {
+          const shot = (key, fast) => { const mz = spritePoint(pb, m, m[key]), v = sp.speed * (fast || 1); protoBullet(player, mz, aimFrom(mz) + rand(-0.07, 0.07), v, sp.life / (fast || 1) * 1.3, sp.damage, { peff: { stack: sp.vuln.pct, time: sp.vuln.time } }); burst(mz.x, mz.y, '#c9b8ff', 3); };
+          if (g.gun === 'pair') { shot('fmuzzle', g.fast); shot('fmuzzle', g.fast); k = g.n; }
+          else shot(g.gun === 'both' ? 'smuzzle' : 's1muzzle');
+        }
+        S.fired[g.t] = g.gun === 'pair' ? g.n : want;
+      }
+      if (S.t >= sp.end) pb.special = null;
+    } else {
+      while (S.n < sp.n && S.t >= m.bomb.shots[S.n]) {
+        const p = spritePoint(pb, m, m.bmuzzle), a = rand(0, Math.PI * 2), d = Math.sqrt(Math.random()) * sp.spread;
+        pShells.push({ kind: 'drop', sx: p.x, sy: player.y, h0: player.y - p.y, tx: tg.x + Math.cos(a) * d, ty: tg.y + Math.sin(a) * d, t: 0, T: sp.flight, r: sp.r, dmg: sp.dmg, burn: sp.burn });
+        burst(p.x, p.y, '#ff6b3d', 5); S.n++;
+      }
+      if (S.t >= m.bomb.dur) pb.special = null;
+    }
+  } else if (pb.magicT != null) {
+    pb.magicT += dt; const M = B.magic;
+    if (!pb.cast && pb.magicT >= m.magic.cast) {
+      pb.cast = 1; const p = spritePoint(pb, m, m.wand);
+      pShells.push({ kind: 'orb', x: p.x, y: player.y, h: player.y - p.y, a: Math.atan2(tg.y - player.y, tg.x - p.x), v: M.speed, life: M.life, r: M.r, dmg: M.dmg, turn: M.turn, eff: M.eff, tgt: protoAlive(lockedTarget) ? lockedTarget : null });
+      burst(p.x, p.y, '#c58cff', 10);
+    }
+    if (pb.magicT >= m.magic.dur) pb.magicT = null;
+  } else if (pb.powerT != null) {
+    pb.powerT += dt; const Pw = B.power;
+    if (!pb.pFired && pb.powerT >= m.power.fire) {
+      pb.pFired = 1; const mz = spritePoint(pb, m, m.pmuzzle), v = B.bulletSpeed * Pw.speedMul;
+      protoBullet(player, mz, aimFrom(mz), v, B.bulletLife / Pw.speedMul * 1.5, B.bulletDmg, { r: 6, peff: Pw.eff });
+      burst(mz.x, mz.y, '#9f8cff', 8); shake = Math.max(shake, 2);
+    }
+    if (pb.powerT >= m.power.dur) pb.powerT = null;
+  } else if (pb.snowT != null) {
+    pb.snowT += dt; const Sn = B.snow;
+    while (pb.snowN < m.snow.shots.length && pb.snowT >= m.snow.shots[pb.snowN]) {
+      const mz = spritePoint(pb, m, m.muzzle);
+      protoBullet(player, mz, aimFrom(mz) + rand(-Sn.spread, Sn.spread), Sn.speed, Sn.life * 1.2, Sn.dmg, { r: 6, snow: true, peff: Sn.slow });
+      burst(mz.x, mz.y, '#e8f6ff', 4); pb.snowN++;
+    }
+    if (pb.snowT >= m.snow.dur) pb.snowT = null;
+  }
+  pb.busy = !!pb.special || pb.magicT != null || pb.powerT != null || pb.snowT != null;
+  if (pb.busy) player.faceLeft = pb.faceLeft;
+}
+function protoBlast(x, y, r, dmg, burn) {
+  for (let j = enemies.length - 1; j >= 0; j--) {
+    const e = enemies[j]; if (e.hp <= 0 || Math.hypot(e.x - x, e.y - y) > r + e.r) continue;
+    hitEnemy(e, dmg * (1 + effSum(player, 'dmg')), '#ff9a5a', false, unitCrit(player));
+    if (burn) e.pburnT = gameTime + burn.time;   // 燃燒：只重設時間
+    if (e.hp <= 0) killEnemy(e);
+  }
+  blasts.push({ x, y, r, life: 0.35, max: 0.35, level: 1 });
+  burst(x, y, '#ffb347', 10); burst(x, y, '#ff6b3d', 6); shake = Math.max(shake, 3); sfx.boom();
+}
+// 每幀：炸彈飛行、魔法球追蹤、敵人燃燒
+function protoWorld(dt) {
+  for (let i = pShells.length - 1; i >= 0; i--) {
+    const s = pShells[i];
+    if (s.kind === 'flat') {
+      const st = s.v * dt; s.x += s.dx * st; s.y += s.dy * st; s.left -= st;
+      const hitE = enemies.find((e) => e.hp > 0 && Math.hypot(e.x - s.x, e.y - s.y) < e.r + 8);
+      if (hitE || s.left <= 0) { pShells.splice(i, 1); protoBlast(s.x, s.y, s.r, s.dmg); }
+    } else if (s.kind === 'drop') {
+      s.t += dt; const k = Math.min(1, s.t / s.T); s.x = s.sx + (s.tx - s.sx) * k; s.y = s.sy + (s.ty - s.sy) * k; s.h = s.h0 * (1 - k);
+      if (k >= 1) { pShells.splice(i, 1); protoBlast(s.tx, s.ty, s.r, s.dmg, s.burn); }
+    } else {
+      s.life -= dt; s.h = Math.max(10, s.h - 60 * dt);
+      if (!protoAlive(s.tgt)) { let best = null, bd = 600; for (const e of enemies) { if (e.hp <= 0) continue; const d = Math.hypot(e.x - s.x, e.y - s.y); if (d < bd) { bd = d; best = e; } } s.tgt = best; }
+      if (s.tgt) { let da = Math.atan2(s.tgt.y - s.y, s.tgt.x - s.x) - s.a; da = Math.atan2(Math.sin(da), Math.cos(da)); s.a += clamp(da, -s.turn * dt, s.turn * dt); }
+      s.x += Math.cos(s.a) * s.v * dt; s.y += Math.sin(s.a) * s.v * dt;
+      const hitE = enemies.find((e) => e.hp > 0 && Math.hypot(e.x - s.x, e.y - s.y) < e.r + s.r);
+      if (hitE) { hitEnemy(hitE, s.dmg * (1 + effSum(player, 'dmg')), '#c58cff', false, unitCrit(player)); protoEnemyEff(hitE, s.eff); burst(s.x, s.y, '#c58cff', 10); if (hitE.hp <= 0) killEnemy(hitE); pShells.splice(i, 1); }
+      else if (s.life <= 0) { burst(s.x, s.y, '#c58cff', 6); pShells.splice(i, 1); }
+    }
+  }
+  // 燃燒：每秒 3% 最大生命（每秒最多 5）
+  for (let j = enemies.length - 1; j >= 0; j--) {
+    const e = enemies[j]; if (!(e.pburnT > gameTime) || e.hp <= 0) continue;
+    e.pburnAcc = (e.pburnAcc || 0) + dt;
+    if (e.pburnAcc >= 1) { e.pburnAcc -= 1; const mx = e.maxHp || (e.T && e.T.hp) || (e.B && e.B.hp) || e.hp; hitEnemy(e, clamp(mx * 0.03, 1, 5), '#ff7a2e', true, 0); if (e.hp <= 0) killEnemy(e); }
+  }
+}
+function drawProtoShells() {
+  for (const s of pShells) {
+    const q = proj(s.x, s.y), h = s.h || 0;
+    ctx.fillStyle = 'rgba(4,24,32,0.4)'; ctx.beginPath(); ctx.ellipse(q.x, q.y, 6 * q.k, 3 * q.k, 0, 0, Math.PI * 2); ctx.fill();
+    if (s.kind === 'orb') { ctx.fillStyle = '#c58cff'; ctx.shadowColor = '#b06bff'; ctx.shadowBlur = 12; ctx.beginPath(); ctx.arc(q.x, q.y - h * q.k, s.r * q.k, 0, Math.PI * 2); ctx.fill(); ctx.shadowBlur = 0; }
+    else { ctx.fillStyle = '#3d3a34'; ctx.strokeStyle = s.burn ? '#ff6b3d' : '#ffb347'; ctx.lineWidth = 1.5; ctx.beginPath(); ctx.arc(q.x, q.y - h * q.k, 5.5 * q.k, 0, Math.PI * 2); ctx.fill(); ctx.stroke(); }
+    if (s.kind === 'drop') { const gq = proj(s.tx, s.ty); ground(gq, s.tx, s.ty); ctx.strokeStyle = 'rgba(255,154,90,0.55)'; ctx.setLineDash([4, 4]); ctx.lineWidth = 1.5; ctx.beginPath(); ctx.arc(s.tx, s.ty, s.r, 0, Math.PI * 2); ctx.stroke(); ctx.setLineDash([]); ctx.setTransform(DPR, 0, 0, DPR, 0, 0); }
+  }
+}
+// 副技能按鈕（電腦版 V、手機版小按鈕）
+function protoSubUI() {
+  const on = !!(cfg && cfg.proto);
+  for (const [btn, cdEl, num, lab] of [[$('subBtn'), $('subCd'), $('subNum'), $('subMark')], [$('tSub'), $('tSubCd'), $('tSubNum'), $('tSubMark')]]) {
+    btn.hidden = !on; if (!on) continue;
+    const P = PROTO[cfg.proto], f = (player && player.subCd) > 0 ? player.subCd / cfg.sub.cooldown : 0;
+    lab.textContent = P.mark; lab.style.color = P.color; btn.title = cfg.sub.name + '（V）';
+    cdEl.style.background = f > 0 ? 'conic-gradient(rgba(4,14,20,.72) ' + (f * 360) + 'deg, transparent 0)' : 'none';
+    num.textContent = f > 0 ? Math.ceil(player.subCd) : '';
+  }
+}
 const ELITE_POOL = Object.keys(BOSSES).filter((id) => BOSSES[id].rank === 'elite');
 // 從抽選池隨機抽一名當 Boss（'elite'＝全部精英敵人）
 // pool：'elite' 全部精英｜{ tier: n } 該等級的精英｜['id', …] 指定名單
@@ -5623,11 +5850,16 @@ setTouchMode(matchMedia('(pointer:coarse)').matches);
 /* ───────── 選單 ─────────
    選角依槍種分頁：點開某個槍種時，才下載那個槍種人形的預覽圖與立繪（assets/class_<槍種>.json）。 */
 const CLASS_ORDER = ['AR', 'SMG', 'HG', 'RF', 'SG', 'MG'];
-const charsOf = (cls) => Object.values(CHARACTERS).filter((d) => d.weapon.class === cls);
-const previewOf = (def) => def.assets.imgs[def.frames.preview];
+const charsOf = (cls) => cls === 'PROTO' ? PROTO_IDS.map((id) => CHARACTERS['p_' + id]) : Object.values(CHARACTERS).filter((d) => d.weapon.class === cls);
+const previewOf = (def) => def.proto ? ASSETS.ui[def.portrait] : def.assets.imgs[def.frames.preview];
 const classLoading = {};
 function ensureClass(cls) {
   if (classLoading[cls]) return classLoading[cls];
+  if (cls === 'PROTO') {   // 協議同歸：用敵人圖鑑的立繪（另存一份，關閉選單清快取時不會被刪）
+    const p = PROTO_IDS.every((id) => ASSETS.ui['proto_' + id]) ? Promise.resolve() : ensureCodexFaction('sf').then(() => { for (const id of PROTO_IDS) if (ASSETS.ui['codex_' + id]) ASSETS.ui['proto_' + id] = ASSETS.ui['codex_' + id]; });
+    classLoading[cls] = p.catch((err) => { delete classLoading[cls]; throw err; });
+    return classLoading[cls];
+  }
   const missing = charsOf(cls).some((d) => !previewOf(d) || !ASSETS.ui[d.portrait]);
   const p = !missing ? Promise.resolve()
     : fetch(assetUrl('class_' + cls)).then((r) => { if (!r.ok) throw new Error(cls); return r.json(); }).then((d) => {
@@ -5662,9 +5894,9 @@ function updatePick() {
   const lv = LEVELS.find((l) => l.id === selectedLevel); $('levelDesc').textContent = lv ? lv.desc : '';
 }
 // 槍種分頁按鈕（選角、人形圖鑑共用）
-function buildClassTabs(box, current, onPick) {
+function buildClassTabs(box, current, onPick, order = CLASS_ORDER) {
   box.textContent = '';
-  for (const cls of CLASS_ORDER) {
+  for (const cls of order) {
     const n = charsOf(cls).length, b = document.createElement('button');
     b.type = 'button'; b.className = 'class-tab' + (cls === current ? ' is-on' : ''); b.disabled = !n;
     b.textContent = CLASS_NAMES[cls];
@@ -5676,7 +5908,7 @@ function buildClassTabs(box, current, onPick) {
 let selClass = 'SG', selSlot = 'main';   // 正在幫哪一個欄位選角色
 function openCharsel(cls) {
   selClass = cls;
-  buildClassTabs($('classTabs'), cls, openCharsel);
+  buildClassTabs($('classTabs'), cls, openCharsel, selectedLevel === 'versus' ? CLASS_ORDER : [...CLASS_ORDER, 'PROTO']);   // 協議同歸：雲圖對戰不開放
   const box = $('roster'); box.textContent = '';
   const ready = classLoading[cls] && charsOf(cls).every((d) => previewOf(d));
   if (!ready) setLoadingTips(true, ['selTip']);
@@ -6731,7 +6963,7 @@ function beginGame() {
   player = makePlayer(cfg);
   team = usesTeam() ? { ids: [selectedId, subId], states: [null, null], active: 0, down: [false, false], cd: 0, cloneSrc: 0 } : null;   // cloneSrc：擴編出來的是哪一位（主要角色倒下後改成副角色）
   cam = { x: 0, y: 0 }; chunks.clear(); coverCache = null; computeZoom(); stream();
-  enemies = []; bullets = []; particles = []; floaters = []; grenades = []; blasts = []; runFx = []; rings = [];
+  enemies = []; bullets = []; particles = []; floaters = []; grenades = []; pShells = []; blasts = []; runFx = []; rings = [];
   // 依關卡決定敵人數值
   phase = levelPhases() ? levelPhases()[0] : null; phaseIdx = 0; phaseStart = 0; spawnIdx = 0;
   $('phaseBlock').hidden = !phase || !!phase.bigmap;   // 戰局：時間照算但不顯示
@@ -7996,6 +8228,7 @@ window.addEventListener('keydown', (e) => {
   if (e.repeat) { keys.add(e.code); return; }
   if (e.code === 'KeyR' && state === 'play') reload();
   if (e.code === 'KeyQ' && state === 'play') useSkill();
+  if (e.code === 'KeyV' && state === 'play') protoSub();   // 協議同歸：副技能
   if (e.code === 'KeyZ' && state === 'play' && !$('invitePanel').hidden) nightInvite(true);   // 夜戰：Z 邀請加入
   if (e.code === 'KeyX' && state === 'play' && !$('invitePanel').hidden) nightInvite(false);
   if (e.code === 'KeyC' && state === 'play' && !$('commBtn').hidden) nightUseComm();
@@ -8100,6 +8333,8 @@ tReload.addEventListener('pointerdown', (e) => { e.preventDefault(); if (state =
 $('tDodge').addEventListener('pointerdown', (e) => { e.preventDefault(); startDodge(); });
 $('tSkill').addEventListener('pointerdown', (e) => { e.preventDefault(); useSkill(); });
 $('skillBtn').addEventListener('click', () => useSkill());
+$('subBtn').addEventListener('click', () => protoSub());
+$('tSub').addEventListener('pointerdown', (e) => { e.preventDefault(); protoSub(); });
 
 $('startBtn').addEventListener('click', startGame);
 $('boardBtn').addEventListener('click', () => { if (state === 'play') { if (isTrain()) openTrainPanel(); else openDefPanel(); } });
@@ -8633,6 +8868,7 @@ function drawMirror() {
   }
 }
 function useSkill() {
+  if (cfg && cfg.proto) { if (state === 'play') protoMain(); return; }   // 協議同歸：特殊攻擊
   if (defPilot) { mechSkill(defPilot); return; }   // 操作九頭蛇：技能鍵＝高速機槍
   if (vsDead()) return;
   if (netGuestPress('sk')) return;
@@ -8886,6 +9122,7 @@ function updateSkill() {
     num.textContent = sk.id === 'resonance' ? (player.birds === 0 ? Math.ceil(player.birdT) : '') : player.buffT > 0 ? Math.ceil(player.buffT) : player.skillCd > 0 ? Math.ceil(player.skillCd) : '';
     num.style.color = player.buffT > 0 ? '#ffd27a' : '';
   }
+  protoSubUI();
   // 霞光萍蹤：在技能圖示上顯示強化層數 1～3
   for (const st of [$('skillStack'), $('tSkillStack')]) {
     const n = sk && sk.id === 'grenade' ? player.stacks : sk && sk.id === 'resonance' ? player.birds : 0;
@@ -8918,6 +9155,7 @@ function reload() {
   player.reload = reloadOf(player, cfg); foxToAR(player);
 }
 function shootPlayer() {
+  if (cfg.proto) return protoShoot();   // 協議同歸
   const wp = cfg.weapon;
   const free = isLocked() || HUNT.on;           // 堅盾鎖敵：鎖定中不消耗彈藥，也不用等換彈；連鎖狂獵的強化子彈也不耗彈
   const spc = cfg.skill && cfg.skill.id === 'haunt' && player.spAmmo > 0 && player.reload <= 0;   // MG4：特殊彈藥優先射出，不消耗彈鏈
@@ -9046,7 +9284,8 @@ function moveWithCover(en, dx, dy) {
   if (isNight() && mudAt(en.x, en.y)) { dx *= 0.55; dy *= 0.55; }
   if (isTrain()) { const k = trainSlowAt(en.x, en.y); if (k) { dx *= k; dy *= k; } }   // 訓練場：積雪、爛泥減速   // 夜戰：泥巴地減速
   const x0 = en.x, y0 = en.y;
-  if (!en.fighter && en.jamUntil > gameTime) { dx *= 0.7; dy *= 0.7; }   // 干擾圈：一般敵人移速 −30%
+  if (!en.fighter && en.jamUntil > gameTime) { dx *= 0.7; dy *= 0.7; }
+  if (en.pslowT > gameTime) { dx *= 1 - en.pslow; dy *= 1 - en.pslow; }   // 協議同歸的緩速   // 干擾圈：一般敵人移速 −30%
   const list = covers();
   const npc = (isNight() || isTrain()) && en !== player && ((!en.clone && !en.fighter) || isDef());
   if (npc && en.escN > 0) { en.escN--; const w = Math.hypot(dx, dy); dx = Math.cos(en.escA) * w; dy = Math.sin(en.escA) * w; }   // 脫困中：先往空曠的方向走一小段
@@ -12595,6 +12834,7 @@ function update(dt) {
   dx += stick.x; dy += stick.y;
   if (vsDead()) { dx = 0; dy = 0; }   // 對戰：倒下等待重生
   if (defPilot) { defPilot.inX = dx; defPilot.inY = dy; dx = 0; dy = 0; }   // 滅星行動：操作九頭蛇時，本人留在原地
+  if (cfg.proto && player.pb && player.pb.busy) { dx = 0; dy = 0; }   // 協議同歸：施放特殊攻擊／第二種普通攻擊時站定
   if (player.airT > 0) { dx = 0; dy = 0; player.airT -= dt; moveWithCover(player, player.akx * dt, player.aky * dt); }   // 被打飛滯空：不能移動
   const len = Math.hypot(dx, dy), mag = Math.min(1, len);
   player.moving = len > 0.08;
@@ -12716,7 +12956,7 @@ function update(dt) {
   let target = null, best = Infinity;
   const VR = visionR();   // 夜戰：看不到的敵人不能鎖定
   for (const e of enemies) { const d = Math.hypot(e.x - player.x, e.y - player.y); if (d <= cfg.lockRange && d < best && teamSees(e)) { best = d; target = e; } }
-  const wantsFire = (mouseDown || fireHeld || keys.has('Space') || keys.has('KeyJ')) && player.dodgeT <= 0 && !vsDead() && !(player.airT > 0) && !defPilot && !(player.castT > 0) && !(player.huntAim > 0);
+  const wantsFire = (mouseDown || fireHeld || keys.has('Space') || keys.has('KeyJ')) && player.dodgeT <= 0 && !vsDead() && !(player.airT > 0) && !defPilot && !(player.castT > 0) && !(player.huntAim > 0) && !(cfg.proto && player.pb && player.pb.busy);
   player.wantsFire = wantsFire;   // 分身（不同人形）跟著開火用
 
   // 瞄準
@@ -12799,6 +13039,7 @@ function update(dt) {
   if (wantsFire && player.cool <= 0 && (!mgOn(player) || player.prone >= 1)) {
     if (shootPlayer()) { player.cool = cfg.weapon.cooldown / (1 + effSum(player, 'rate')); player.shot = player.shotMax = cfg.weapon.anim; } else player.cool = 0.12;
   }
+  protoTick(dt);
 
   // 滅星行動：場上有精英時時間軸暫停（時段計時、任務剩餘時間都停住），擊敗精英才繼續
   defPaused = !!(phase && phase.defense && enemies.some((x) => x.defElite && x.hp > 0));
@@ -13030,7 +13271,7 @@ function update(dt) {
           // 命中率：射擊者命中 +X% → 敵人迴避率 −X%
           if (Math.random() < clamp(enemyEvade(e) - effSum(b.src || player, 'acc') - ((b.src && b.src.mechAcc) || 0), 0, 1)) { (b.missed || (b.missed = new Set())).add(e); floatText(e.x + rand(-6, 6), e.y - 30, 'MISS', '#bfefff'); continue; }
           // 傷害順序：原始傷害 → 自身技能加成（裂傷紀錄／榮光延續）→ 其他人給的增益（蜂鳥共鳴）→ hitEnemy 判定暴擊 → 護甲
-          const fm = flowerMul(b.src || player, e) * maskMul(b, e), D = b.def || cfg, base = (D.weapon.damage + (b.flat || 0)) * (b.purple ? D.skill.purpleMult : 1) * (b.buff || 1) * fm;   // flat：裝備的子彈傷害 +固定值（先加在每發傷害上，再吃加成）   // fm：花之鎖   // 用發射時的人形數值（中途切換角色也不會變）
+          const fm = flowerMul(b.src || player, e) * maskMul(b, e), D = b.def || cfg, base = ((b.pdmg ?? D.weapon.damage) + (b.flat || 0)) * (b.purple ? D.skill.purpleMult : 1) * (b.buff || 1) * fm;   // flat：裝備的子彈傷害 +固定值（先加在每發傷害上，再吃加成）   // fm：花之鎖   // 用發射時的人形數值（中途切換角色也不會變）
           const hhi = huntHi(D, e);   // 連鎖狂獵：對生命高於 50% 的目標 +10%
           hitEnemy.pierceShield = (D.skill && D.skill.id === 'deter') || !!b.huntEnh;   // 沙漠之鷹的子彈、連鎖狂獵的強化子彈無視護盾
           hitEnemy.pierceArmor = !!b.ap;                              // 高壓沖擊（貫穿）：子彈穿甲
@@ -13042,7 +13283,8 @@ function update(dt) {
           if (hitEnemy.lastCrit && (!b.fromClone || (b.src && b.src.def === cfg)) && isLocked()) addLockStack();   // 堅盾鎖敵：本人打出暴擊 → 傷害疊加
           if (hitEnemy.lastCrit && b.src && b.src.fighter) vsLockStack(b.src.lead || b.src);
           hit = true; burst(b.x, b.y, b.purple ? '#b06bff' : '#ff8f83', b.purple ? 7 : 4); sfx.hit();
-          if (b.eff && e.fighter) addEffect(e, b.eff, b.src);   // 友隊九頭蛇守衛的減速
+          if (b.eff && e.fighter) addEffect(e, b.eff, b.src);
+          if (b.peff) protoEnemyEff(e, b.peff);   // 協議同歸：易傷／緩速   // 友隊九頭蛇守衛的減速
           if (b.six) {
             // 糜麗六殺（沒有分段資料時的保險）：只賦予減益
             const sk = D.skill;
@@ -13120,6 +13362,7 @@ function update(dt) {
     }
   }
   updateClones(dt); if (isNight()) { nightTick(dt); nightLegionTick(dt); } if (isTrain()) trainTick(dt);   // 訓練場：操作台生成敵人
+  protoWorld(dt);
   updateMissiles(dt); updateHomers(dt); updateShockWaves(dt); updateSlashWaves(dt); updateMagicOrbs(dt); updateSmokes(dt);
   if (arena()) { const A = arena(); A.t = (A.t || 0) + dt; keepInArena(player, A); keepInArena(boss, A); for (const c of clones) keepInArena(c, A); }   // Boss 圍欄
   // 手雷：飛行 → 爆炸
@@ -13220,6 +13463,7 @@ function pose(en, isEnemy, forceAim, ang) {
   };
 }
 function muzzleWorld(en) {
+  if ((en.def || cfg).proto) return protoMuzzle(en);
   const p = pose(en, false, true), m = (en.def || cfg).assets.meta;
   const lx = (m.muzzle[0] - m.pivot[0]) * p.sc + p.kick, ly = (m.muzzle[1] - m.pivot[1]) * p.sc;
   const c = Math.cos(p.rot), s = Math.sin(p.rot);
@@ -13228,6 +13472,7 @@ function muzzleWorld(en) {
   return { x: en.x + x, y: en.y + y + p.by };
 }
 function drawCharacter(en, isEnemy, ghost) {
+  if ((en.def || cfg).proto) { drawProtoUnit(en, ghost); return; }
   const D = en.def || cfg, m = D.assets.meta, box = imgs[D.id] || {};
   const q = proj(en.x, en.y);
   // 用投影後的螢幕角度畫槍，槍口才會對準畫面上的準星
@@ -13542,6 +13787,7 @@ function draw(t) {
     ctx.beginPath(); ctx.arc(g.tx, g.ty, g.lv.radius, 0, Math.PI * 2); ctx.stroke(); ctx.setLineDash([]);
     ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
   }
+  drawProtoShells();
   // 蜂鳥共鳴：擴散的光環（效果範圍）
   for (const r of rings) {
     const k = 1 - r.life / r.max, q = proj(r.x, r.y); ground(q, r.x, r.y);
