@@ -10956,6 +10956,19 @@ function doseSlash(e, x0, y0, x1, y1) {
   for (let k = 0; k <= 8; k++) { const f = k / 8; particles.push({ x: x0 + (x1 - x0) * f, y: y0 + (y1 - y0) * f, vx: rand(-30, 30), vy: rand(-30, 30), life: 0.35, max: 0.35, color: '#ff2d55' }); }
   shake = Math.max(shake, 2);
 }
+// 閃現終點：沿鎖定方向一小段一小段往前探，碰到障礙物、地圖邊界或圍欄就停在前一格
+// （不用 moveWithCover：它是 x、y 分開移動，被擋住一個方向時會只剩另一個方向，閃現就變成垂直或水平）
+function doseEnd(e, dir, len) {
+  const list = covers(), r = e.r * 0.55, solid = bigMap() || isNight() || isTrain();
+  let x = e.x, y = e.y;
+  for (let d = 8; d <= len + 0.01; d += 8) {
+    const px = e.x + Math.cos(dir) * Math.min(d, len), py = e.y + Math.sin(dir) * Math.min(d, len);
+    if (list.some((b) => Math.abs(px - b.x) < r + b.r && Math.abs(py - b.y) < r + b.r) || (solid && mapSolidAt(px, py, r))) break;
+    const c = { x: px, y: py, r: e.r }; keepInMap(c); keepInArena(c); if (Math.abs(c.x - px) > 0.5 || Math.abs(c.y - py) > 0.5) break;
+    x = px; y = py;
+  }
+  return { x, y };
+}
 function doseTL(e) {   // 切換完成後的時間軸：架刀 → 閃現出去 → 調頭 → 閃現回來 → 收刀
   const sp = e.B.special, w = sp.windup, a = w + sp.dash, p = a + sp.turn, b = p + sp.dash;
   return { w, a, p, b, h: b + e.B.assets.meta.sheath.dur };
@@ -10983,7 +10996,7 @@ function updateDose(e, dt, toward, dist) {
     else {
       const t2 = S.t - sw, T = doseTL(e);
       if (!S.p0) {   // 架刀：鎖定起點與終點（終點撞到障礙就停在障礙前）
-        S.p0 = { x: e.x, y: e.y }; moveWithCover(e, Math.cos(S.dir) * sp.length, Math.sin(S.dir) * sp.length); S.p1 = { x: e.x, y: e.y }; e.x = S.p0.x; e.y = S.p0.y;
+        S.p0 = { x: e.x, y: e.y }; S.p1 = doseEnd(e, S.dir, sp.length);
         e.faceLeft = Math.cos(S.dir) < 0;
       }
       if (S.step === 0 && t2 >= T.w) S.step = 1;   // 第一刀：閃現出去
