@@ -12295,6 +12295,7 @@ function updateArcher(e, dt, toward, dist) {
 // 近戰敵人（殘獸）：衝到攻擊距離就出刀；冷卻中往後退開，不會躲子彈
 /* ───────── 歐特魯斯：正規軍二階普通敵人，重型近戰機械狗。平常用撕咬攻擊（站定抬頭再咬下）；
    被動：身邊友軍超過 3 個時，加速跑到友軍與目標之間，張嘴展開護盾，擋下朝向那一側（左或右）飛來的子彈 ───────── */
+const T_ORTH_MOUTH = 44;   // 護盾位置：張開的嘴巴前緣（離身體中心 44）
 const orthAllies = (e) => enemies.filter((o) => o !== e && o.hp > 0 && !o.boss && Math.hypot(o.x - e.x, o.y - e.y) < e.T.guard.near);
 function updateOrth(e, dt, toward, dist) {
   const T = e.T, G = T.guard, m = ASSETS[T.sprite].meta;
@@ -12313,11 +12314,11 @@ function updateOrth(e, dt, toward, dist) {
     if (!e.moving && S.cd <= 0) { S.phase = 'deploy'; S.t = 0; e.faceLeft = player.x < e.x; S.f = e.faceLeft ? -1 : 1; }
   } else if (S.phase === 'deploy') {   // 低頭 → 抬頭張嘴，嘴張開時護盾展開
     e.moving = false;
-    if (S.t >= m.shield.dur) { S.phase = 'hold'; S.t = 0; S.hp = G.hp; S.on = true; burst(e.x + S.f * 26, e.y - 25, '#5ff0d8', 10); }
+    if (S.t >= m.shield.dur) { S.phase = 'hold'; S.t = 0; S.hp = G.hp; S.on = true; burst(e.x + S.f * T_ORTH_MOUTH, e.y - 46, '#5ff0d8', 10); }
   } else {
     e.moving = false;
     if (S.t >= G.time || S.hp <= 0) {   // 護盾消失：2 秒後可以再展開
-      if (S.hp > 0) burst(e.x + S.f * 26, e.y - 25, '#5ff0d8', 6);
+      if (S.hp > 0) burst(e.x + S.f * T_ORTH_MOUTH, e.y - 46, '#5ff0d8', 6);
       S.on = false; S.phase = 'run'; S.t = 0; S.cd = G.cd;
       if (!ok) { e.oguard = null; e.cool = 0.5; }
     }
@@ -12328,7 +12329,7 @@ function updateOrth(e, dt, toward, dist) {
 function orthShieldHit(b, dt) {
   for (const e of enemies) {
     const S = e.oguard; if (!S || !S.on || e.hp <= 0) continue;
-    const px = e.x + S.f * 24, x0 = b.x - b.vx * dt;
+    const px = e.x + S.f * T_ORTH_MOUTH, x0 = b.x - b.vx * dt;
     if ((x0 - px) * S.f > 0 && (b.x - px) * S.f <= 0 && Math.abs(b.y - (e.y - 8)) < e.T.guard.half) {
       const D = b.def || cfg, dmg = ((b.pdmg ?? D.weapon.damage) + (b.flat || 0)) * (b.buff || 1);
       S.hp -= dmg; S.hitT = gameTime; burst(px, b.y, '#7ff6e0', 4);
@@ -12342,9 +12343,9 @@ function orthShieldHit(b, dt) {
 function drawOrthFx() {
   for (const e of enemies) {
     const S = e.oguard; if (!S || !S.on || e.hp <= 0) continue;
-    const H = e.T.guard.half, px = e.x + S.f * 24, q = proj(e.x, e.y), fr = clamp(S.hp / e.T.guard.hp, 0, 1);
+    const H = e.T.guard.half, px = e.x + S.f * T_ORTH_MOUTH, q = proj(e.x, e.y), fr = clamp(S.hp / e.T.guard.hp, 0, 1);
     const fade = Math.min(1, S.t / 0.2, (e.T.guard.time - S.t) / 0.3), hit = S.hitT && gameTime - S.hitT < 0.12 ? 1 : 0;
-    upright(q, e.x, e.y); ctx.save(); ctx.translate(px, e.y - 8 - H * 0.55);
+    upright(q, e.x, e.y); ctx.save(); ctx.translate(px, e.y - 46);   // 張開的嘴巴高度
     const w = 9, h = H;   // 六角形：寬 2w（壓扁）、高 2h
     const hex = () => { ctx.beginPath(); ctx.moveTo(0, -h); ctx.lineTo(w, -h / 2); ctx.lineTo(w, h / 2); ctx.lineTo(0, h); ctx.lineTo(-w, h / 2); ctx.lineTo(-w, -h / 2); ctx.closePath(); };
     ctx.globalAlpha = fade; ctx.globalCompositeOperation = 'lighter';
