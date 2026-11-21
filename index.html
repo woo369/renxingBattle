@@ -5259,7 +5259,7 @@ const PROTO = {
   elk: { main: '轟炸炮擊', sub: '雪球砲', mainCd: 22, subCd: 8, mark: '雪', color: '#bfe6ff' },
 };
 const PROTO_SUBDESC = {
-  witch: '魔杖揮出一顆追蹤魔法球（20 傷害），命中使目標移速 −30%、易傷 10%（8 秒），同時召喚三隻兵蟻在身邊護航（場上最多 6 隻）。',
+  witch: '魔杖揮出一顆追蹤魔法球（20 傷害），命中使目標移速 −30%、易傷 10%（8 秒），同時召喚三隻兵蟻在身邊護航（場上最多 6 隻，滿了就只發射魔法球）。',
   moth: '停下轉槍瞄準，射出 3 倍速的高速子彈（15 傷害），命中使目標易傷 20%、移速 −20%（5 秒）。',
   elk: '停在原地快速水平打出 12 發雪球（帶散佈），每發 5 傷害並緩速 70%（1 秒，不疊加，時間累加）。',
 };
@@ -5463,22 +5463,23 @@ function protoWorld(dt) {
 }
 // 協議同歸的終幕魔女：魔法彈同時召喚兵蟻。兵蟻屬於召喚者的陣營，像夜戰隊友一樣護航在召喚者身邊
 let pAnts = [];
-const PANT_MAX = 6;   // 場上最多 6 隻（超過就移除最舊的）
+const PANT_MAX = 6;   // 場上最多 6 隻（滿了就只發射魔法球）
 function protoSummonAnts(u, n) {
   ensurePack('dino').catch(() => {});
+  n = Math.min(n, PANT_MAX - pAnts.filter((a) => a.hp > 0).length);
   for (let k = 0; k < n; k++) {
     const a = k / n * Math.PI * 2 + rand(-0.3, 0.3), q = nightSpot(u.x + Math.cos(a) * 70, u.y + Math.sin(a) * 70, DINO.radius);
     pAnts.push({ T: DINO, team: 'p', owner: u, def: u.def, x: q.x, y: q.y, r: DINO.radius, hp: DINO.hp, maxHp: DINO.hp, ammo: DINO.magazine, reloadT: 0, cool: rand(0.3, 0.8), angle: 0,
       moving: false, phase: rand(0, 6), faceLeft: false, slot: rand(0, Math.PI * 2), effects: [], shot: 0 });
     burst(q.x, q.y, '#c58cff', 10);
   }
-  while (pAnts.length > PANT_MAX) pAnts.shift();
 }
 function protoAntsTick(dt) {
   for (let i = pAnts.length - 1; i >= 0; i--) {
     const a = pAnts[i], o = a.owner && a.owner.hp > 0 ? a.owner : player;
     if (a.hp <= 0) { burst(a.x, a.y, '#c58cff', 10); pAnts.splice(i, 1); continue; }
     a.shot = Math.max(0, a.shot - dt);
+    for (const u of [player, ...clones]) { const dx = a.x - u.x, dy = a.y - u.y, d = Math.hypot(dx, dy), mn = (a.r + u.r) * 1.1; if (d < mn) { const k = (mn - d) * 0.5 / (d || 1); moveWithCover(a, (d ? dx : 1) * k, (d ? dy : 0) * k); } }   // 不和人形重疊（兵蟻讓開）
     // 目標：召喚者附近（280 內）離兵蟻最近的敵人
     let tg = null, bd = Infinity;
     for (const e of enemies) { if (e.hp <= 0 || Math.hypot(e.x - o.x, e.y - o.y) > 280) continue; const d = Math.hypot(e.x - a.x, e.y - a.y); if (d < bd) { bd = d; tg = e; } }
@@ -9357,7 +9358,7 @@ function damage(amount, pierce, armorPen = 0) {
 const isFlying = (e) => e.T?.ai === 'drone';
 const SEP_K = 1.25;   // 兩隻敵人中心至少相距（半徑和 × 1.25）：碰撞圈比圖小，乘一點讓圖片不會疊在一起
 function separateEnemies() {
-  const list = enemies.filter((e) => !isFlying(e));
+  const list = [...enemies.filter((e) => !isFlying(e)), ...pAnts.filter((a) => a.hp > 0)];   // 協議同歸召喚的兵蟻也有碰撞體積
   for (let i = 0; i < list.length; i++) {
     const a = list[i];
     for (let j = i + 1; j < list.length; j++) {
@@ -10524,13 +10525,16 @@ function tickTyphonBeams(dt) {
     }
     if (segDist(player.x, player.y, M.x, M.y, E.x, E.y) < L.width / 2 + player.r && !vsDead()) { damage(L.dmg); burst(player.x, player.y, '#7ff6ff', 4); }
     for (const c of clones.slice()) if (segDist(c.x, c.y, M.x, M.y, E.x, E.y) < L.width / 2 + c.r) { damageClone(c, L.dmg); burst(c.x, c.y, '#7ff6ff', 3); }
+    for (const a of pAnts) if (a.hp > 0 && segDist(a.x, a.y, M.x, M.y, E.x, E.y) < L.width / 2 + a.r) { a.hp -= L.dmg; burst(a.x, a.y, '#7ff6ff', 3); }   // 協議同歸召喚的兵蟻
   }
 }
 function drawTyphonBeams() {
   for (const e of typUnits()) {
     if (e.mode !== 'fire' && e.mode !== 'charge') continue;
-    const L = e.B.laser, M = typMuzzle(e), a = e.mode === 'fire' ? e.beam : e.aim, E = { x: M.x + Math.cos(a) * L.range, y: M.y + Math.sin(a) * L.range };
-    const dT = clamp(Number.isFinite(e.aimD) ? e.aimD : 300, 90, L.range), hE = clamp(M.h + (TYP_HIT_H - M.h) * L.range / dT, M.h, 8);   // 光束斜斜往下，在目標的距離剛好打在身體中間
+    const L = e.B.laser, M = typMuzzle(e), a = e.mode === 'fire' ? e.beam : e.aim; let len = L.range;
+    { const vb = viewBounds(), maxY = cam.y + Math.min(P3 * 0.6, vb.b + 80), sy = Math.sin(a); if (sy > 0 && M.y + sy * len > maxY) len = Math.max(0, (maxY - M.y) / sy); }   // 鏡頭拉近時：畫面下方太遠的部分不畫（投影會無限放大）
+    const E = { x: M.x + Math.cos(a) * len, y: M.y + Math.sin(a) * len };
+    const dT = clamp(Number.isFinite(e.aimD) ? e.aimD : 300, 90, L.range), hE = clamp(M.h + (TYP_HIT_H - M.h) * len / dT, M.h, 8);   // 光束斜斜往下，在目標的距離剛好打在身體中間
     const qa = proj(M.x, M.y), qb = proj(E.x, E.y), ax = qa.x, ay = qa.y + M.h * qa.k, bx = qb.x, by = qb.y + hE * qb.k;
     ctx.save(); ctx.globalCompositeOperation = 'lighter'; ctx.lineCap = 'round';
     if (e.mode === 'charge') {   // 蓄力：細的瞄準線越來越亮＋砲口聚光
@@ -10540,7 +10544,7 @@ function drawTyphonBeams() {
       const g = ctx.createRadialGradient(ax, ay, 0, ax, ay, (8 + 26 * k) * qa.k); g.addColorStop(0, 'rgba(220,255,255,' + (0.4 + 0.6 * k) + ')'); g.addColorStop(1, 'rgba(60,220,255,0)');
       ctx.fillStyle = g; ctx.beginPath(); ctx.arc(ax, ay, (8 + 26 * k) * qa.k, 0, Math.PI * 2); ctx.fill();
     } else {   // 發射：外層光暈＋中層＋白色核心，寬度微微閃動
-      const fl = 1 + 0.15 * Math.sin(gameTime * 47) + 0.08 * Math.sin(gameTime * 113), w = L.width * (qa.k + qb.k) / 2 * fl;
+      const fl = 1 + 0.15 * Math.sin(gameTime * 47) + 0.08 * Math.sin(gameTime * 113), w = L.width * qa.k * fl;   // 寬度用砲口處的比例（遠端靠近鏡頭時投影會放大太多）
       const st = (col, lw) => { ctx.strokeStyle = col; ctx.lineWidth = lw; ctx.beginPath(); ctx.moveTo(ax, ay); ctx.lineTo(bx, by); ctx.stroke(); };
       st('rgba(40,200,255,0.18)', w * 1.9); st('rgba(70,230,255,0.45)', w); st('rgba(170,250,255,0.75)', w * 0.45); st('rgba(255,255,255,0.95)', w * 0.16);
       const g = ctx.createRadialGradient(ax, ay, 0, ax, ay, w * 1.4); g.addColorStop(0, 'rgba(255,255,255,0.9)'); g.addColorStop(1, 'rgba(60,220,255,0)');
