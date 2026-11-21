@@ -5266,7 +5266,7 @@ const PROTO_SUBDESC = {
 for (const id of PROTO_IDS) {
   const B = BOSSES[id], P = PROTO[id], dmg = id === 'elk' ? B.shot.dmg : B.bulletDmg, spd = id === 'elk' ? B.shot.speed : B.bulletSpeed;
   Object.defineProperty(CHARACTERS, 'p_' + id, { enumerable: false, value: defineCharacter({
-    id: 'p_' + id, proto: id, name: B.name, crit: 0.05, maxHp: Math.round(B.hp * 0.3), speed: B.speed, lockRange: B.lockRange, dodge: 10,
+    id: 'p_' + id, proto: id, name: B.name, crit: 0.05, maxHp: Math.round(B.hp * 0.3) + (id === 'witch' ? 100 : 0), speed: B.speed, lockRange: B.lockRange, dodge: 10,
     armor: { value: 0, blockLow: 0, blockHigh: 0 },
     weapon: { name: B.weapon, class: 'PROTO', magazine: B.magazine, pellets: 1, damage: dmg, spread: 0, jitter: 0.03, speed: [spd, spd], radius: 5,
       cooldown: B.fireCooldown, reloadMode: 'magazine', reload: B.reload, anim: 0.3 },
@@ -5275,6 +5275,8 @@ for (const id of PROTO_IDS) {
     portrait: 'proto_' + id, radius: B.radius, assets: B.assets, runFx: false,
   }) });
 }
+const PROTO_SFX = { witch: 'MG', moth: 'HG', elk: 'MCN' };   // 協議同歸的開火音效：機槍、手槍、中口徑火炮
+const protoSfx = (id) => sfx.shot('rifle', PROTO_SFX[id]);
 let pShells = [];   // 協議同歸的炸彈、魔法球（打敵人）
 const protoAlive = (e) => e && e.hp > 0 && enemies.includes(e);
 function protoPb(u) {
@@ -5320,7 +5322,7 @@ function protoShootFrom(u) {
 }
 function protoShoot() {
   if (player.ammo <= 0 || player.reload > 0) return false;
-  player.ammo--; updateAmmo(); sfx.shot(cfg.proto === 'elk' ? 'shotgun' : 'rifle');
+  player.ammo--; updateAmmo(); protoSfx(cfg.proto);
   protoShootFrom(player);
   for (const c of clones) if (c.def === cfg && c.hp > 0) { c.angle = player.angle; protoShootFrom(c); }
   return true;
@@ -5344,7 +5346,7 @@ function protoSub() {
 }
 function protoEnemyEff(e, eff) {
   if (eff.vuln) { e.vuln = Math.max(e.debuffT > 0 ? e.vuln || 0 : 0, eff.vuln); e.debuffT = Math.max(e.debuffT || 0, eff.time); e.evadeDown = e.evadeDown || 0; }
-  if (eff.stack) { e.vuln = Math.min(0.5, (e.debuffT > 0 ? e.vuln || 0 : 0) + eff.stack); e.debuffT = Math.max(e.debuffT || 0, eff.time); e.evadeDown = e.evadeDown || 0; }   // 無盡彈雨：易傷疊加
+  if (eff.stack) { e.vuln = (e.debuffT > 0 ? e.vuln || 0 : 0) + eff.stack; e.debuffT = Math.max(e.debuffT || 0, eff.time); e.evadeDown = e.evadeDown || 0; }   // 無盡彈雨：易傷疊加
   if (eff.spd) { e.pslow = -eff.spd; e.pslowT = eff.addTime ? Math.max(gameTime, e.pslowT || 0) + eff.time : Math.max(e.pslowT || 0, gameTime + eff.time); }
 }
 // 每幀：特殊攻擊／第二種普通攻擊的進行
@@ -5361,7 +5363,7 @@ function protoTick(dt) {
         S.clock -= dt;
         while (S.clock <= 0 && S.t < sp.charge + sp.duration) {
           const mz = spritePoint(pb, m, m.smuzzle); protoBullet(player, mz, aimFrom(mz) + rand(-0.06, 0.06), sp.speed, sp.life * 1.2, sp.damage, { r: sp.radius });
-          burst(mz.x, mz.y, '#ffd27a', 3); S.clock += 1 / sp.rate;
+          burst(mz.x, mz.y, '#ffd27a', 3); protoSfx('witch'); S.clock += 1 / sp.rate;
         }
       }
       if (S.t >= sp.charge + sp.duration) pb.special = null;
@@ -5370,7 +5372,7 @@ function protoTick(dt) {
         const gt = g.t === 'pair' ? m.rain.pair : g.t, done = S.fired[g.t] || 0; if (S.t < gt || done >= g.n) continue;
         const want = g.dur ? Math.min(g.n, Math.floor((S.t - gt) / (g.dur / g.n)) + 1) : g.n;
         for (let k = done; k < want; k++) {
-          const shot = (key, fast) => { const mz = spritePoint(pb, m, m[key]), v = sp.speed * (fast || 1); protoBullet(player, mz, aimFrom(mz) + rand(-0.07, 0.07), v, sp.life / (fast || 1) * 1.3, sp.damage, { peff: { stack: sp.vuln.pct, time: sp.vuln.time } }); burst(mz.x, mz.y, '#c9b8ff', 3); };
+          const shot = (key, fast) => { const mz = spritePoint(pb, m, m[key]), v = sp.speed * (fast || 1); protoBullet(player, mz, aimFrom(mz) + rand(-0.07, 0.07), v, sp.life / (fast || 1) * 1.3, sp.damage, { peff: { stack: sp.vuln.pct, time: sp.vuln.time } }); burst(mz.x, mz.y, '#c9b8ff', 3); protoSfx('moth'); };
           if (g.gun === 'pair') { shot('fmuzzle', g.fast); shot('fmuzzle', g.fast); k = g.n; }
           else shot(g.gun === 'both' ? 'smuzzle' : 's1muzzle');
         }
@@ -5381,7 +5383,7 @@ function protoTick(dt) {
       while (S.n < sp.n && S.t >= m.bomb.shots[S.n]) {
         const p = spritePoint(pb, m, m.bmuzzle), a = rand(0, Math.PI * 2), d = Math.sqrt(Math.random()) * sp.spread;
         pShells.push({ kind: 'drop', sx: p.x, sy: player.y, h0: player.y - p.y, tx: tg.x + Math.cos(a) * d, ty: tg.y + Math.sin(a) * d, t: 0, T: sp.flight, r: sp.r, dmg: sp.dmg, burn: sp.burn });
-        burst(p.x, p.y, '#ff6b3d', 5); S.n++;
+        burst(p.x, p.y, '#ff6b3d', 5); protoSfx('elk'); S.n++;
       }
       if (S.t >= m.bomb.dur) pb.special = null;
     }
@@ -5398,7 +5400,7 @@ function protoTick(dt) {
     if (!pb.pFired && pb.powerT >= m.power.fire) {
       pb.pFired = 1; const mz = spritePoint(pb, m, m.pmuzzle), v = B.bulletSpeed * Pw.speedMul;
       protoBullet(player, mz, aimFrom(mz), v, B.bulletLife / Pw.speedMul * 1.5, B.bulletDmg, { r: 6, peff: Pw.eff });
-      burst(mz.x, mz.y, '#9f8cff', 8); shake = Math.max(shake, 2);
+      burst(mz.x, mz.y, '#9f8cff', 8); shake = Math.max(shake, 2); protoSfx('moth');
     }
     if (pb.powerT >= m.power.dur) pb.powerT = null;
   } else if (pb.snowT != null) {
@@ -5445,11 +5447,18 @@ function protoWorld(dt) {
       else if (s.life <= 0) { burst(s.x, s.y, '#c58cff', 6); pShells.splice(i, 1); }
     }
   }
-  // 燃燒：每秒 3% 最大生命（每秒最多 5）
+  // 燃燒：一般敵人每秒 3% 最大生命（每秒最多 5）；精英每秒 3% 當前生命（越燒越少），剩不到 3% 最大生命就直接燒死
   for (let j = enemies.length - 1; j >= 0; j--) {
     const e = enemies[j]; if (!(e.pburnT > gameTime) || e.hp <= 0) continue;
     e.pburnAcc = (e.pburnAcc || 0) + dt;
-    if (e.pburnAcc >= 1) { e.pburnAcc -= 1; const mx = e.maxHp || (e.T && e.T.hp) || (e.B && e.B.hp) || e.hp; hitEnemy(e, clamp(mx * 0.03, 1, 5), '#ff7a2e', true, 0); if (e.hp <= 0) killEnemy(e); }
+    if (e.pburnAcc >= 1) {
+      e.pburnAcc -= 1; const mx = e.maxHp || (e.T && e.T.hp) || (e.B && e.B.hp) || e.hp;
+      if (e.boss) {
+        if (e.hp > mx * 0.03) hitEnemy(e, e.hp * 0.03, '#ff7a2e', true, 0);
+        if (e.hp > 0 && e.hp <= mx * 0.03) { e.hp = 0; floatText(e.x, e.y - 70, '燒毀', '#ff7a2e'); }
+      } else hitEnemy(e, clamp(mx * 0.03, 1, 5), '#ff7a2e', true, 0);
+      if (e.hp <= 0) killEnemy(e);
+    }
   }
 }
 // 協議同歸的終幕魔女：魔法彈同時召喚兵蟻。兵蟻屬於召喚者的陣營，像夜戰隊友一樣護航在召喚者身邊
@@ -12924,7 +12933,7 @@ function update(dt) {
   dx += stick.x; dy += stick.y;
   if (vsDead()) { dx = 0; dy = 0; }   // 對戰：倒下等待重生
   if (defPilot) { defPilot.inX = dx; defPilot.inY = dy; dx = 0; dy = 0; }   // 滅星行動：操作九頭蛇時，本人留在原地
-  if (cfg.proto && player.pb && player.pb.busy) { dx = 0; dy = 0; }   // 協議同歸：施放特殊攻擊／第二種普通攻擊時站定
+  if (cfg.proto && player.pb && (player.pb.busy || (cfg.proto === 'witch' && player.wantsFire && player.ammo > 0 && !(player.reload > 0)))) { dx = 0; dy = 0; }   // 協議同歸：施放技能時站定；干擾者開火時也不能移動   // 協議同歸：施放特殊攻擊／第二種普通攻擊時站定
   if (player.airT > 0) { dx = 0; dy = 0; player.airT -= dt; moveWithCover(player, player.akx * dt, player.aky * dt); }   // 被打飛滯空：不能移動
   const len = Math.hypot(dx, dy), mag = Math.min(1, len);
   player.moving = len > 0.08;
