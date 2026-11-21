@@ -5089,8 +5089,9 @@ const BOSSES = {
     bulletDmg: 25,
     fireCooldown: 0.5,           // 兩把輪流，每 0.5 秒一發
     magazine: 6, reload: 2,
-    shot: { r: 30, dmg: 25, speed: 520, peak: 0.35 },   // 普通榴彈：落點半徑 30、傷害 25
-    special: { afterMags: 2, n: 12, gap: 0.25, r: 25, dmg: 20, flight: 1, peak: 1.4, spread: 70,
+    shot: { r: 30, dmg: 25, speed: 520, peak: 60 },   // 普通榴彈：落點半徑 30、傷害 25
+    special: { afterMags: 2, n: 12, gap: 0.25, r: 25, dmg: 20, flight: 0.8, peak: 150, spread: 70,   // 斜拋：飛行 0.8 秒、弧頂 150
+     
       slow: { id: 'dest_slow', name: '火炮陣地：移速 −50%', mark: '緩', color: '#ff9b5e', spd: -0.5, time: 1 }, burn: { time: 5, pct: 0.03 } },
     radius: 22,
     assets: ASSETS.dest,
