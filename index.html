@@ -2033,6 +2033,7 @@ const DEFENDER = { ...ENEMY,
   hp: 100, armor: 5, evade: 0,
   speed: 0, radius: 18,
   lockRange: 0, contactDmg: 0,
+  noSolo: true,              // 不會獨自出現（只由陣地獨眼巨人卸下）
   dome: { r: 200, hp: 200, regen: 10 } };
 // 聖盾GA：三階普通敵人，手持盾牌與電磁刀的近戰肉盾。攻擊方式和殘獸一樣：站定蓄力（有扇形預警）→ 出刀
 const AEGIS = { ...BEAST,
@@ -2623,11 +2624,37 @@ const NIGHT_ROSTERS = {
     { spawnTable: cpT(DEF_T2), initial: 2, spawn: { every: 5, min: 3, max: 10 }, legion: { max: 1, first: 30, every: 35 }, legionSc: DEF_SC, elites: DEF_ELITE2, packs: ['dino', 'jaguar', 'wasp', 'ripper', 'beast', 'lion', 'striker', 'jaeg', 'dragoon', 'guard'] },                  // 第二階段：一階 60%（套倍率）＋二階 40%
     { spawnTable: cpT(DEF_T3), initial: 0, spawn: { every: 5, min: 3, max: 12 }, legion: { max: 2, first: 0, every: 30 }, legionSc: DEF_SC3, elites: DEF_ELITE3, packs: ['dino', 'jaguar', 'wasp', 'ripper', 'beast', 'lion', 'striker', 'jaeg', 'dragoon', 'guard', 'scorp', 'gfac', 'goliath'] },   // 第三階段：一二階強化＋三階 10%
   ], legions: 'DEF' },   // 兵團用滅星行動的兵團組合；階段末尾的精英從鐵血工造自己的精英裡抽（第二階段二階、第三階段三階）
+  // 正規軍：第一階段（只有一階敵人）就會出現兵團。兵團的等級＝成員裡最高的階級，只會在開放到那個階級的階段出現
+  kcco: { name: '正規軍', phases: [
+    { spawnTable: [{ T: CYC_LITE, w: 60 }, { T: SPIKE, w: 40 }], initial: 2, spawn: { every: 9, min: 7, max: 6 }, legion: { max: 1, first: 40, every: 45 }, legionTier: 1,
+      packs: ['cycl', 'spk'] },
+    { spawnTable: [{ T: CYC_LITE, w: 15 }, { T: SPIKE, w: 10 }, { T: CYCLOPS, w: 20 }, { T: MULTI_EYE, w: 12 }, { T: COMPOUND_EYE, w: 12 }, { T: CENTAUR, w: 10 }, { T: ORTHRUS, w: 10 }, { T: HINDB, w: 10 }],
+      initial: 2, spawn: { every: 5, min: 3, max: 10 }, legion: { max: 1, first: 30, every: 35 }, legionTier: 2, elites: ['lycaon'],
+      packs: ['cycl', 'spk', 'cyc', 'meye', 'ceye', 'cent', 'orth', 'hindb', 'spk'] },
+    { spawnTable: [{ T: CYCLOPS, w: 14 }, { T: MULTI_EYE, w: 10 }, { T: COMPOUND_EYE, w: 10 }, { T: CENTAUR, w: 10 }, { T: ORTHRUS, w: 8 }, { T: HINDB, w: 8 }, { T: AEGIS, w: 10 }, { T: HIND, w: 8 }, { T: AEQUES, w: 8 }, { T: CYC_CMD, w: 6 }, { T: MULTI_EYE_D, w: 6 }, { T: HYDRA, w: 2 }],
+      initial: 0, spawn: { every: 5, min: 3, max: 12 }, legion: { max: 2, first: 0, every: 30 }, legionTier: 3, elites: ['minotaur', 'quail', 'paladin'],
+      packs: ['cyc', 'meye', 'ceye', 'cent', 'orth', 'hindb', 'aegis', 'hind', 'aeq', 'cycc', 'meyed', 'defd', 'hydra', 'spk', 'cycl'] },
+  ], legions: 'KCCO' },   // 階段末尾的精英：第二階段萊卡翁，第三階段從彌諾陶洛斯、奎鳥、帕拉丁裡抽
 };
+// 正規軍的兵團（等級＝成員最高階級，由程式自動算出）
+const KCCO_LEGIONS = [
+  { name: '偵查小兵團', w: 10, list: [[SPIKE, 5]] },
+  { name: '常規巨人團', w: 10, list: [[MULTI_EYE, 2], [CYCLOPS, 2], [COMPOUND_EYE, 1]] },
+  { name: '火力打擊團', w: 10, list: [[CENTAUR, 3], [COMPOUND_EYE, 2]] },
+  { name: '綠色獵犬團', w: 10, list: [[ORTHRUS, 5]] },
+  { name: '邊境防衛團', w: 10, list: [[HINDB, 3], [CYCLOPS, 2]] },
+  { name: '重盾堅守團', w: 10, list: [[AEGIS, 3], [ORTHRUS, 2], [HINDB, 1]] },
+  { name: '六角突進團', w: 10, list: [[HIND, 3], [MULTI_EYE_D, 2], [CENTAUR, 1]] },
+  { name: '機動指揮團', w: 10, list: [[CYCLOPS, 4], [CYC_CMD, 2]] },
+  { name: '空陸兩用團', w: 10, list: [[HIND, 3], [AEQUES, 2]] },
+  { name: '打擊陣地團', w: 10, list: [[AEQUES, 4], [MULTI_EYE_D, 1]] },
+  { name: '正面推進團', w: 10, list: [[HYDRA, 5]] },
+];
+const legionTier = (L) => Math.max(...L.list.map(([T]) => T.tier || 1));
 let nightRoster = 'sf';
 function pickNightRoster() {   // 夜戰開局前：抽這場用哪一份出敵清單，套到三個階段上
   const ids = Object.keys(NIGHT_ROSTERS); nightRoster = ids[Math.floor(Math.random() * ids.length)];
-  NIGHT_ROSTERS[nightRoster].phases.forEach((r, i) => { const P = NIGHT_PHASES[i]; if (!P) return; P.spawnTable = r.spawnTable; P.initial = r.initial; P.spawn = { ...r.spawn }; P.packs = [...r.packs, 'night']; P.legion = r.legion || null; P.legionSc = r.legionSc || {}; if (i > 0) P.bossPool = r.elites || P.bossPool; });
+  NIGHT_ROSTERS[nightRoster].phases.forEach((r, i) => { const P = NIGHT_PHASES[i]; if (!P) return; P.spawnTable = r.spawnTable; P.initial = r.initial; P.spawn = { ...r.spawn }; P.packs = [...r.packs, 'night']; P.legion = r.legion || null; P.legionSc = r.legionSc || {}; P.legionTier = r.legionTier || 0; if (i > 0) P.bossPool = r.elites || P.bossPool; });
 }
 // 兵團：數隻一組一起出現、一起行動（成員不算在最大敵人數裡；移動速度以最慢的成員為準，不會走散）
 const DEF_LEGIONS = [
@@ -6247,7 +6274,7 @@ const ENEMY_CODEX = () => [
     where: '出現：亂序戰事（第三階段）' },
   { id: 'aegis', rank: 'normal', T: AEGIS, name: '聖盾GA', weapon: '盾牌、電磁刀', img: ASSETS.ui.codex_aegis,
     desc: '由鐵血工造的聖盾改造而來，手持大盾與電磁刀的重裝肉盾，移動緩慢但非常耐打，貼身時撞到也很痛。靠近後會舉盾蓄力，地上出現狹窄的扇形預警，接著用電磁刀突刺——電磁傷害無視護甲、無法迴避，只能趁蓄力時離開範圍或閃避。',
-    where: '出現：亂序戰事（第三階段）' },
+    where: '出現：亂序戰事（第三階段）、夜戰（正規軍，第三階段）' },
   { id: 'guard', rank: 'normal', T: GUARD, name: '聖盾', weapon: '電磁刀、機械硬盾', img: ASSETS.ui.codex_guard,
     desc: '手持電磁刀與盾牌的重裝人形。移動非常緩慢，靠近後會舉盾蓄力，地上出現狹窄的扇形預警，接著用電磁刀突刺——電磁傷害無視護甲、無法迴避，只能趁蓄力時離開範圍或閃避。貼身時撞到也很痛。',
     where: '出現：夜戰（第二階段起）、滅星行動（第二時段起）' },
@@ -6271,7 +6298,7 @@ const ENEMY_CODEX = () => [
     where: '出現：夜戰（第三階段）、滅星行動（第三時段起）' },
   { id: 'spk', rank: 'normal', T: SPIKE, name: '尖兵', weapon: '輕型機槍', img: ASSETS.ui.codex_spk,
     desc: '球形的偵察機器人，只搭配輕火力，每發 5 傷害、大約 3 秒才開一槍，不用換彈。移動速度很快，會迅速接近到 200 以內開火。',
-    where: '出現：無' },
+    where: '出現：夜戰（正規軍，第一階段起）' },
   { id: 'lion', rank: 'normal', T: LION, name: '鋼獅', weapon: '機甲砲', img: ASSETS.ui.codex_lion,
     desc: '笨重的機甲，有 10 點護甲，非常耐打。射擊時會停在原地，停下與重新起步都要花上一點時間。擊敗後可以獲得 1 個零件。',
     where: '出現：亂序戰事、夜戰（第二階段起）、滅星行動（第二時段起）' },
@@ -6283,29 +6310,29 @@ const ENEMY_CODEX = () => [
     where: '出現：亂序戰事（第三階段）' },
   { id: 'aeq', rank: 'normal', T: AEQUES, name: '埃奎斯', weapon: '防空導彈發射架 ×4', img: ASSETS.ui.codex_aeq,
     desc: '兩用防空導彈戰車。展開雷達鎖定 4 秒時（頭上出現「雷達鎖定」）會移動到離目標 400～600 的位置，接著兩管輪流發射追蹤導彈。導彈離目標超過 200 會持續轉向追蹤，進入 200 以內就鎖定位置直飛，地上會標出爆炸範圍——這時候閃開就能躲掉。填裝要 14 秒，填裝時會停在原地。不會閃躲子彈，擊敗後可以獲得 3 個零件。',
-    where: '出現：亂序戰事（第三階段）' },
+    where: '出現：亂序戰事（第三階段）、夜戰（正規軍，第三階段）' },
   { id: 'lcan', rank: 'normal', T: LIGHTCANNON, name: '光炮士', weapon: '大型光束武器', img: ASSETS.ui.codex_lcan,
     desc: '扛著大型光束武器的人形。進入射程後會停下來架槍瞄準 0.8 秒（地上出現藍色落點警示，會跟著目標移動），接著以低弧度拋射光束彈，落地爆炸。被炸到會受到干擾：射速 −15%、移動速度 −10%，持續 3 秒。',
     where: '出現：亂序戰事（第三階段）' },
   { id: 'defd', rank: 'normal', T: DEFENDER, name: '捍衛者', weapon: '護盾產生器', img: ASSETS.ui.codex_defd,
     desc: '護盾產生器，比起敵人更像一件被部署的裝備，不會移動也不會攻擊。部署後展開，放出覆蓋半徑 200 的藍綠色六角形護盾，從任何方向打進來的子彈都會被吸收（200 點）；護盾被打破後要 10 秒才會重新生成。',
-    where: '出現：無' },
+    where: '出現：由陣地獨眼巨人卸下' },
   { id: 'orth', rank: 'normal', T: ORTHRUS, name: '歐特魯斯', weapon: '撕咬', img: ASSETS.ui.codex_orth,
     desc: '重型近戰機械狗。靠近後站定抬頭，接著往前咬下（距離 30、角度 160，傷害 15），冷卻 3.2 秒。身邊友軍超過 3 個時，會加速跑到友軍與你之間護衛，張嘴展開藍綠色護盾（100 點，3.5 秒），擋下從它面向那一側飛來的子彈；條件成立期間會一直護衛，護盾消失 2 秒後再次展開。',
-    where: '出現：無' },
+    where: '出現：夜戰（正規軍，第二階段起）' },
   { id: 'hindb', rank: 'normal', T: HINDB, name: '牝鹿', weapon: '機砲', img: ASSETS.ui.codex_hindb,
     desc: '由鋼獅改造而來的機甲，護甲 15，兩根砲管輪流開火。和鋼獅一樣笨重，停下與重新起步都要時間，只在站定時射擊；彈匣打空後要填裝 8 秒。擊敗後可以獲得 1 個零件。',
-    where: '出現：無' },
+    where: '出現：夜戰（正規軍，第二階段起）' },
   { id: 'hind', rank: 'normal', T: HIND, name: '牝鹿S', weapon: '機砲 ×2', img: ASSETS.ui.codex_hind,
     desc: '牝鹿的現代化升級版，護甲高達 20，換裝兩門機砲輪流開火，射程也更遠。和鋼獅一樣笨重，停下與重新起步都要時間，只在站定時射擊；彈匣打空後要換彈 10 秒。擊敗後可以獲得 2 個零件。',
-    where: '出現：亂序戰事（第三階段）' },
+    where: '出現：亂序戰事（第三階段）、夜戰（正規軍，第三階段）' },
   { id: 'scorp', rank: 'normal', T: SCORP, name: '蠍甲獸', weapon: '主砲', img: ASSETS.ui.codex_scorp,
     desc: '鐵血工造自產的四足重型機甲，只裝了一門主砲。和鋼獅一樣停下、起步都要時間，只在站定時開火；主砲每秒 3 發，3 發打完要填裝 3 秒。擊敗後可以獲得 2 個零件。',
     where: '出現：夜戰（第三階段）、滅星行動（第三時段起）' },
   { id: 'hydra', rank: 'normal', T: HYDRA, name: '九頭蛇', weapon: '主砲、高速機槍 ×2', img: ASSETS.ui.codex_hydra,
     desc: '正規軍買入鐵血工造的蠍甲獸後改造而成的四足重型機甲，護甲 15。和鋼獅一樣停下、起步都要時間，只在站定時用主砲開火（每秒 1 發，彈匣 4 發，填裝 2 秒）；被主砲打中會獲得 10% 易傷，持續 2 秒，可以疊加，再中會重設時間。擊敗後可以獲得 3 個零件。',
     specialDesc: '機槍掃射：每打完兩輪彈匣，改用上方兩挺高速機槍掃射，2 秒內射出 16 發子彈，每發 5 點傷害；被打中時移動速度 −20%，持續 2 秒（不會疊加，再中只重設時間）。掃射完才填裝。',
-    where: '出現：雲圖對戰（守衛）、滅星行動（最終時段可操控）' },
+    where: '出現：雲圖對戰（守衛）、滅星行動（最終時段可操控）、夜戰（正規軍，第三階段）' },
   { id: 'glad', rank: 'normal', T: GLAD, name: '角鬥士', weapon: '強化盾臂', img: ASSETS.ui.codex_glad,
     desc: '帕拉蒂斯的重型機甲，雙臂裝著強化過的盾，身上有 50 點護盾（打光 15 秒後恢復）和 15 點護甲。移動緩慢，會走到目標身邊用盾臂往地面砸下，打擊點周圍 20 內造成 30 點傷害，每 3 秒一次；砸下前地上會出現紅色警示圈。擊敗後可以獲得 3 個零件。',
     specialDesc: '躍起猛砸：每打擊兩次，就舉起雙手躍起，重重砸向地面。衝擊波從腳下擴散到半徑 200，被波前掃到會受到 20 點傷害，並且移動速度 −20%，持續 5 秒。',
@@ -6316,28 +6343,28 @@ const ENEMY_CODEX = () => [
     where: '出現：無' },
   { id: 'cycl', rank: 'normal', T: CYC_LITE, name: '獨眼巨人Lite', weapon: '步槍', img: ASSETS.ui.codex_cycl,
     desc: '獨眼巨人的簡配版，屬於服務安保型的機器人，只配備步槍。在 250 以內停下來射擊，3 發打完要換彈 3 秒。',
-    where: '出現：無' },
+    where: '出現：夜戰（正規軍，第一～二階段）' },
   { id: 'cycc', rank: 'normal', T: CYC_CMD, name: '指揮獨眼巨人', weapon: '步槍', img: ASSETS.ui.codex_cycc,
     desc: '指揮特化的獨眼巨人，頭盔塗著深綠色迷彩、後腦勺有一根天線。每 5 秒鼓舞 600 範圍內的友軍：傷害 +10%、迴避率 ×1.2，持續 3 秒。身邊 500 範圍內的正規軍友軍超過 5 個時，每 5 秒會指揮兩個正規軍友軍停下手邊的動作，以 1.2 倍速跑到你的左右兩側，圍成凹字型的包圍網（不會指揮其他勢力，也不會指揮其他指揮獨眼巨人）。',
-    where: '出現：無' },
+    where: '出現：夜戰（正規軍，第三階段）' },
   { id: 'cyclops', rank: 'normal', T: CYCLOPS, name: '獨眼巨人', weapon: '步槍', img: ASSETS.ui.codex_cyc,
     desc: '正規軍的制式步兵機器人，有多種延伸型。在稍遠的距離停下來連續射擊，打完一個彈匣才換彈。',
-    where: '出現：亂序戰事（第二階段）' },
+    where: '出現：亂序戰事（第二階段）、夜戰（正規軍，第二～三階段）' },
   { id: 'sws', rank: 'normal', T: SWORDSHIELD, name: '劍盾士', weapon: '光束武器', img: ASSETS.ui.codex_sws,
     desc: '手持光束武器的敵人，身上有 40 點護盾，要先打破護盾才傷得到本體；護盾被打光 15 秒後會恢復。光束子彈飛得更快更遠，還會穿透擴編人形。距離太遠或太近時會用閃避調整位置（冷卻 5 秒）。擊敗後可以獲得 1 個零件。',
     where: '出現：亂序戰事（第二、三階段）' },
   { id: 'cent', rank: 'normal', T: CENTAUR, name: '肯陶羅斯', weapon: '複合弓', img: ASSETS.ui.codex_cent,
     desc: '手持複合弓的弓箭手，會在 400 的距離停下，朝目標當下的位置往高處拋射箭矢；地上會先出現落點預警。被貼近到 100 以內就會轉身後撤，拉開距離再繼續攻擊。',
-    where: '出現：亂序戰事（第二、三階段）' },
+    where: '出現：亂序戰事（第二、三階段）、夜戰（正規軍，第二～三階段）' },
   { id: 'ceye', rank: 'normal', T: COMPOUND_EYE, name: '複眼巨人', weapon: '機槍', img: ASSETS.ui.codex_ceye,
     desc: '手持機槍的敵人，停在中距離高速連射，5 發一個彈匣；打完要換彈 4 秒，是靠近輸出的空檔。',
-    where: '出現：亂序戰事（第二階段）' },
+    where: '出現：亂序戰事（第二階段）、夜戰（正規軍，第二～三階段）' },
   { id: 'meyed', rank: 'normal', T: MULTI_EYE_D, name: '陣地獨眼巨人', weapon: '霰彈槍＋捍衛者', img: ASSETS.ui.codex_meyed,
     desc: '輔助特化型的獨眼巨人，持有一把霰彈槍，背上掛著一台捍衛者，數值和多眼巨人相同，只是走得比較慢。身邊友軍超過 3 個時，會跑到友軍最密集的地方卸下捍衛者展開護盾（只會卸一次），之後就跟普通的多眼巨人一樣作戰。',
-    where: '出現：無' },
+    where: '出現：夜戰（正規軍，第三階段）' },
   { id: 'meye', rank: 'normal', T: MULTI_EYE, name: '多眼巨人', weapon: '霰彈槍', img: ASSETS.ui.codex_meye,
     desc: '半肉盾半輸出的敵人，有 5 點護甲，會貼近到 200 的距離再用霰彈槍轟擊；兩發打完要換彈 6 秒，是反擊的好時機。',
-    where: '出現：亂序戰事（第二階段）' },
+    where: '出現：亂序戰事（第二階段）、夜戰（正規軍，第二～三階段）' },
   ...ELITE_POOL.map((id) => ({ id, rank: 'elite', B: BOSSES[id], name: BOSSES[id].name, weapon: BOSSES[id].weapon,
     img: ASSETS.ui['codex_' + id], desc: BOSSES[id].desc, special: BOSSES[id].specialDesc, passive: BOSSES[id].passiveDesc,
     where: '出現：' + (BOSSES[id].where || eliteWhere(id)) })),
@@ -7044,7 +7071,7 @@ function drawConsole(o) {
 // 普通敵人：陣營照圖鑑的分類，階級照每種敵人資料上的 tier；某一階沒有敵人就先空著（例如帕拉蒂斯目前沒有一階，之後補上就會自動出現）
 let trainPoolCache = null;
 function TRAIN_POOL_OF(fid) {
-  if (!trainPoolCache) { trainPoolCache = {}; for (const e of ENEMY_CODEX()) { if (e.rank !== 'normal' || !e.T || e.shadow || !e.T.tier) continue; const f = factionOf(e.id), k = f === 'paradeus' ? 'para' : f; const L = (trainPoolCache[k] = trainPoolCache[k] || [[], [], []]); if (L[e.T.tier - 1]) L[e.T.tier - 1].push(e.T); } }
+  if (!trainPoolCache) { trainPoolCache = {}; for (const e of ENEMY_CODEX()) { if (e.rank !== 'normal' || !e.T || e.shadow || !e.T.tier || e.T.noSolo) continue; const f = factionOf(e.id), k = f === 'paradeus' ? 'para' : f; const L = (trainPoolCache[k] = trainPoolCache[k] || [[], [], []]); if (L[e.T.tier - 1]) L[e.T.tier - 1].push(e.T); } }
   return trainPoolCache[fid] || [[], [], []];
 }
 const TRAIN_ELITES = { sf: 'sf', kcco: 'kcco', para: 'paradeus' };
@@ -7687,7 +7714,10 @@ function defDoom() {
 // 夜戰的兵團：在玩家遠處（避開地形）整團出現，一起朝隊伍推進
 let nightLegT = 0, nightLegPh = null;
 function nightSpawnLegion() {
-  const R = NIGHT_ROSTERS[nightRoster], LS = R.legions === 'DEF' ? DEF_LEGIONS : R.legions, tot = LS.reduce((a, b) => a + b.w, 0); let r = Math.random() * tot, tp = LS[0];
+  const R = NIGHT_ROSTERS[nightRoster], LS0 = R.legions === 'DEF' ? DEF_LEGIONS : R.legions === 'KCCO' ? KCCO_LEGIONS : R.legions;
+  const LS = phase.legionTier ? LS0.filter((t) => legionTier(t) <= phase.legionTier) : LS0;   // 正規軍：只出現等級不超過目前階段的兵團
+  if (!LS.length) return;
+  const tot = LS.reduce((a, b) => a + b.w, 0); let r = Math.random() * tot, tp = LS[0];
   for (const t of LS) { if ((r -= t.w) < 0) { tp = t; break; } }
   const a0 = rand(0, Math.PI * 2), d0 = rand(NIGHT.spawnMin, NIGHT.spawnMax), c = nightSpot(player.x + Math.cos(a0) * d0, player.y + Math.sin(a0) * d0, 60);
   const L = { name: tp.name, speed: Infinity }, SC = phase.legionSc || {}; let k = 0; const n = tp.list.reduce((a, b) => a + b[1], 0);
