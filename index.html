@@ -3728,7 +3728,7 @@ function drawBigMapHud() {
      霰彈槍／衝鋒槍＝前排：站在隊友前面，主動找敵人牽制；身邊沒有隊友時改當輸出
      手槍＝輔助：幫輸出護航；身邊沒有前排時改當前排
    ・精銳：每個角色各自的行為邏輯（VS_ELITE）。還沒寫專屬邏輯的角色先用普通邏輯，只加上預判瞄準與精銳的躲子彈方式 */
-const VS = { cloneBounty: 2, killBonus: 3, hpMul: 3, win: 30, startParts: 10, respawn: 5, view: 1000, partEvery: 0.625, partMax: 32, medEvery: 4.5, medMax: 4, medHeal: 50, pickR: 22, steal: 0.5, spawnInv: 2 };
+const VS = { cloneBounty: 2, killBonus: 3, hpMul: 3, win: 30, startParts: 10, respawn: 5, view: 1000, partEvery: 0.625, partMax: 32, medEvery: 4.5, medMax: 4, medHeal: 50, baseMed: 3, catchUp: 10, catchUpRate: 1.5, basePartMax: 8, pickR: 22, steal: 0.5, spawnInv: 2 };
 const VS_ELITE = {
   // HK433：彈匣滿了才開技能（不滿先換彈）、優先移動躲子彈、必中才閃避並保留 1 次（生命 ≤ 25% 才無限制）、預判瞄準、找掩體、輸出太多時換位置夾擊
   hk433: { dodgeFree: 0.25, fullMagSkill: true, cover: true, flank: true },
@@ -4024,8 +4024,16 @@ function vsUpdate(dt) {
   vsSync();
   for (const u of [player, ...clones]) vsKnock(u, dt);
   for (const u of [player, ...clones, ...aiAllies, ...enemies]) { u.vx = (u.x - (u._px ?? u.x)) / dt; u.vy = (u.y - (u._py ?? u.y)) / dt; u._px = u.x; u._py = u.y; }   // 速度（精銳預判瞄準用）
-  vs.partT += dt; if (vs.partT >= VS.partEvery) { vs.partT = 0; if (parts.length < VS.partMax) vsSpawnItem(parts); }
-  vs.medT += dt; if (vs.medT >= VS.medEvery) { vs.medT = 0; if (medkits.length < VS.medMax) vsSpawnItem(medkits); }
+  vs.partT += dt; if (vs.partT >= VS.partEvery) { vs.partT = 0; if (parts.filter((p) => !p.base).length < VS.partMax) vsSpawnItem(parts); }
+  vs.medT += dt; if (vs.medT >= VS.medEvery) { vs.medT = 0; if (medkits.filter((m) => !m.base).length < VS.medMax) vsSpawnItem(medkits); }
+  // 雙方基地：各自的醫療箱（最多 3 個，頻率同場上）；比分落後超過 10 的那一方，基地裡會生零件（頻率是場上的 1.5 倍）
+  vs.baseT = vs.baseT || { blue: { med: 0, part: 0 }, red: { med: 0, part: 0 } };
+  for (const t of ['blue', 'red']) {
+    const T = vs.baseT[t];
+    T.med += dt; if (T.med >= VS.medEvery) { T.med = 0; if (medkits.filter((m) => m.base === t).length < VS.baseMed) vsSpawnBaseItem(medkits, t); }
+    const behind = vs.score[t === 'blue' ? 'red' : 'blue'] - vs.score[t] > VS.catchUp;
+    if (behind) { T.part += dt; if (T.part >= VS.partEvery / VS.catchUpRate) { T.part = 0; if (parts.filter((p) => p.base === t).length < VS.basePartMax) vsSpawnBaseItem(parts, t); } } else T.part = 0;
+  }
   vsPickups();
   for (const f of vs.fighters) vsFighterTick(f, dt);
   for (const g of vs.guards) vsGuardTick(g, dt);
@@ -4043,6 +4051,14 @@ function vsSpawnItem(arr) {
     const x = rand(-1, 1) * MAPGEN.hw * 0.3, y = rand(-1, 1) * (MAPGEN.hh - 200);   // 中間區域
     if (Math.abs(x) > MAPGEN.hw * 0.32 || mapSolidAt(x, y, 34) || [...parts, ...medkits].some((p) => Math.hypot(p.x - x, p.y - y) < 120)) continue;
     arr.push({ x, y, ph: rand(0, 6) }); return;
+  }
+}
+function vsSpawnBaseItem(arr, team) {
+  const B = MAPGEN.bases.find((b) => b.team === team); if (!B) return;
+  for (let n = 0; n < 30; n++) {
+    const x = rand(B.x0 + 120, B.x1 - 120), y = rand(B.y0 + 100, B.y1 - 100);
+    if (mapSolidAt(x, y, 34) || [...parts, ...medkits].some((p) => Math.hypot(p.x - x, p.y - y) < 100)) continue;
+    arr.push({ x, y, ph: rand(0, 6), base: team }); return;
   }
 }
 function vsPickups() {
