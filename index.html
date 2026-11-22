@@ -9803,8 +9803,8 @@ function drawMoonFx() {
   for (const { o } of moonSources()) {
     const R = sk.radius; ground(proj(o.x, o.y), o.x, o.y);
     ctx.save();
-    ctx.fillStyle = 'rgba(175,200,235,0.14)'; ctx.beginPath(); ctx.arc(o.x, o.y, R, 0, Math.PI * 2); ctx.fill();
-    ctx.strokeStyle = 'rgba(205,222,255,0.55)'; ctx.lineWidth = 2.5; ctx.stroke();
+    ctx.fillStyle = 'rgba(175,200,235,0.08)'; ctx.beginPath(); ctx.arc(o.x, o.y, R, 0, Math.PI * 2); ctx.fill();
+    ctx.strokeStyle = 'rgba(205,222,255,0.35)'; ctx.lineWidth = 2.5; ctx.stroke();
     // 稀疏的銀色粒子（10 顆）：在領域內隨機位置出現，慢慢往上飄、淡入淡出，消失後換一個隨機位置重生
     const P = o.moonP || (o.moonP = []);
     while (P.length < 10) P.push({ x: 0, y: 0, t: 0, T: 0, born: -1 });
@@ -9814,7 +9814,7 @@ function drawMoonFx() {
         pt.x = Math.cos(a) * r; pt.y = Math.sin(a) * r; pt.T = 2.5 + Math.random() * 3; pt.born = gameTime - (pt.born < 0 ? Math.random() * pt.T : 0);
       }
       const ph = (gameTime - pt.born) / pt.T;
-      ctx.globalAlpha = Math.sin(ph * Math.PI) * 0.75; ctx.fillStyle = '#eef3ff';
+      ctx.globalAlpha = Math.sin(ph * Math.PI) * 0.55; ctx.fillStyle = '#eef3ff';
       ctx.beginPath(); ctx.arc(o.x + pt.x, o.y + pt.y - ph * 40, 2.2, 0, Math.PI * 2); ctx.fill();
     }
     ctx.restore(); ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
@@ -9867,8 +9867,8 @@ function drawSunFx() {
   for (const { o } of sunSources()) {
     const R = sk.radius; ground(proj(o.x, o.y), o.x, o.y);
     ctx.save();
-    ctx.fillStyle = 'rgba(255,205,110,0.10)'; ctx.beginPath(); ctx.arc(o.x, o.y, R, 0, Math.PI * 2); ctx.fill();
-    ctx.strokeStyle = 'rgba(255,215,130,0.55)'; ctx.lineWidth = 2.5; ctx.stroke();
+    ctx.fillStyle = 'rgba(255,205,110,0.06)'; ctx.beginPath(); ctx.arc(o.x, o.y, R, 0, Math.PI * 2); ctx.fill();
+    ctx.strokeStyle = 'rgba(255,215,130,0.35)'; ctx.lineWidth = 2.5; ctx.stroke();
     const P = o.sunP || (o.sunP = []);   // 金色粒子：跟月亮領域一樣隨機位置出現、往上飄（範圍大一倍，數量 20 顆維持一樣的疏密）
     while (P.length < 20) P.push({ x: 0, y: 0, T: 0, born: -1 });
     for (const pt of P) {
@@ -9877,7 +9877,7 @@ function drawSunFx() {
         pt.x = Math.cos(a) * r; pt.y = Math.sin(a) * r; pt.T = 2.5 + Math.random() * 3; pt.born = gameTime - (pt.born < 0 ? Math.random() * pt.T : 0);
       }
       const ph = (gameTime - pt.born) / pt.T;
-      ctx.globalAlpha = Math.sin(ph * Math.PI) * 0.75; ctx.fillStyle = '#fff1c9';
+      ctx.globalAlpha = Math.sin(ph * Math.PI) * 0.55; ctx.fillStyle = '#fff1c9';
       ctx.beginPath(); ctx.arc(o.x + pt.x, o.y + pt.y - ph * 40, 2.4, 0, Math.PI * 2); ctx.fill();
     }
     ctx.restore(); ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
@@ -15133,7 +15133,7 @@ function drawCharacter(en, isEnemy, ghost) {
   if (!ghost) {
   ground(q, en.x, en.y);
   const tcol = vs ? (en.vsTeam || (en.clone || en === player ? vs.myTeam : null)) : null;   // 對戰：腳下的圈用隊伍顏色
-  ctx.strokeStyle = tcol ? (tcol === 'blue' ? 'rgba(74,168,255,0.85)' : 'rgba(255,90,80,0.85)') : en.clone ? 'rgba(140,210,255,0.7)' : 'rgba(202,160,255,0.55)'; ctx.lineWidth = tcol ? 2 : 1.5;
+  ctx.strokeStyle = tcol ? (tcol === 'blue' ? 'rgba(74,168,255,0.85)' : 'rgba(255,90,80,0.85)') : en.defGuard ? 'rgba(180,184,190,0.7)' : en.clone ? 'rgba(140,210,255,0.7)' : 'rgba(202,160,255,0.55)';   // 滅星行動的防禦人形：灰色 ctx.lineWidth = tcol ? 2 : 1.5;
   ctx.beginPath(); ctx.arc(en.x, en.y, en.r, 0, Math.PI * 2); ctx.stroke();
   ctx.save();
   ctx.translate(en.x + Math.cos(en.angle) * (en.r + 6), en.y + Math.sin(en.angle) * (en.r + 6)); ctx.rotate(en.angle + Math.PI);
