@@ -1056,10 +1056,11 @@ const CHARACTERS = {
       gainPer: 1, max: 100,      // 領域內每有 1 名友方（含自身），自身每秒 +1 聖輝能量，最多 100
       evenMax: 30,               // 領域內的友方：不會受到 30 點以內的偶數傷害
       fix: 10,                   // 領域內的友方：普攻額外附帶 10 點固定傷害（不受護甲格擋）
+      eliteCap: 200,             // 平衡：打精英時，聖輝給的傷害每發最多 200
       atkPer: 10, time: 10,      // 主動：消耗全部聖輝能量，每點 +10 攻擊力（每發子彈 +10），10 秒（最高 +1000，原作就是這麼強）
       bond: { with: 'scarh', gain: 8 },   // 羈絆「同輝禁線」：SCAR-H 同時在場（或同一隊）時，自身每秒 +8 聖輝能量
       cooldown: 30,
-      desc: '被動：以自身為中心展開半徑 700 的太陽領域。領域內每有 1 名友方（含自身），自身每秒獲得 1 點聖輝能量（最多 100 點）。領域內的友方不會受到 30 點以內的偶數傷害，且普通攻擊會額外附帶 10 點固定傷害（不受護甲格擋影響）。\n主動：消耗身上所有聖輝能量，每點使自身攻擊力 +10，持續 10 秒。冷卻 30 秒。\n羈絆「同輝禁線」：SCAR-H 同時在場或在同一隊伍時，自身每秒額外獲得 8 點聖輝能量。',
+      desc: '被動：以自身為中心展開半徑 700 的太陽領域。領域內每有 1 名友方（含自身），自身每秒獲得 1 點聖輝能量（最多 100 點）。領域內的友方不會受到 30 點以內的偶數傷害，且普通攻擊會額外附帶 10 點固定傷害（不受護甲格擋影響）。\n主動：消耗身上所有聖輝能量，每點使自身攻擊力 +10，持續 10 秒；攻擊精英時，聖輝帶來的傷害每發最多 200 點。冷卻 30 秒。\n羈絆「同輝禁線」：SCAR-H 同時在場或在同一隊伍時，自身每秒額外獲得 8 點聖輝能量。',
     },
     portrait: 'portrait_scarl',
     assets: ASSETS.scarl,
@@ -14907,7 +14908,10 @@ function update(dt) {
           // 命中率：射擊者命中 +X% → 敵人迴避率 −X%
           if (Math.random() < clamp(enemyEvade(e) - effSum(b.src || player, 'acc') - ((b.src && b.src.mechAcc) || 0), 0, 1)) { (b.missed || (b.missed = new Set())).add(e); floatText(e.x + rand(-6, 6), e.y - 30, 'MISS', '#bfefff'); continue; }
           // 傷害順序：原始傷害 → 自身技能加成（裂傷紀錄／榮光延續）→ 其他人給的增益（蜂鳥共鳴）→ hitEnemy 判定暴擊 → 護甲
-          const fm = flowerMul(b.src || player, e) * maskMul(b, e), D = b.def || cfg, base = ((b.pdmg ?? D.weapon.damage) + (b.flat || 0)) * (b.purple ? D.skill.purpleMult : 1) * (b.buff || 1) * fm + (b.xdmg || 0);   // flat：裝備的子彈傷害 +固定值（先加在每發傷害上，再吃加成）   // fm：花之鎖   // 用發射時的人形數值（中途切換角色也不會變）
+          const fm = flowerMul(b.src || player, e) * maskMul(b, e), D = b.def || cfg, mulB = (b.purple ? D.skill.purpleMult : 1) * (b.buff || 1) * fm;
+          // 聖輝加冕：打精英時，聖輝給的攻擊力（含其他加成之後）最多 200；子彈本身的傷害照常吃加成
+          const sunF = e.boss ? Math.min(b.flat || 0, (((b.src || player).effects || []).find((x) => x.id === 'sunatk') || {}).dmgFlat || 0) : 0;
+          const base = ((b.pdmg ?? D.weapon.damage) + (b.flat || 0) - sunF) * mulB + Math.min(SUN_SK().eliteCap, sunF * mulB) + (b.xdmg || 0);   // flat：裝備的子彈傷害 +固定值（先加在每發傷害上，再吃加成）   // fm：花之鎖   // 用發射時的人形數值（中途切換角色也不會變）
           const hhi = huntHi(D, e);   // 連鎖狂獵：對生命高於 50% 的目標 +10%
           hitEnemy.pierceShield = (D.skill && D.skill.id === 'deter') || (!!b.huntEnh && D.skill.id === 'chainhunt');   // 沙漠之鷹的子彈、連鎖狂獵的強化子彈無視護盾
           hitEnemy.pierceArmor = !!b.ap;                              // 高壓沖擊（貫穿）：子彈穿甲
