@@ -1031,7 +1031,7 @@ const CHARACTERS = {
       class: 'SMG',
       magazine: 25,              // 彈匣 25 發
       pellets: 1,
-      damage: 8,                 // 每發傷害（暫定）
+      damage: 7,                 // 每發傷害
       spread: 0.05, jitter: 0.03,
       speed: [760, 820], radius: 2.4,
       cooldown: 1 / 5.2,         // 每秒 5.2 發
@@ -3511,6 +3511,8 @@ const VS_ELITE = {
   hummingbird: { dodgeFree: 0.3 },
   // S.A.T.8：前排；技能優先在前排／輔助隊友身邊開（讓他們也吃到金盾），技能好了會往他們靠；閃避只留給高傷害的子彈（霰彈槍精銳都適用）
   sat8: { dodgeFree: 0.3, front: true, shieldNear: true },
+  // M1918：把自己當主力輸出（群體裡由她帶頭、其他人跟著她）；技能先換彈，換到快好時才按，讓技能一開始就拿到 3 發強化子彈
+  m1918: { dodgeFree: 0.3, carry: true, reloadSkill: true },
 };
 // 所有精銳：隊友正在跟敵人交戰時會主動過去支援
 const VS_ELITE_DEFAULT = { dodgeFree: 0.3 };
@@ -3885,6 +3887,11 @@ function vsEliteGroup(f) {
   const all = vsFriendsOf(f).filter((u) => !u.isClone && !u.clone && !u.guard && vsAlive(u)); if (!all.includes(f)) all.push(f);
   const left = all.slice(), groups = [];
   while (left.length) { const g = [left.pop()]; for (let i = 0; i < g.length; i++) for (let j = left.length - 1; j >= 0; j--) if (Math.hypot(left[j].x - g[i].x, left[j].y - g[i].y) < 450) g.push(left.splice(j, 1)[0]); groups.push(g); }
+  // 主力輸出的精銳（M1918）：身邊有隊友就由她帶頭（不去跟別人）；落單時才去找群體會合
+  if (f.level === 'elite' && (VS_ELITE[vsUnitDef(f).id] || {}).carry) {
+    const g = groups.find((x) => x.includes(f));
+    if (g && g.length > 1) return { members: g, others: g.filter((u) => u !== f), cx: g.reduce((a, u) => a + u.x, 0) / g.length, cy: g.reduce((a, u) => a + u.y, 0) / g.length, leader: f };
+  }
   let best = null, bs = -Infinity;
   for (const g of groups) {
     const others = g.filter((u) => u !== f); if (!others.length) continue;
@@ -3895,7 +3902,8 @@ function vsEliteGroup(f) {
   if (!best) return null;
   const rank = (u) => vsClonesOf(u) * 10 + (u === player || u.remote ? 5 : 0) + (ROLE_OF[vsUnitDef(u).weapon.class] === 'support' ? -3 : 0) + ((u.seed || 0) % 1);   // 輔助不當帶頭者
   const lead = best.members.filter((u) => u.level !== 'elite').sort((a, b) => rank(b) - rank(a))[0] || best.members.slice().sort((a, b) => rank(b) - rank(a))[0];
-  best.leader = lead; return best;
+  const carry = best.members.find((u) => u.level === 'elite' && !u.isClone && (VS_ELITE[vsUnitDef(u).id] || {}).carry);   // 主力輸出的精銳（M1918）：由她帶頭
+  best.leader = carry || lead; return best;
 }
 /* 群體投票（每 2 秒一次，由帶頭者統計）：每名成員依自己的狀況投票
    撤退：生命低於 40%（附近有醫療箱更想去）／收集：附近 900 內有零件、自己的擴編少於 3 而且沒看到敵人／進攻：預設，群體擴編多時更想打
@@ -3987,6 +3995,7 @@ function vsThink(f) {
   };
   const fighting = elite ? vsFriendsOf(f).filter((u) => u !== f && !u.isClone && !u.clone && !u.guard && !(u === player && vsDead())).map((u) => { const t = engagedTgt(u); return t ? { u, t } : null; }).filter(Boolean) : [];
   if (E && E.front) role = 'front';
+  if (E && E.carry) role = 'dps';   // 主力輸出
   if (E && E.collectCalm && !fighting.length && !tgt && f.clones.length < E.collectCalm) role = 'collect';
   f.role = role;
   const dirX = f.vsTeam === 'blue' ? 1 : -1;
@@ -4259,6 +4268,12 @@ function vsMaybeSkill(f, tgt, vis, force) {
       if (!force && !inRange) return;   // AI：敵人進入射程就丟
       castSmoke(f, sk, tgt); break;
     case 'fieldmagic':
+      if (E && E.reloadSkill && !force) {
+        // 精銳：換彈到最後 0.35 秒才按技能 → 換彈在效果期間完成，馬上拿到 3 發強化子彈（之後的換彈也縮短成 2 秒）
+        if (f.reloadT > 0) { if (tgt && f.reloadT <= 0.35) castFieldMagic(f, sk); return; }
+        if (tgt && dist <= vsRange(D) * 1.15 && f.ammo <= Math.ceil(mag * 0.4)) vsReload(f);   // 有目標、彈匣剩 40% 以下：先換彈準備
+        return;
+      }
       if (!force && !inRange) return;   // AI：敵人進入射程就用
       castFieldMagic(f, sk); break;
     case 'repel': {
@@ -7723,7 +7738,7 @@ function nightTrackVel(dt) {   // 夜戰／滅星行動：記錄敵人的移動�
   for (const u of enemies) { u.vx = (u.x - (u._px ?? u.x)) / dt; u.vy = (u.y - (u._py ?? u.y)) / dt; u._px = u.x; u._py = u.y; }
 }
 // 射擊死角：機槍、長槍管（槍的上下轉動角度 ≤ 20 度）的人形，敵人在正上方／正下方時槍口轉不過去
-const hasDeadZone = (D) => D.weapon.class === 'MG' || Math.min(D.anim.aimUp, D.anim.aimDown) <= 20;
+const hasDeadZone = (D) => (D.weapon.class === 'MG' && !!D.mg) || Math.min(D.anim.aimUp, D.anim.aimDown) <= 20;   // 趴射的機槍（可以走射的 XM556、M1918 不算）或槍只能小角度轉的人形
 function inDeadZone(D, fx, fy, tx, ty, margin = 0) {
   const el = Math.atan2(ty - fy, Math.abs(tx - fx) || 1e-6);   // 負＝在上方、正＝在下方
   return el < -(D.anim.aimUp - margin) * DEG || el > (D.anim.aimDown - margin) * DEG;
