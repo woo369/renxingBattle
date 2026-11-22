@@ -186,6 +186,7 @@ body:not(.touch) #touchui{display:none}
 .menu-row{display:flex;gap:10px;justify-content:center;flex-wrap:wrap;margin-bottom:14px}
 .set-row{display:flex;align-items:center;justify-content:space-between;gap:12px;margin:12px 0;text-align:left}
 .set-row>span{font-size:14px;color:#cfe3e8}
+.vs-map{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:10px}.vs-map b{font-size:14px;color:#cfe3e8}
 .seg{display:flex;border:1px solid var(--line);border-radius:10px;overflow:hidden}
 .seg button{border:0;background:#102a35;color:#9fb8bf;padding:8px 18px;font-size:14px;cursor:pointer}
 .seg button.on{background:#258d83;color:#fff;font-weight:700}
@@ -494,6 +495,7 @@ body.touch #testPanel{max-height:38vh}   /* 手機：不要擋到左下的移動
       </div>
     </div>
     <div class="vs-lobby" id="vsLobby" hidden>
+      <div class="vs-map"><b>地圖</b><div class="seg" id="vsMapSeg"><button type="button" data-map="field">原野</button><button type="button" data-map="snow">雪地</button><button type="button" data-map="city">戰亂城市</button></div></div>
       <div class="vs-teams" id="vsTeams"></div>
       <div class="vs-net"><b>代碼連線</b><input id="vsName" type="text" placeholder="你的名字" maxlength="8" autocomplete="off"><input id="vsCode" type="text" placeholder="輸入房間代碼" maxlength="8" autocomplete="off"><button class="btn" id="vsJoinBtn" type="button">加入</button><button class="btn" id="vsHostBtn" type="button">建立房間</button><button class="btn" id="vsLeaveBtn" type="button" hidden>離開房間</button><small id="vsNetStatus">建立房間會得到一組代碼，朋友輸入代碼就能加入（需要在網站版）。</small></div>
     </div>
@@ -1057,10 +1059,11 @@ const CHARACTERS = {
       evenMax: 30,               // 領域內的友方：不會受到 30 點以內的偶數傷害
       fix: 10,                   // 領域內的友方：普攻額外附帶 10 點固定傷害（不受護甲格擋）
       eliteCap: 200,             // 平衡：打精英時，聖輝給的傷害每發最多 200
+      dollCap: 100,              // 平衡：打人形（雲圖對戰）時最多 100
       atkPer: 10, time: 10,      // 主動：消耗全部聖輝能量，每點 +10 攻擊力（每發子彈 +10），10 秒（最高 +1000，原作就是這麼強）
       bond: { with: 'scarh', gain: 8 },   // 羈絆「同輝禁線」：SCAR-H 同時在場（或同一隊）時，自身每秒 +8 聖輝能量
       cooldown: 30,
-      desc: '被動：以自身為中心展開半徑 700 的太陽領域。領域內每有 1 名友方（含自身），自身每秒獲得 1 點聖輝能量（最多 100 點）。領域內的友方不會受到 30 點以內的偶數傷害，且普通攻擊會額外附帶 10 點固定傷害（不受護甲格擋影響）。\n主動：消耗身上所有聖輝能量，每點使自身攻擊力 +10，持續 10 秒；攻擊精英時，聖輝帶來的傷害每發最多 200 點。冷卻 30 秒。\n羈絆「同輝禁線」：SCAR-H 同時在場或在同一隊伍時，自身每秒額外獲得 8 點聖輝能量。',
+      desc: '被動：以自身為中心展開半徑 700 的太陽領域。領域內每有 1 名友方（含自身），自身每秒獲得 1 點聖輝能量（最多 100 點）。領域內的友方不會受到 30 點以內的偶數傷害，且普通攻擊會額外附帶 10 點固定傷害（不受護甲格擋影響）。\n主動：消耗身上所有聖輝能量，每點使自身攻擊力 +10，持續 10 秒；攻擊精英時，聖輝帶來的傷害每發最多 200 點；攻擊人形時最多 100 點。冷卻 30 秒。\n羈絆「同輝禁線」：SCAR-H 同時在場或在同一隊伍時，自身每秒額外獲得 8 點聖輝能量。',
     },
     portrait: 'portrait_scarl',
     assets: ASSETS.scarl,
@@ -3342,7 +3345,7 @@ function drawNightGround(x0, x1, y0, y1) {
   }
   ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
 }
-let MAPGEN = BATTLE_MAP, VERSUS_MAP = null;   // 目前使用的地圖（對戰模式開局時換成對戰地圖）
+let MAPGEN = BATTLE_MAP, VERSUS_MAP = null; const VS_MAPS = {};   // 目前使用的地圖（對戰模式開局時換成對戰地圖）
 // 某個位置（半徑 r）有沒有撞到地形。bullet＝子彈：湖擋不住子彈
 function mapSolidAt(x, y, r, bullet) {
   if (isTrain()) { const B = TRAIN.bounds; if (x - r < B.x0 || x + r > B.x1 || y - r < B.y0 || y + r > B.y1) return TRAIN_EDGE; }   // 訓練場：地圖邊界
@@ -3367,7 +3370,8 @@ function losBlocked(ax, ay, bx, by) {
     const x = ax + (bx - ax) * i / n, y = ay + (by - ay) * i / n;
     for (const o of MAPGEN.near(x, y)) {
       if ((o.kind === 'mountain' || o.kind === 'rock') && (x - o.x) ** 2 + (y - o.y) ** 2 < o.r * o.r) return true;
-      if ((o.kind === 'house' || o.kind === 'rwall' || o.kind === 'console') && Math.abs(x - o.x) < o.w / 2 && Math.abs(y - o.y) < o.h / 2) return true;
+      if ((o.kind === 'house' || o.kind === 'tower' || o.kind === 'rwall' || o.kind === 'console') && Math.abs(x - o.x) < o.w / 2 && Math.abs(y - o.y) < o.h / 2) return true;
+      if (o.kind === 'igloo' && (x - o.x) ** 2 + (y - o.y) ** 2 < o.r * o.r) return true;
       if (o.kind === 'forest' && (x - o.x) ** 2 + (y - o.y) ** 2 < (o.r - 80) ** 2) return true;
     }
   }
@@ -3398,10 +3402,11 @@ function updateCapture(dt) {
     }
   }
 }
-const MAPCOL = { road: '#4b5a52' };   // 不透明：重疊的地方才不會一塊深一塊淺
+const MAPCOL = { road: '#4b5a52', snowroad: '#b6c6d1', street: '#2c2f32' };   // 不透明：重疊的地方才不會一塊深一塊淺
 // 地面層：路、湖、山、樹林地面、佔領圈；邊界與基地先裁到畫面範圍再投影
 function drawBigMapGround(x0, x1, y0, y1) {
   const vis = (x, y, r) => !(x + r < x0 || x - r > x1 || y + r < y0 || y - r > y1);
+  if (MAPGEN.ground) { for (const d of MAPGEN.blobs) { if (!vis(d.x, d.y, d.r)) continue; const q = proj(d.x, d.y); ground(q, d.x, d.y); ctx.fillStyle = MAPCOL[d.kind]; ctx.beginPath(); ctx.arc(d.x, d.y, d.r, 0, Math.PI * 2); ctx.fill(); } drawGroundItems(MAPGEN.ground, x0, x1, y0, y1); return; }   // 雪地、戰亂城市
   for (const d of MAPGEN.blobs) { if (!vis(d.x, d.y, d.r)) continue; const q = proj(d.x, d.y); ground(q, d.x, d.y); ctx.fillStyle = MAPCOL[d.kind]; ctx.beginPath(); ctx.arc(d.x, d.y, d.r, 0, Math.PI * 2); ctx.fill(); }
   for (const f of MAPGEN.forests) { if (!vis(f.x, f.y, f.r)) continue; const q = proj(f.x, f.y); ground(q, f.x, f.y); ctx.fillStyle = '#1a4038'; ctx.beginPath(); ctx.arc(f.x, f.y, f.r, 0, Math.PI * 2); ctx.fill(); }
   for (const o of MAPGEN.solids) {
@@ -3444,7 +3449,7 @@ function drawBigMapGround(x0, x1, y0, y1) {
   poly(-HX, -HY, HX, HY, null, 'rgba(255,214,120,0.7)', 3);
 }
 // 立體物件（跟角色一起依前後排序）：樹、平房、佔領點旗桿
-const ACTOR_KIND = { tree: 't', house: 'h', rock: 'r', tent: 'k', crate: 'k', drum: 'k', rwall: 'w', lowwall: 'w', rubble: 'w', bush: 'w', console: 'w' };   // 半磚（lowrock）跟全磚畫成同一塊岩石
+const ACTOR_KIND = { tree: 't', house: 'h', rock: 'r', igloo: 'i', tower: 'T', tent: 'k', crate: 'k', drum: 'k', rwall: 'w', lowwall: 'w', rubble: 'w', bush: 'w', console: 'w' };   // 半磚（lowrock）跟全磚畫成同一塊岩石
 function mapActors() {
   if (!bigMap() && !isNight() && !isTrain()) return [];
   const vb = viewBounds(), x0 = cam.x - vb.hw - 300, x1 = cam.x + vb.hw + 300, y0 = cam.y + vb.t - 300, y1 = cam.y + vb.b + 400, out = [];
@@ -3539,6 +3544,44 @@ function drawHouse(o) {
   // 屋頂（往後退的斜面）
   ctx.fillStyle = roof; ctx.beginPath(); ctx.moveTo(L - 12, top + 4); ctx.lineTo(R + 12, top + 4); ctx.lineTo(R - 6, top - depth); ctx.lineTo(L + 6, top - depth); ctx.closePath(); ctx.fill();
   ctx.fillStyle = 'rgba(255,255,255,0.12)'; ctx.fillRect(L - 12, top, o.w + 24, 5);
+  if (o.shop) {   // 戰亂城市的商店：褪色的招牌、破掉的櫥窗
+    ctx.fillStyle = ['#8a3b33', '#2f5e7a', '#7a6a2f', '#3f6b45'][o.col]; ctx.fillRect(L + 10, top + 6, o.w - 20, 14);
+    ctx.fillStyle = 'rgba(20,20,20,0.75)'; ctx.fillRect(L + 18, by - 46, Math.min(48, o.w * 0.25), 30); ctx.fillRect(R - 18 - Math.min(48, o.w * 0.25), by - 46, Math.min(48, o.w * 0.25), 30);
+  }
+}
+// 雪屋：冰磚堆成的圓頂，前面有低矮的入口
+function drawIgloo(o) {
+  const q = proj(o.x, o.y), r = o.r;
+  ground(q, o.x, o.y); ctx.fillStyle = 'rgba(70,95,120,0.3)'; ctx.beginPath(); ctx.ellipse(o.x + 8, o.y + 6, r * 1.25, r * 0.6, 0, 0, Math.PI * 2); ctx.fill();
+  upright(q, o.x, o.y);
+  const hw = r * 1.12, hh = r * 0.95;
+  const g = ctx.createLinearGradient(o.x - hw, o.y - hh, o.x + hw, o.y); g.addColorStop(0, '#ffffff'); g.addColorStop(1, '#c6d6e2');
+  ctx.fillStyle = g; ctx.beginPath(); ctx.ellipse(o.x, o.y, hw, hh, 0, Math.PI, 0); ctx.closePath(); ctx.fill();
+  ctx.strokeStyle = 'rgba(120,150,175,0.55)'; ctx.lineWidth = 1.5; ctx.beginPath();   // 冰磚的縫
+  for (const k of [0.3, 0.58, 0.82]) { const yy = o.y - hh * k, ww = hw * Math.sqrt(1 - k * k); ctx.moveTo(o.x - ww, yy); ctx.lineTo(o.x + ww, yy); }
+  for (let i = -2; i <= 2; i++) { const xx = o.x + i * hw * 0.36 + (i % 2 ? 6 : 0); ctx.moveTo(xx, o.y); ctx.lineTo(xx, o.y - hh * 0.3); }
+  ctx.stroke();
+  ctx.strokeStyle = 'rgba(90,120,150,0.7)'; ctx.lineWidth = 2; ctx.beginPath(); ctx.ellipse(o.x, o.y, hw, hh, 0, Math.PI, 0); ctx.stroke();
+  const ex = o.x + (o.face || 0) * hw * 0.45;   // 入口
+  ctx.fillStyle = '#e9f1f6'; ctx.beginPath(); ctx.ellipse(ex, o.y, r * 0.36, r * 0.42, 0, Math.PI, 0); ctx.closePath(); ctx.fill();
+  ctx.fillStyle = '#2c3d4c'; ctx.beginPath(); ctx.ellipse(ex, o.y, r * 0.22, r * 0.3, 0, Math.PI, 0); ctx.closePath(); ctx.fill();
+}
+// 破損的高樓：水泥外牆、整排窗戶（不少已經破掉）、頂樓參差不齊
+function drawTower(o) {
+  const f = drawBlock(o, '#5b5f62', '#7a7e80', '#5e6264'), sd = o.s * 1e6 | 0;
+  const { c, d, Hh } = f, W = c.x - d.x, cols = Math.max(3, Math.round(W / 26)), rows = Math.max(4, Math.round(Hh / 30));
+  for (let j = 0; j < rows; j++) for (let i = 0; i < cols; i++) {
+    const u = hash(i, j, sd), x = d.x + W * (i + 0.2) / cols, y = d.y - Hh * (j + 0.75) / rows, ww = W / cols * 0.55, hh = Hh / rows * 0.45;
+    ctx.fillStyle = u < 0.18 ? '#1c1f21' : u < 0.3 ? '#2c3a44' : '#3e5664'; ctx.fillRect(x, y, ww, hh);   // 黑的＝破掉的窗
+  }
+  ctx.fillStyle = '#42464a';   // 一樓：商店的鐵捲門
+  ctx.fillRect(d.x + W * 0.1, d.y - Hh * 0.13, W * 0.8, Hh * 0.11);
+  // 頂樓缺角：用地面顏色蓋掉幾塊，邊緣畫成參差的斷面
+  ctx.fillStyle = '#4a4d50'; ctx.beginPath(); ctx.moveTo(d.x + W * (0.55 + hash(1, 9, sd) * 0.2), d.y - Hh - 2);
+  ctx.lineTo(c.x + 2, d.y - Hh - 2); ctx.lineTo(c.x + 2, d.y - Hh * (0.78 - hash(2, 9, sd) * 0.15)); ctx.lineTo(d.x + W * 0.88, d.y - Hh * 0.86); ctx.lineTo(d.x + W * 0.74, d.y - Hh * 0.95); ctx.closePath(); ctx.fill();
+  ctx.strokeStyle = 'rgba(25,25,25,0.55)'; ctx.lineWidth = 1.6; ctx.beginPath();   // 裂痕
+  for (let i = 0; i < 3; i++) { const x = d.x + W * hash(i, 4, sd); ctx.moveTo(x, d.y - Hh * (0.3 + hash(i, 5, sd) * 0.5)); ctx.lineTo(x + (hash(i, 6, sd) - 0.5) * 16, d.y - Hh * (0.15 + hash(i, 7, sd) * 0.2)); ctx.lineTo(x + (hash(i, 8, sd) - 0.5) * 12, d.y - Hh * 0.05); }
+  ctx.stroke();
 }
 function drawFlag(p) {
   const q = proj(p.x, p.y); upright(q, p.x, p.y);
@@ -3558,14 +3601,14 @@ let mapOpen = false, miniCanvas = null;
 function miniBase(size) {
   const c = document.createElement('canvas'), sh = Math.round(size * MAPGEN.hh / MAPGEN.hw); c.width = size; c.height = sh;
   const g = c.getContext('2d'), k = size / (MAPGEN.hw * 2), X = (v) => (v + MAPGEN.hw) * k, Y = (v) => (v + MAPGEN.hh) * k;
-  g.fillStyle = '#16343c'; g.fillRect(0, 0, size, sh);
-  g.fillStyle = '#7d765c'; for (const d of MAPGEN.blobs) { g.beginPath(); g.arc(X(d.x), Y(d.y), Math.max(0.7, d.r * k), 0, Math.PI * 2); g.fill(); }
+  g.fillStyle = MAPGEN.theme === 'snow' ? '#a9bccb' : MAPGEN.theme === 'city' ? '#3f4245' : '#16343c'; g.fillRect(0, 0, size, sh);
+  g.fillStyle = MAPGEN.theme === 'snow' ? '#d5e0e8' : MAPGEN.theme === 'city' ? '#2a2d30' : '#7d765c'; for (const d of MAPGEN.blobs) { g.beginPath(); g.arc(X(d.x), Y(d.y), Math.max(0.7, d.r * k), 0, Math.PI * 2); g.fill(); }
   g.fillStyle = '#285c3c'; for (const f of MAPGEN.forests) { g.beginPath(); g.arc(X(f.x), Y(f.y), f.r * k, 0, Math.PI * 2); g.fill(); }
-  g.fillStyle = '#2f7a4c'; for (const t of MAPGEN.trees) g.fillRect(X(t.x) - 0.5, Y(t.y) - 0.5, 1, 1);
+  g.fillStyle = MAPGEN.theme === 'snow' ? '#2c5a46' : '#2f7a4c'; for (const t of MAPGEN.trees) g.fillRect(X(t.x) - 1, Y(t.y) - 1, MAPGEN.theme === 'snow' ? 2 : 1, MAPGEN.theme === 'snow' ? 2 : 1);
   for (const o of MAPGEN.solids) {
     if (o.kind === 'crate' || o.kind === 'drum') continue;
-    if (o.w) { g.fillStyle = o.kind === 'tent' ? '#7d8a5a' : '#c9c2b0'; g.fillRect(X(o.x - o.w / 2), Y(o.y - o.h / 2), Math.max(1.5, o.w * k), Math.max(1.5, o.h * k)); continue; }
-    g.fillStyle = o.kind === 'lake' || o.kind === 'river' ? '#3a86c4' : o.kind === 'rock' || o.kind === 'lowrock' ? '#9a948a' : '#6e6253'; g.beginPath(); g.arc(X(o.x), Y(o.y), Math.max(0.8, o.r * k), 0, Math.PI * 2); g.fill();
+    if (o.w) { g.fillStyle = o.kind === 'tent' ? '#7d8a5a' : o.kind === 'tower' ? '#8d9194' : '#c9c2b0'; g.fillRect(X(o.x - o.w / 2), Y(o.y - o.h / 2), Math.max(1.5, o.w * k), Math.max(1.5, o.h * k)); continue; }
+    g.fillStyle = o.kind === 'igloo' ? '#eef4f8' : o.kind === 'lake' || o.kind === 'river' ? '#3a86c4' : o.kind === 'rock' || o.kind === 'lowrock' ? '#9a948a' : '#6e6253'; g.beginPath(); g.arc(X(o.x), Y(o.y), Math.max(0.8, o.r * k), 0, Math.PI * 2); g.fill();
   }
   g.fillStyle = '#a07a50'; for (const b of MAPGEN.bridges) { g.beginPath(); g.arc(X(b.x), Y(b.y), Math.max(1.5, 230 * k), 0, Math.PI * 2); g.fill(); }
   for (const b of MAPGEN.bases) { g.fillStyle = b.team === 'blue' ? '#5aaaff' : '#ff6e64'; g.globalAlpha = 0.75; g.fillRect(X(b.x0), Y(b.y0), (b.x1 - b.x0) * k, (b.y1 - b.y0) * k); g.globalAlpha = 1; }
@@ -3684,6 +3727,7 @@ function buildLobby() {
   const guest = netGuest(), myId = net && net.myId;
   const L = guest ? (net.lobby || { team: 'blue', blue: [], red: [] }) : (vsLobby || (vsLobby = vsDefaultLobby()));
   const box = $('vsTeams'); box.textContent = '';
+  for (const b of $('vsMapSeg').querySelectorAll('button')) { b.classList.toggle('on', b.dataset.map === (L.map || 'field')); b.disabled = guest; }   // 地圖：房主選，加入的玩家跟著
   const myTeam = guest ? netMyTeam() : L.team;
   for (const t of ['blue', 'red']) {
     const hostHere = L.team === t, cap = hostHere ? 4 : 5, col = document.createElement('div');
@@ -3736,7 +3780,98 @@ function makeRock(solids, cx, cy, W, side, seed) {
   solids.push({ kind: 'rock', x: cx + side * W * 0.235, y: base - W * 0.25, r: W * 0.25, cx, cy, W, side, seed });
   for (const u of [0.08, 0.2, 0.32, 0.43]) solids.push({ kind: 'lowrock', x: cx + (u - 0.5) * W * side, y: base - W * 0.1, r: W * 0.1 });
 }
-function genVersusMap() {
+// 對戰地圖收尾：放進格子索引（碰撞、繪圖查詢用）
+function finishVsMap(M) {
+  const G = 600, grid = new Map(), put = (o, x0, y0, x1, y1) => { for (let gx = Math.floor(x0 / G); gx <= Math.floor(x1 / G); gx++) for (let gy = Math.floor(y0 / G); gy <= Math.floor(y1 / G); gy++) { const k = gx + ',' + gy; (grid.get(k) || grid.set(k, []).get(k)).push(o); } };
+  for (const o of M.solids) { const r = o.w ? Math.max(o.w, o.h) / 2 : o.r; put(o, o.x - r, o.y - r, o.x + r, o.y + r); }
+  for (const t of M.trees) { t.kind = 'tree'; t.r = (t.fir ? 14 : 16) * t.sz; put(t, t.x - 50, t.y - 50, t.x + 50, t.y + 50); }
+  M.near = (x, y) => grid.get(Math.floor(x / G) + ',' + Math.floor(y / G)) || [];
+  return Object.assign(M, { G, grid, points: [], lanes: [], forests: M.forests || [], rivers: [], bridges: [], gridStep: 10 });
+}
+const VS_BASES = (HW, HH, BW) => [{ team: 'blue', x: -HW + BW / 2, y: 0, x0: -HW, x1: -HW + BW, y0: -HH * 0.6, y1: HH * 0.6 }, { team: 'red', x: HW - BW / 2, y: 0, x0: HW - BW, x1: HW, y0: -HH * 0.6, y1: HH * 0.6 }];
+// 雪地：厚厚的積雪（會減速）、成片的杉木、幾個雪屋小營地；對中心點對稱
+function genSnowMap() {
+  let seed = 20261123; const rnd = () => { seed = (seed * 1664525 + 1013904223) >>> 0; return seed / 4294967296; };
+  const CX = 60, CY = 30, HW = CX * 110 / 2, HH = CY * 110 / 2, BW = 900, solids = [], trees = [], blobs = [], ground = [];
+  for (let x = -HW + BW; x <= HW - BW; x += 70) blobs.push({ x, y: Math.cos(x / 800) * 300, r: 150, kind: 'snowroad' });   // 踩實的雪路（不減速）
+  const hit = (x, y, r) => solids.some((o) => Math.hypot(x - o.x, y - o.y) < (o.r || 40) + r + 50) || trees.some((t) => Math.hypot(x - t.x, y - t.y) < r + 55);
+  const free = (x, y, r) => Math.abs(x) < HW - BW - 120 - r && Math.abs(y) < HH - 120 - r && !hit(x, y, r) && !hit(-x, -y, r) && Math.hypot(x, y) > r + 30;
+  // 雪屋小營地：2～3 座雪屋圍成一圈，中間放物資箱
+  for (let n = 0, tries = 0; n < 3 && tries < 400; tries++) {
+    const x = (rnd() * 2 - 1) * (HW - BW - 500), y = (rnd() * 2 - 1) * (HH - 450);
+    if (!free(x, y, 230)) continue;
+    const k = 2 + Math.floor(rnd() * 2), a0 = rnd() * 6.28;
+    for (let i = 0; i < k; i++) { const a = a0 + i * 6.28 / k + rnd() * 0.5, d = 130 + rnd() * 40, r = 50 + rnd() * 12, s = rnd(); solids.push({ kind: 'igloo', x: x + Math.cos(a) * d, y: y + Math.sin(a) * d * 0.8, r, face: Math.cos(a + Math.PI), s }, { kind: 'igloo', x: -x - Math.cos(a) * d, y: -y - Math.sin(a) * d * 0.8, r, face: Math.cos(a), s }); }
+    const cn = 1 + Math.floor(rnd() * 2), cs = rnd(); solids.push({ kind: 'crate', x, y, r: 36, n: cn, s: cs }, { kind: 'crate', x: -x, y: -y, r: 36, n: cn, s: cs });
+    n++;
+  }
+  // 杉木林：一叢一叢，中間留走道
+  for (let n = 0, tries = 0; n < 9 && tries < 600; tries++) {
+    const x = (rnd() * 2 - 1) * (HW - BW - 250), y = (rnd() * 2 - 1) * (HH - 220), R = 200 + rnd() * 180;
+    if (!free(x, y, R * 0.45)) continue;
+    const k = 5 + Math.floor(rnd() * 5);
+    for (let i = 0, t2 = 0; i < k && t2 < 80; t2++) {
+      const a = rnd() * 6.28, d = Math.sqrt(rnd()) * R, tx = x + Math.cos(a) * d, ty = y + Math.sin(a) * d;
+      if (Math.abs(ty) > HH - 90 || Math.abs(tx) > HW - BW - 60 || trees.some((t) => Math.hypot(t.x - tx, t.y - ty) < 105) || solids.some((o) => Math.hypot(o.x - tx, o.y - ty) < (o.r || 40) + 60)) continue;
+      const sz = 0.95 + rnd() * 0.45; trees.push({ x: tx, y: ty, sz, fir: true }, { x: -tx, y: -ty, sz, fir: true }); i++;
+    }
+    n++;
+  }
+  for (let i = 0, tries = 0; i < 14 && tries < 500; tries++) { const x = (rnd() * 2 - 1) * (HW - BW - 150), y = (rnd() * 2 - 1) * (HH - 140); if (!free(x, y, 40)) continue; const sz = 0.9 + rnd() * 0.4; trees.push({ x, y, sz, fir: true }, { x: -x, y: -y, sz, fir: true }); i++; }
+  // 厚積雪：踩進去會變慢（跟訓練場的雪地一樣，速度 ×0.55）
+  for (let i = 0, tries = 0; i < 16 && tries < 400; tries++) {
+    const x = (rnd() * 2 - 1) * (HW - BW - 150), y = (rnd() * 2 - 1) * (HH - 200), r = 120 + rnd() * 110;
+    if (Math.abs(Math.cos(x / 800) * 300 - y) < r + 120 || Math.hypot(x, y) < r) continue;   // 不蓋在雪路上
+    ground.push({ kind: 'drift', x, y, r, slow: 0.55 }, { kind: 'drift', x: -x, y: -y, r, slow: 0.55 }); i++;
+  }
+  const M = finishVsMap({ hw: HW, hh: HH, cellsX: CX, cellsY: CY, label: '雲圖對戰地圖・雪地　60 × 30 格', theme: 'snow', bases: VS_BASES(HW, HH, BW), blobs, solids, trees, ground });
+  M.slowAt = (x, y) => { for (const g of ground) if ((x - g.x) ** 2 + ((y - g.y) * 1.3) ** 2 < g.r * g.r) return g.slow; return 0; };
+  return M;
+}
+// 戰亂城市：上側是破損的高樓與商店，下側是損毀更嚴重的建築廢墟；左右對稱（兩隊條件一樣）
+function genCityMap() {
+  let seed = 20261124; const rnd = () => { seed = (seed * 1664525 + 1013904223) >>> 0; return seed / 4294967296; };
+  const CX = 60, CY = 30, HW = CX * 110 / 2, HH = CY * 110 / 2, BW = 900, solids = [], trees = [], blobs = [], ground = [];
+  for (let x = -HW + 60; x <= HW - 60; x += 60) blobs.push({ x, y: 40, r: 150, kind: 'street' });   // 中間的大馬路
+  for (const sx of [-1500, 0, 1500]) for (let y = -HH + 80; y <= HH - 80; y += 45) blobs.push({ x: sx, y, r: 95, kind: 'street' });   // 南北向的街道
+  const box = (o, m) => solids.some((p) => { const pw = p.w ? p.w / 2 : p.r, ph = p.h ? p.h / 2 : p.r; return Math.abs(o.x - p.x) < o.w / 2 + pw + m && Math.abs(o.y - p.y) < o.h / 2 + ph + m; });
+  const inside = (o) => Math.abs(o.x) + o.w / 2 < HW - BW - 80 && Math.abs(o.y) + o.h / 2 < HH - 80;
+  const onStreet = (o) => Math.abs(o.y - 40) < o.h / 2 + 170 || [-1500, 0, 1500].some((sx) => Math.abs(o.x - sx) < o.w / 2 + 110);
+  const twin = (o) => { solids.push(o); if (Math.abs(o.x) > 5) solids.push({ ...o, x: -o.x }); };   // 左右對稱
+  // 上側：破損的高樓（擋子彈、擋視線）＋一樓的商店（矮房）
+  for (let n = 0, tries = 0; n < 7 && tries < 600; tries++) {
+    const w = 230 + rnd() * 110, h = 150 + rnd() * 70, o = { kind: 'tower', x: (rnd() * 2 - 1) * (HW - BW - 250), y: -HH + 260 + rnd() * (HH - 620), w, h, hgt: 135 + rnd() * 70, s: rnd() };
+    if (o.x < 0 || !inside(o) || onStreet(o) || box(o, 120) || Math.abs(o.x) < w / 2 + 40) continue;
+    twin(o); n++;
+  }
+  for (let n = 0, tries = 0; n < 6 && tries < 600; tries++) {
+    const w = 170 + rnd() * 80, h = 110 + rnd() * 40, o = { kind: 'house', x: (rnd() * 2 - 1) * (HW - BW - 200), y: -HH + 200 + rnd() * (HH - 480), w, h, col: Math.floor(rnd() * 4), shop: true };
+    if (o.x < 0 || !inside(o) || onStreet(o) || box(o, 100) || Math.abs(o.x) < w / 2 + 40) continue;
+    twin(o); n++;
+  }
+  for (let i = 0, tries = 0; i < 8 && tries < 400; tries++) { const o = { kind: 'rubble', x: rnd() * (HW - BW - 200), y: -HH + 200 + rnd() * (HH - 400), r: 16 + rnd() * 12, s: rnd(), w: 0 }; delete o.w; if (box({ x: o.x, y: o.y, w: 50, h: 50 }, 30)) continue; twin(o); i++; }
+  // 下側：損毀更嚴重的建築廢墟：外牆缺口多、大多只剩半截，地上散滿瓦礫
+  for (let n = 0, tries = 0; n < 6 && tries < 600; tries++) {
+    const w = 240 + rnd() * 90, h = 180 + rnd() * 60, cx = rnd() * (HW - BW - 300), cy = 260 + rnd() * (HH - 560);
+    const fp = { x: cx, y: cy, w: w + 60, h: h + 60 };
+    if (!inside(fp) || onStreet(fp) || box(fp, 90) || cx < w / 2 + 40) continue;
+    ground.push({ kind: 'rect', x0: cx - w / 2, y0: cy - h / 2, x1: cx + w / 2, y1: cy + h / 2, fill: '#55575a' }, { kind: 'rect', x0: -cx - w / 2, y0: cy - h / 2, x1: -cx + w / 2, y1: cy + h / 2, fill: '#55575a' });
+    const t = 22, sides = [[cx, cy - h / 2, w, t, 'h'], [cx, cy + h / 2, w, t, 'h'], [cx - w / 2, cy, t, h, 'v'], [cx + w / 2, cy, t, h, 'v']];
+    for (const [sx, sy, sw, sh, dir] of sides) {
+      const k = 4, L = dir === 'h' ? sw : sh;
+      for (let i = 0; i < k; i++) { const u = rnd(); if (u < 0.42) continue;   // 缺口比上側多
+        const len = L / k, off = -L / 2 + len * (i + 0.5), low = u < 0.75;
+        twin(dir === 'h' ? { kind: low ? 'lowwall' : 'rwall', x: sx + off, y: sy, w: len - 4, h: sh, hgt: low ? 22 : 40 + rnd() * 26 } : { kind: low ? 'lowwall' : 'rwall', x: sx, y: sy + off, w: sw, h: len - 4, hgt: low ? 22 : 40 + rnd() * 26 });
+        if (u < 0.6) twin({ kind: 'rubble', x: sx + (dir === 'h' ? off : 30) + (rnd() - 0.5) * 30, y: sy + (dir === 'v' ? off : 38), r: 16 + rnd() * 10, s: rnd() }); }
+    }
+    n++;
+  }
+  for (let i = 0, tries = 0; i < 18 && tries < 600; tries++) { const x = rnd() * (HW - BW - 150), y = 150 + rnd() * (HH - 300); if (box({ x, y, w: 60, h: 60 }, 30) || Math.abs(x) > HW - BW - 80) continue; twin(rnd() < 0.6 ? { kind: 'rubble', x, y, r: 16 + rnd() * 12, s: rnd() } : (rnd() < 0.5 ? { kind: 'lowwall', x, y, w: 60 + rnd() * 30, h: 18, hgt: 22 } : { kind: 'lowwall', x, y, w: 18, h: 60 + rnd() * 30, hgt: 22 })); i++; }
+  return finishVsMap({ hw: HW, hh: HH, cellsX: CX, cellsY: CY, label: '雲圖對戰地圖・戰亂城市　60 × 30 格', theme: 'city', bases: VS_BASES(HW, HH, BW), blobs, solids, trees, ground });
+}
+function genVersusMap(kind) {
+  if (kind === 'snow') return genSnowMap();
+  if (kind === 'city') return genCityMap();
   let seed = 20261111; const rnd = () => { seed = (seed * 1664525 + 1013904223) >>> 0; return seed / 4294967296; };
   const CX = 60, CY = 30, HW = CX * 110 / 2, HH = CY * 110 / 2, BW = 900;
   const bases = [{ team: 'blue', x: -HW + BW / 2, y: 0, x0: -HW, x1: -HW + BW, y0: -HH * 0.6, y1: HH * 0.6 }, { team: 'red', x: HW - BW / 2, y: 0, x0: HW - BW, x1: HW, y0: -HH * 0.6, y1: HH * 0.6 }];
@@ -4307,6 +4442,7 @@ function vsShoot(f, shooter, ang) {
   if (bs) buff *= sk.special.mult;
   if (fmb) buff *= sk.bonusMul;
   const bsX = bs ? m327Extra(f) : 0;
+  const sunFv = Math.min(effSum(f, 'dmgFlat'), ((f.effects || []).find((x) => x.id === 'sunatk') || {}).dmgFlat || 0);   // 聖輝加冕：打人形最多 100
   if (f.buffT > 0 && sk.dmgMult) buff *= sk.dmgMult;                                   // 榮光延續
   if (sk && sk.id === 'deter' && f.killStacks) buff *= Math.pow(sk.killDmg, f.killStacks);
   if (sk && sk.id === 'lockon' && f.buffT > 0) buff *= 1 + f.lockStacks * sk.critStack;
@@ -4321,7 +4457,7 @@ function vsShoot(f, shooter, ang) {
     const six = f.buffT > 0 && sk && sk.id === 'sixkill';
     const b = { x: mz.x, y: mz.y, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp, age: 0, life, maxLife: life, r: wp.radius, pellet: wp.pellets > 1, dist: 0, src: shooter, vsShot: true, lacer, purple: false, six, mask: masked, kb: kbRoll(D, effSum(f, 'kbP')), shred: effSum(shooter, 'shred') > 0, apv: apOf(f, D), special: spc ? sk.overflow : 0, flat: effSum(f, 'dmgFlat'), cdm: effSum(f, 'critDmg') + drinkCdm(D, true) };
     if (ally) Object.assign(b, { team: 'p', def: D, buff, res: buff, crit, segs, ap: !!(md && md.ap), fromClone: true });
-    else Object.assign(b, { team: 'e', vsBase: (wp.damage + effSum(f, 'dmgFlat')) * buff, segs, critP: crit, pierce: !!(md && md.ap), pierceShield: !!(sk && sk.id === 'deter'), purpleMult: (sk && sk.purpleMult) || 2, dmg: (wp.damage + effSum(f, 'dmgFlat')) * buff });   // 敵隊：暴擊、易傷、分段在命中時才判定
+    else Object.assign(b, { team: 'e', vsBase: (wp.damage + effSum(f, 'dmgFlat') - sunFv) * buff + Math.min(SUN_SK().dollCap, sunFv * buff), segs, critP: crit, pierce: !!(md && md.ap), pierceShield: !!(sk && sk.id === 'deter'), purpleMult: (sk && sk.purpleMult) || 2, dmg: (wp.damage + effSum(f, 'dmgFlat')) * buff });   // 敵隊：暴擊、易傷、分段在命中時才判定
     if (spSG) { b.segs = { n: 2, pct: 1 }; b.kb = 6; b.spShell = true; }
     if (bs) { b.sp327 = true; if (ally) b.xdmg = bsX; else { b.vsBase += bsX; b.dmg += bsX; } }
     if (!ally && inSun(f)) b.sunFix = SUN_SK().fix;   // 太陽領域：固定傷害（打到我方時另外加，不受護甲）
@@ -5057,6 +5193,9 @@ function netPlace(g, t) {
   list.push({ id: g.charId, level: 'human', peer: g.id, name: g.name });
   return true;
 }
+const VS_MAP_NAMES = { field: '原野', snow: '雪地', city: '戰亂城市' };
+const vsMapId = () => { const L = netGuest() && net.lobby ? net.lobby : vsLobby; return (L && VS_MAP_NAMES[L.map]) ? L.map : 'field'; };
+for (const b of document.querySelectorAll('#vsMapSeg button')) b.addEventListener('click', () => { const L = vsLobby || (vsLobby = vsDefaultLobby()); L.map = b.dataset.map; netLobbyChanged(); });
 function netLobbyChanged() {
   if (selectedLevel === 'versus') buildLobby();
   if (!netHosting()) return;
@@ -7533,7 +7672,11 @@ const TRAIN_MAP = {
 function trainSlowAt(x, y) { for (const g of TRAIN.ground) if (g.slow && (x - g.x) ** 2 + ((y - g.y) * 1.3) ** 2 < g.r * g.r) return g.slow; return 0; }
 const TRAIN_EDGE = { kind: 'wall', x: 0, y: 0, w: 1, h: 1, edge: true };
 function drawTrainGround(x0, x1, y0, y1) {
-  for (const g of TRAIN.ground) {
+  drawGroundItems(TRAIN.ground, x0, x1, y0, y1);
+  trainBiomeLabels(x0, x1, y0, y1);
+}
+function drawGroundItems(list, x0, x1, y0, y1) {
+  for (const g of list) {
     if (g.kind === 'rect') { if (g.x1 < x0 || g.x0 > x1 || g.y1 < y0 || g.y0 > y1) continue; const cx = (g.x0 + g.x1) / 2, cy = (g.y0 + g.y1) / 2; ground(proj(cx, cy), cx, cy); ctx.fillStyle = g.fill; ctx.fillRect(g.x0, g.y0, g.x1 - g.x0, g.y1 - g.y0); continue; }
     if (g.x + g.r < x0 || g.x - g.r > x1 || g.y + g.r < y0 || g.y - g.r > y1) continue;
     ground(proj(g.x, g.y), g.x, g.y);
@@ -7542,6 +7685,9 @@ function drawTrainGround(x0, x1, y0, y1) {
     else if (g.kind === 'mud') { ctx.fillStyle = 'rgba(58,40,24,0.95)'; ctx.beginPath(); ctx.ellipse(g.x, g.y, g.r, g.r / 1.3, 0, 0, Math.PI * 2); ctx.fill(); ctx.strokeStyle = 'rgba(120,90,60,0.5)'; ctx.lineWidth = 3; ctx.stroke();
       ctx.fillStyle = 'rgba(30,20,12,0.7)'; for (let i = 0; i < 5; i++) { const a = hash(i, 2, g.s * 1e6 | 0) * 6.28, d = hash(i, 5, g.s * 1e6 | 0) * g.r * 0.6; ctx.beginPath(); ctx.ellipse(g.x + Math.cos(a) * d, g.y + Math.sin(a) * d * 0.7, 12, 6, 0, 0, Math.PI * 2); ctx.fill(); } }
   }
+  ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+}
+function trainBiomeLabels(x0, x1, y0, y1) {
   // 地形區的外框與名稱
   for (const b of TRAIN.biomes) {
     if (b.x1 < x0 || b.x0 > x1 || b.y1 < y0 || b.y0 > y1) continue;
@@ -7748,7 +7894,7 @@ function beginGame() {
   // 依關卡決定敵人數值
   phase = levelPhases() ? levelPhases()[0] : null; phaseIdx = 0; phaseStart = 0; spawnIdx = 0;
   $('phaseBlock').hidden = !phase || !!phase.bigmap;   // 戰局：時間照算但不顯示
-  MAPGEN = phase && phase.versus ? (VERSUS_MAP || (VERSUS_MAP = genVersusMap())) : phase && phase.train ? TRAIN_MAP : phase && phase.night ? NIGHT_MAP : BATTLE_MAP; miniCanvas = null;
+  MAPGEN = phase && phase.versus ? (VS_MAPS[vsMapId()] || (VS_MAPS[vsMapId()] = genVersusMap(vsMapId()))) : phase && phase.train ? TRAIN_MAP : phase && phase.night ? NIGHT_MAP : BATTLE_MAP; miniCanvas = null;
   if (phase && phase.night) capPoints = [];
   nightReset();   // 依模式換地圖
   vs = null; aiAllies = []; vsNades = []; vsShells = [];
@@ -10494,7 +10640,8 @@ function separateEnemies() {
 }
 function moveWithCover(en, dx, dy) {
   if (isNight() && mudAt(en.x, en.y)) { dx *= 0.55; dy *= 0.55; }
-  if (isTrain()) { const k = trainSlowAt(en.x, en.y); if (k) { dx *= k; dy *= k; } }   // 訓練場：積雪、爛泥減速   // 夜戰：泥巴地減速
+  if (isTrain()) { const k = trainSlowAt(en.x, en.y); if (k) { dx *= k; dy *= k; } }
+  else if (MAPGEN.slowAt && bigMap()) { const k = MAPGEN.slowAt(en.x, en.y); if (k) { dx *= k; dy *= k; } }   // 雪地對戰：厚積雪減速   // 訓練場：積雪、爛泥減速   // 夜戰：泥巴地減速
   const x0 = en.x, y0 = en.y;
   if (!en.fighter && en.jamUntil > gameTime) { dx *= 0.7; dy *= 0.7; }
   if (en.pslowT > gameTime) { dx *= 1 - en.pslow; dy *= 1 - en.pslow; }
@@ -14910,8 +15057,9 @@ function update(dt) {
           // 傷害順序：原始傷害 → 自身技能加成（裂傷紀錄／榮光延續）→ 其他人給的增益（蜂鳥共鳴）→ hitEnemy 判定暴擊 → 護甲
           const fm = flowerMul(b.src || player, e) * maskMul(b, e), D = b.def || cfg, mulB = (b.purple ? D.skill.purpleMult : 1) * (b.buff || 1) * fm;
           // 聖輝加冕：打精英時，聖輝給的攻擊力（含其他加成之後）最多 200；子彈本身的傷害照常吃加成
-          const sunF = e.boss ? Math.min(b.flat || 0, (((b.src || player).effects || []).find((x) => x.id === 'sunatk') || {}).dmgFlat || 0) : 0;
-          const base = ((b.pdmg ?? D.weapon.damage) + (b.flat || 0) - sunF) * mulB + Math.min(SUN_SK().eliteCap, sunF * mulB) + (b.xdmg || 0);   // flat：裝備的子彈傷害 +固定值（先加在每發傷害上，再吃加成）   // fm：花之鎖   // 用發射時的人形數值（中途切換角色也不會變）
+          const sunCap = e.boss ? SUN_SK().eliteCap : e.fighter ? SUN_SK().dollCap : 0;   // 打精英最多 200、打人形（雲圖對戰）最多 100
+          const sunF = sunCap ? Math.min(b.flat || 0, (((b.src || player).effects || []).find((x) => x.id === 'sunatk') || {}).dmgFlat || 0) : 0;
+          const base = ((b.pdmg ?? D.weapon.damage) + (b.flat || 0) - sunF) * mulB + Math.min(sunCap, sunF * mulB) + (b.xdmg || 0);   // flat：裝備的子彈傷害 +固定值（先加在每發傷害上，再吃加成）   // fm：花之鎖   // 用發射時的人形數值（中途切換角色也不會變）
           const hhi = huntHi(D, e);   // 連鎖狂獵：對生命高於 50% 的目標 +10%
           hitEnemy.pierceShield = (D.skill && D.skill.id === 'deter') || (!!b.huntEnh && D.skill.id === 'chainhunt');   // 沙漠之鷹的子彈、連鎖狂獵的強化子彈無視護盾
           hitEnemy.pierceArmor = !!b.ap;                              // 高壓沖擊（貫穿）：子彈穿甲
@@ -15191,6 +15339,8 @@ function drawGround(t) {
   if (isDef() && phase.day) { g.addColorStop(0, '#4d7a52'); g.addColorStop(VIEW3D.anchor * 0.7, '#3f6a45'); g.addColorStop(1, '#2f5636'); }   // 滅星行動白天：比較亮的草地
   else if (isTrain()) { g.addColorStop(0, '#0e3a4c'); g.addColorStop(VIEW3D.anchor * 0.7, '#0a2a3a'); g.addColorStop(1, '#061a26'); }   // 訓練場：帶青藍色亮光的電子空間
   else if (isNight()) { g.addColorStop(0, '#1d3a2e'); g.addColorStop(VIEW3D.anchor * 0.7, '#173027'); g.addColorStop(1, '#0f231c'); }   // 夜戰：野外草地
+  else if (bigMap() && MAPGEN.theme === 'snow') { g.addColorStop(0, '#dde7ee'); g.addColorStop(VIEW3D.anchor * 0.7, '#cad8e2'); g.addColorStop(1, '#b4c5d1'); }   // 雪地
+  else if (bigMap() && MAPGEN.theme === 'city') { g.addColorStop(0, '#53575a'); g.addColorStop(VIEW3D.anchor * 0.7, '#45484b'); g.addColorStop(1, '#35383b'); }   // 戰亂城市：水泥地
   else { g.addColorStop(0, '#24505a'); g.addColorStop(VIEW3D.anchor * 0.7, '#183a43'); g.addColorStop(1, '#0d2530'); }
   ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
   const vb = viewBounds(), gr = 110;
@@ -15295,6 +15445,8 @@ function draw(t) {
     if (k === 'n') { drawStation(it); continue; }
     if (k === 'o') { drawComm(it); continue; }
     if (k === 'h') { drawHouse(it); continue; }
+    if (k === 'i') { drawIgloo(it); continue; }
+    if (k === 'T') { drawTower(it); continue; }
     if (k === 'r') { drawRock(it); continue; }
     if (k === 'k') { drawCamp(it); continue; }
     if (k === 'f') { drawFlag(it); continue; }
