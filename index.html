@@ -2310,7 +2310,7 @@ const CYC_CMD = { ...CYCLOPS,
   speed: 200,
   lockRange: 350, stopRange: 320,
   command: { auraEvery: 5, auraR: 600, auraTime: 3, dmg: 0.1, evadeMul: 1.2,   // 鼓舞：每 5 秒，600 內友軍傷害 +10%、迴避率 ×1.2，3 秒
-    orderEvery: 10, orderR: 500, allies: 5, flank: 190, behind: 30, moveMax: 4 } };   // 指揮：500 內友軍超過 5 個時每 10 秒，兩個友軍跑到目標兩側（距離 190）
+    orderEvery: 5, orderR: 500, allies: 5, flank: 190, behind: 30, moveMax: 4 } };   // 指揮：500 內正規軍友軍超過 5 個時每 5 秒，兩個正規軍友軍以 1.2 倍速跑到目標兩側（距離 190）；不會指揮其他勢力，也不會指揮其他指揮獨眼巨人
 // 獨眼巨人Lite：正規軍一階普通敵人，獨眼巨人的簡配版，服務安保型機器人，只配備步槍
 const CYC_LITE = { ...ENEMY,
   name: '獨眼巨人Lite',
@@ -5688,7 +5688,7 @@ let best = Number(store.get('rxxlc-best')) || 0;
    每個人形／敵人的動畫圖放在 assets/<素材包>.json；網頁本身只帶設定（meta）與介面圖（ui）。
    離線單檔版會把圖片直接打包進網頁，這時就不用另外下載。 */
 const ASSET_BASE = 'assets/';
-const ASSET_VER = {"triple_crown":"42a6eaf59e","hk433":"df9cc9f7f7","type82":"19d6eb08aa","mh":"d23c2759a3","ouro":"ab4a21e936","cyc":"e3e7f09e34","meye":"a41da84ea9","hb":"dba320370d","dreamer":"87285c47db","scarecrow":"498db0f898","xm":"08da1bca4f","wasp":"0d68029acb","beast":"c322e71a84","lion":"3c116d5e13","intr":"e0de4d19e7","ceye":"82a6aca9a7","cent":"c58be64dbf","sws":"54ff5cb0d8","ouroE":"28421ec974","arch":"fcf8a15108","judge":"0904b780f7","lycan":"21ec39a3b9","aegis":"722f1b93d1","scep":"80de946a2c","hind":"a262c79af5","hindb":"7254d52230","spk":"0e62710a7f","cycl":"3a9c2e4863","orth":"9c90fcde75","defd":"f956f38dd2","meyed":"4b09be5366","cycc":"bc2c5abc77","ti":"07477aefc9","lcan":"5b4b46404f","aeq":"3b96bb238d","scout":"cd3b141af2","hammer":"b9220bbb9f","gsw":"43b26bea32","mino":"5aa7e3b31c","agent":"462fa8a126","de":"a0d77eed11","vhs":"48d898f5b3","sp9":"d43d1c3717","sat8":"59d571a15b","m110":"12ad1ce260","kord":"f4dbe7d0e1","t561":"5c635a3d9d","rpk":"29db8d90a9","x95":"7e54a51692","carc":"e53118059f","hydra":"b369a4278c","quail":"5bc9991ecd","wb":"a1920ee4d7","aa12":"c0b5a9004a","t100":"63d9404ba2","mg4":"b55fb8363b","an94":"3070abd310","m950":"e7757f6551","ntw":"7b558a5c50","dp12":"02850f045c","pal":"ef7f21595c","typ":"fc83ca75b5","ladon":"c871fa41a6","ripper":"0177fde288","striker":"a53db882b5","guard":"40371cd495","dino":"7ccee24d47","scorp":"3fd7432e18","jaeg":"5a8356a33b","dragoon":"2e490725b9","jaguar":"70994c9621","goliath":"a619ae409b","gfac":"c2d3a20712","jupiter":"9825161850","defbase":"6cd68c880e","night":"71559edb8d","lancer":"38f55fae5b","glad":"e0c43bf51c","hanni":"45449ba701","elea":"e316fdb054","witch":"547a075909","intro":"cd1b684ead","exe":"dddfc1dbb9","hunter":"92bfd5255f","moth":"687f8b5ccb","dest":"f6ddf3f6c9","elk":"e4719d2fda","dose":"78ae5bf532","train":"a4311db90c","class_SG":"431e39b392","class_AR":"f86d58b274","class_SMG":"fceb08bbb1","class_RF":"c107da1c64","class_HG":"f6305e910b","class_MG":"be1790479a","codexf_sf":"2e8c48ef72","codexf_kcco":"672541a14b","codexf_paradeus":"d197beda55","codex_menu":"e820905b14"};   // 素材檔的內容雜湊（拆檔版）：網址帶版本，更新後不會吃到瀏覽器裡的舊快取
+const ASSET_VER = {"triple_crown":"42a6eaf59e","hk433":"df9cc9f7f7","type82":"19d6eb08aa","mh":"d23c2759a3","ouro":"ab4a21e936","cyc":"e3e7f09e34","meye":"a41da84ea9","hb":"dba320370d","dreamer":"87285c47db","scarecrow":"498db0f898","xm":"08da1bca4f","wasp":"0d68029acb","beast":"c322e71a84","lion":"3c116d5e13","intr":"e0de4d19e7","ceye":"82a6aca9a7","cent":"c58be64dbf","sws":"54ff5cb0d8","ouroE":"28421ec974","arch":"fcf8a15108","judge":"0904b780f7","lycan":"21ec39a3b9","aegis":"722f1b93d1","scep":"80de946a2c","hind":"a262c79af5","hindb":"7254d52230","spk":"0e62710a7f","cycl":"3a9c2e4863","orth":"9c90fcde75","defd":"f956f38dd2","meyed":"4b09be5366","cycc":"bc2c5abc77","ti":"07477aefc9","lcan":"5b4b46404f","aeq":"3b96bb238d","scout":"cd3b141af2","hammer":"b9220bbb9f","gsw":"43b26bea32","mino":"5aa7e3b31c","agent":"462fa8a126","de":"a0d77eed11","vhs":"48d898f5b3","sp9":"d43d1c3717","sat8":"59d571a15b","m110":"12ad1ce260","kord":"f4dbe7d0e1","t561":"5c635a3d9d","rpk":"29db8d90a9","x95":"7e54a51692","carc":"e53118059f","hydra":"b369a4278c","quail":"5bc9991ecd","wb":"a1920ee4d7","aa12":"c0b5a9004a","t100":"63d9404ba2","mg4":"b55fb8363b","an94":"3070abd310","m950":"e7757f6551","ntw":"7b558a5c50","dp12":"02850f045c","pal":"ef7f21595c","typ":"fc83ca75b5","ladon":"c871fa41a6","ripper":"0177fde288","striker":"a53db882b5","guard":"40371cd495","dino":"7ccee24d47","scorp":"3fd7432e18","jaeg":"5a8356a33b","dragoon":"2e490725b9","jaguar":"70994c9621","goliath":"a619ae409b","gfac":"c2d3a20712","jupiter":"9825161850","defbase":"6cd68c880e","night":"71559edb8d","lancer":"38f55fae5b","glad":"e0c43bf51c","hanni":"45449ba701","elea":"e316fdb054","witch":"547a075909","intro":"cd1b684ead","exe":"dddfc1dbb9","hunter":"92bfd5255f","moth":"687f8b5ccb","dest":"f6ddf3f6c9","elk":"e4719d2fda","dose":"78ae5bf532","train":"a4311db90c","class_SG":"431e39b392","class_AR":"f86d58b274","class_SMG":"fceb08bbb1","class_RF":"c107da1c64","class_HG":"f6305e910b","class_MG":"be1790479a","codexf_sf":"2e8c48ef72","codexf_kcco":"d71024ca61","codexf_paradeus":"d197beda55","codex_menu":"e820905b14"};   // 素材檔的內容雜湊（拆檔版）：網址帶版本，更新後不會吃到瀏覽器裡的舊快取
 const assetUrl = (name) => ASSET_BASE + name + '.json' + (ASSET_VER[name] ? '?v=' + ASSET_VER[name] : '');
 const packOf = (assets) => Object.keys(ASSETS).find((k) => ASSETS[k] === assets);
 const packBox = {};                                  // 素材包 → 解碼後的圖片放在 imgs 的哪一格
@@ -6318,7 +6318,7 @@ const ENEMY_CODEX = () => [
     desc: '獨眼巨人的簡配版，屬於服務安保型的機器人，只配備步槍。在 250 以內停下來射擊，3 發打完要換彈 3 秒。',
     where: '出現：無' },
   { id: 'cycc', rank: 'normal', T: CYC_CMD, name: '指揮獨眼巨人', weapon: '步槍', img: ASSETS.ui.codex_cycc,
-    desc: '指揮特化的獨眼巨人，頭盔塗著深綠色迷彩、後腦勺有一根天線。每 5 秒鼓舞 600 範圍內的友軍：傷害 +10%、迴避率 ×1.2，持續 3 秒。身邊 500 範圍內友軍超過 5 個時，每 10 秒會指揮兩個友軍停下手邊的動作，跑到你的左右兩側，圍成凹字型的包圍網。',
+    desc: '指揮特化的獨眼巨人，頭盔塗著深綠色迷彩、後腦勺有一根天線。每 5 秒鼓舞 600 範圍內的友軍：傷害 +10%、迴避率 ×1.2，持續 3 秒。身邊 500 範圍內的正規軍友軍超過 5 個時，每 5 秒會指揮兩個正規軍友軍停下手邊的動作，以 1.2 倍速跑到你的左右兩側，圍成凹字型的包圍網（不會指揮其他勢力，也不會指揮其他指揮獨眼巨人）。',
     where: '出現：無' },
   { id: 'cyclops', rank: 'normal', T: CYCLOPS, name: '獨眼巨人', weapon: '步槍', img: ASSETS.ui.codex_cyc,
     desc: '正規軍的制式步兵機器人，有多種延伸型。在稍遠的距離停下來連續射擊，打完一個彈匣才換彈。',
@@ -12517,7 +12517,7 @@ function kccoShelterTick(dt) {
 }
 // 指揮獨眼巨人的被動：
 // ・每 5 秒鼓舞 600 範圍內的友軍：傷害 +10%、迴避率 ×1.2，持續 3 秒
-// ・500 範圍內友軍超過 5 個時，每 10 秒指揮一次：兩個友軍停下手邊的動作，跑到交戰目標的左右兩側，和指揮者這一側圍成凹字型
+// ・500 範圍內正規軍友軍超過 5 個時，每 5 秒指揮一次：兩個正規軍友軍停下手邊的動作（移動速度暫時 ×1.2），跑到交戰目標的左右兩側，和指揮者這一側圍成凹字型
 function cmdTick(e, dt) {
   const C = e.T.command;
   e.cmdAuraT = (e.cmdAuraT ?? 1) - dt;
@@ -12527,7 +12527,7 @@ function cmdTick(e, dt) {
   }
   e.cmdOrderT = (e.cmdOrderT ?? 3) - dt;
   if (e.cmdOrderT <= 0) {
-    const al = enemies.filter((o) => o !== e && o.hp > 0 && !o.boss && !o.noCount && (o.T.speed || 0) > 0 && !o.T.command && Math.hypot(o.x - e.x, o.y - e.y) <= C.orderR);
+    const al = enemies.filter((o) => o !== e && o.hp > 0 && isKccoNormal(o) && !o.noCount && (o.T.speed || 0) > 0 && !o.T.command && Math.hypot(o.x - e.x, o.y - e.y) <= C.orderR);   // 只算／只指揮正規軍，不指揮其他指揮獨眼巨人
     if (al.length > C.allies) {
       e.cmdOrderT = C.orderEvery;
       const free = al.filter((o) => !o.cmdMove && o.swingT == null && !o.oguard && !o.drop).sort((a, b) => Math.hypot(a.x - player.x, a.y - player.y) - Math.hypot(b.x - player.x, b.y - player.y));
