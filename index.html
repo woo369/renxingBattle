@@ -12461,6 +12461,48 @@ function meyedTick(e, dt, toward) {
   }
   return true;
 }
+// 正規軍的護盾（捍衛者的圓形護盾、歐特魯斯的平面護盾）都帶「正規軍」標籤：
+// 正規軍的普通遠程敵人察覺到場上有護盾時，會傾向待在護盾裡面（圓形）或後方（平面），前提是從那裡還打得到目標
+let KCCO_NAMES = null;
+const isKccoNormal = (e) => {
+  if (!KCCO_NAMES) KCCO_NAMES = new Set(ENEMY_CODEX().filter((c) => c.T && c.rank === 'normal' && factionOf(c.id) === 'kcco').map((c) => c.T.name));
+  return !e.boss && e.T && KCCO_NAMES.has(e.T.name);
+};
+function kccoShields() {
+  const out = [];
+  for (const o of enemies) {
+    if (o.hp <= 0) continue;
+    if (o.dome) out.push({ tag: 'kcco', kind: 'dome', src: o, x: o.x, y: o.y, r: o.T.dome.r });
+    if (o.oguard && o.oguard.on) out.push({ tag: 'kcco', kind: 'wall', src: o, x: o.x, y: o.y, f: o.oguard.f });
+  }
+  return out;
+}
+function kccoShelterTick(dt) {
+  const sh = kccoShields(); if (!sh.length) return;
+  for (const e of enemies) {
+    const T = e.T;
+    if (e.hp <= 0 || !isKccoNormal(e) || !T.lockRange || T.lockRange < 60 || ['melee', 'orth', 'defd', 'drone'].includes(T.ai) || e.dome || e.oguard || e.drop) continue;   // 近戰、護盾本身、飛行單位不躲
+    if (e.swingT != null || e.chargeT > 0 || (T.speed || 0) <= 0) continue;
+    let best = null, bd = 380;
+    for (const S of sh) {
+      if (S.src === e) continue;
+      let gx, gy, tol;
+      if (S.kind === 'dome') {   // 圓形護盾：待在圈內、偏向目標那一側（不貼邊）
+        const a = Math.atan2(player.y - S.y, player.x - S.x), k = S.r * 0.45;
+        gx = S.x + Math.cos(a) * k + Math.cos(e.off * 4) * S.r * 0.25; gy = S.y + Math.sin(a) * k + Math.sin(e.off * 4) * S.r * 0.25; tol = S.r * 0.3;
+        if (Math.hypot(e.x - S.x, e.y - S.y) < S.r * 0.8) tol = Infinity;   // 已經在圈內就不用再擠
+      } else {   // 平面護盾：躲到護盾正後方，上下錯開
+        gx = S.x - S.f * (40 + Math.abs(e.off) * 30); gy = S.y + e.off * 45; tol = 18;
+      }
+      if (Math.hypot(gx - player.x, gy - player.y) > T.lockRange + 40) continue;   // 從那裡打不到目標就不去
+      const d = Math.hypot(gx - e.x, gy - e.y);
+      if (d < bd) { bd = d; best = { gx, gy, tol, d }; }
+    }
+    if (!best || best.d <= best.tol) continue;
+    const st = Math.min(best.d - best.tol, (T.speed || 80) * 0.75 * dt);
+    moveWithCover(e, (best.gx - e.x) / best.d * st, (best.gy - e.y) / best.d * st);
+  }
+}
 function updateMelee(e, dt, toward, dist) {
   const T = e.T; e.angle = toward; e.phase += dt; e.faceLeft = Math.cos(toward) < 0;
   e.cool = Math.max(0, e.cool - dt);
@@ -13887,6 +13929,7 @@ function update(dt) {
   }
   updateClones(dt); if (isNight()) { nightTick(dt); nightLegionTick(dt); } if (isTrain()) trainTick(dt);   // 訓練場：操作台生成敵人
   protoWorld(dt);
+  kccoShelterTick(dt);   // 正規軍敵人躲到正規軍護盾後方／裡面
   updateMissiles(dt); updateHomers(dt); updateShockWaves(dt); updateSlashWaves(dt); updateMagicOrbs(dt); updateSmokes(dt);
   if (arena()) { const A = arena(); A.t = (A.t || 0) + dt; keepInArena(player, A); keepInArena(boss, A); for (const c of clones) keepInArena(c, A); }   // Boss 圍欄
   // 手雷：飛行 → 爆炸
