@@ -3753,7 +3753,7 @@ const VS_ELITE_DEFAULT = { dodgeFree: 0.3 };
 const VS_GUARD_POOL = ['greatsword', 'hydra', 'typhon'];
 // 守衛的數值：巨劍士用 Boss 資料；九頭蛇用普通敵人的數值（原汁原味）
 const HYDRA_GUARD = { name: '九頭蛇', hydra: true, hp: HYDRA.hp * 10 /* 對戰守衛：生命 ×10 */, armor: HYDRA.armor, evade: 0, radius: HYDRA.radius, speed: HYDRA.speed, lockRange: HYDRA.lockRange,
-  shift: HYDRA.shift, aimDelay: 0.2, bulletDmg: HYDRA.bulletDmg, fireCooldown: HYDRA.fireCooldown, magazine: HYDRA.magazine, reload: HYDRA.reload,
+  shift: HYDRA.shift, aimDelay: 0.2, bulletDmg: HYDRA.bulletDmg, fireCooldown: HYDRA.fireCooldown / 2 /* 對戰守衛：射速 ×2 */, magazine: HYDRA.magazine, reload: HYDRA.reload,
   bulletSpeed: HYDRA.bulletSpeed, bulletLife: 1.3, bulletR: HYDRA.bulletR, barY: 92,
   get assets() { return ASSETS.hydra; } };
 const vsGuardB = (id) => id === 'hydra' ? HYDRA_GUARD : BOSSES[id];
