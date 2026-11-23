@@ -3746,9 +3746,10 @@ let npcJoinN = 0;
 const npcFlee = () => !!(phase && phase.collapse);
 function npcFollow(n, dt, go) {
   if (!n.joined) { if (Math.hypot(player.x - n.x, player.y - n.y) < 320) { n.joined = true; n.slot = npcJoinN++; } else return false; }
-  const i = n.slot, tx = player.x - 90 - (i % 4) * 55, ty = player.y + (Math.floor(i / 4) - 1) * 70 + ((i % 2) ? 25 : -25);   // 跟在玩家後方（左邊）排成幾排
-  const dx = tx - n.x, dy = ty - n.y, d = Math.hypot(dx, dy); if (d < 30) return false;
-  const sp = (n.def ? n.def.speed : 250) * (d > 260 ? 1.15 : 1), ux = dx / d, uy = dy / d;
+  let dx = player.x - n.x, dy = player.y - n.y; const d = Math.hypot(dx, dy);   // 跟著玩家：離太遠就靠過去（不排固定位置）
+  if (d < (n.near ? 170 : 120)) { n.near = true; return false; } n.near = false;
+  for (const o of MAPGEN.npcs) if (o !== n && !o.dead && o.joined) { const ox = n.x - o.x, oy = n.y - o.y, od = Math.hypot(ox, oy); if (od > 0 && od < 50) { dx += ox / od * 60; dy += oy / od * 60; } }   // 不要擠成一團
+  const dd = Math.hypot(dx, dy) || 1, sp = (n.def ? n.def.speed : 250) * (d > 300 ? 1.15 : 1), ux = dx / dd, uy = dy / dd;
   const a0 = Math.atan2(uy, ux), sd = n.detour || 1;   // 被擋住：依序試著往左右偏 35°、70°、105° 繞過去，記住上次繞的方向
   let ok = false; for (const off of [0, 0.6, -0.6, 1.2, -1.2, 1.8, -1.8]) { const aa = a0 + off * sd; if (go(Math.cos(aa), Math.sin(aa), sp)) { ok = true; if (off) n.detour = Math.sign(off) * sd; break; } }
   if (!ok) n.detour = -sd;
@@ -3759,7 +3760,7 @@ function npcTick(dt) {
   for (const n of (MAPGEN && MAPGEN.npcs) || []) {   // 暫代小人：只跟著隊伍走
     if (n.def || !npcFlee()) continue;
     n.moving = false; const free = (x, y) => { const r0 = n.r; n.r = -12; const h = mapSolidAt(x, y, 12); n.r = r0; return !h; };
-    npcFollow(n, dt, (dx, dy, sp) => { const nx = n.x + dx * sp * dt, ny = n.y + dy * sp * dt; if (free(nx, ny)) { n.x = nx; n.y = ny; n.moving = true; return true; } return false; });
+    npcFollow(n, dt, (dx, dy, sp) => { sp *= (MAPGEN.slowAt && MAPGEN.slowAt(n.x, n.y)) || 1; const nx = n.x + dx * sp * dt, ny = n.y + dy * sp * dt; if (free(nx, ny)) { n.x = nx; n.y = ny; n.moving = true; return true; } return false; });
   }
   for (const n of liveNpcs()) npcStep(n, dt, false);
 }
@@ -3771,7 +3772,7 @@ function npcStep(n, dt, foe) {
     if (!foe) tickEffects(n, dt);
     if (n.reloadT > 0) { n.reloadT -= dt; if (n.reloadT <= 0) n.ammo = wp.magazine; }
     const free = (x, y) => { const r0 = n.r; n.r = -12; const h = mapSolidAt(x, y, 12); n.r = r0; return !h; };   // 檢查時先把自己從障礙物裡排除
-    const move = (dx, dy, sp) => { const nx = n.x + dx * sp * dt, ny = n.y + dy * sp * dt; if (free(nx, ny)) { n.x = nx; n.y = ny; n.moving = true; n.aimA = Math.atan2(dy, dx); return true; } return false; };
+    const move = (dx, dy, sp) => { sp *= (MAPGEN.slowAt && MAPGEN.slowAt(n.x, n.y)) || 1; const nx = n.x + dx * sp * dt, ny = n.y + dy * sp * dt; if (free(nx, ny)) { n.x = nx; n.y = ny; n.moving = true; n.aimA = Math.atan2(dy, dx); return true; } return false; };
     const PR = D.prone;   // 沒有走射能力（獵豹 M1）：開火前要先趴下，移動前要先起身
     if (n.poseT > 0) { n.poseT -= dt; if (n.poseT <= 0) n.pose = n.pose === 'goingDown' ? 'down' : n.pose === 'goingUp' ? 'stand' : n.pose; }
     // 一般移動：開火動畫播完才會走；趴著的要先起身
@@ -4443,9 +4444,10 @@ function genCollapseMap1() {
   // 地圖中間的三個據點：上方營地、中間軍火倉庫、下方碉堡，各有 4 名倖存人形
   const sites = [{ kind: 'camp', x: 0, y: -720 }, { kind: 'depot', x: 0, y: 0 }, { kind: 'bunker', x: 0, y: 760 }];
   const okXY = (x, y, m) => Math.abs(x) < HW - 80 - m && y < HH - 80 - m && y > -HH + 60 + m && !inHill(x, y, m + 30) && Math.hypot(x - start.x, y - start.y) > 380 + m && Math.hypot((x - cineAt.x) * 0.75, (y - cineAt.y) * 1.1) > 300 + m
-    && sites.every((c) => Math.hypot((x - c.x) * 0.8, y - c.y) > 330 + m) && Math.hypot((x - safe.x) * 0.7, y - safe.y) > 360 + m && blasts.every((b) => Math.hypot(x - b.x, (y - b.y) * 1.2) > 300 + m);
-  // 河谷底：一條淺淺的溪（只是地面顏色）
-  for (let x = -HW; x <= HW; x += 70) blobs.push({ x, y: HH - 260 + Math.sin(x / 900) * 120, r: 110, kind: 'creek' });
+    && Math.abs(y - creekY(x)) > 125 + m && sites.every((c) => Math.hypot((x - c.x) * 0.8, y - c.y) > 330 + m) && Math.hypot((x - safe.x) * 0.7, y - safe.y) > 360 + m && blasts.every((b) => Math.hypot(x - b.x, (y - b.y) * 1.2) > 300 + m);
+  // 河谷底：一條淺淺的溪（只是地面顏色；走進去大幅減速）
+  const creekY = (x) => HH - 260 + Math.sin(x / 900) * 120;
+  for (let x = -HW; x <= HW; x += 70) blobs.push({ x, y: creekY(x), r: 110, kind: 'creek' });
   // 巨砲彈坑：有大有小，常常幾個擠在一起
   const craters = [];
   for (let n = 0, t = 0; n < 34 && t < 800; t++) {
@@ -4523,7 +4525,7 @@ function genCollapseMap1() {
     solids.push({ kind: 'cprop', img, x: cave.x + dx, y: cave.y + dy, iw: w, r });   // iw：圖寬（不用 w，免得被當成方形障礙物）
   for (const b of blasts) ground.push({ kind: 'blast', x: b.x, y: b.y, r: 430, s: rnd() });   // 爆炸後才會出現的焦土大坑
   const M = finishVsMap({ hw: HW, hh: HH, cellsX: CX, cellsY: CY, label: '塌縮之谷・第一階段　140 × 26 格', theme: 'valley', bases: [{ team: 'blue', x: start.x, y: start.y, x0: start.x - 200, x1: start.x + 200, y0: start.y - 160, y1: start.y + 160 }], blobs, solids, trees, ground });
-  M.hills = hills; M.cine = cineAt; M.blasts = blasts; M.safe = safe; M.cave = cave; M.npcs = npcs; M.sites = sites; return M;
+  M.hills = hills; M.cine = cineAt; M.blasts = blasts; M.safe = safe; M.cave = cave; M.slowAt = (x, y) => (Math.abs(y - creekY(x)) < 100 && Math.abs(x) < HW ? 0.3 : 0); /* 河流：減速 70% */ M.npcs = npcs; M.sites = sites; return M;
 }
 function genVersusMap(kind) {
   if (kind === 'snow') return genSnowMap();
@@ -7111,7 +7113,7 @@ function packsFor(charId, level) {
   if (LEVEL_PHASES[level]) list.push(...phasePacks(0));
   if (list.some((pid) => pid === 'witch') && teamIds().some((id) => CHARACTERS[id].proto === 'witch')) list.push('dino');   // 協議同歸的魔女：召喚兵蟻
   if (level === 'collapse') list.push(packOf(BOSSES.typhon.assets));   // 塌縮之谷：開場動畫裡的提豐
-  if (level === 'defense') list.push(...(defLobby || (defLobby = defDefaultLobby())).slots.map((x) => packOf(CHARACTERS[x.id].assets)));   // 滅星行動：大廳裡的 AI 隊友
+  if (level === 'defense' || level === 'collapse') list.push(...(defLobby || (defLobby = defDefaultLobby())).slots.slice(0, level === 'collapse' ? 3 : 4).map((x) => packOf(CHARACTERS[x.id].assets)));   // 滅星行動：大廳裡的 AI 隊友
   if (level === 'versus') { vsGuardId = VS_GUARD_POOL[Math.floor(Math.random() * VS_GUARD_POOL.length)]; list.push(...vsLobbyPacks(), packOf(vsGuardB(vsGuardId).assets)); }   // 雲圖對戰：大廳裡所有 AI 的角色＋這場抽到的守衛
   return [...new Set(list)];
 }
@@ -7448,10 +7450,10 @@ function updatePick() {
     ensureClass(w.class).then(() => { if ((slot === 'main' ? selectedId : subId) === def.id) im.src = previewOf(def); }).catch(() => {});
   }
   $('teamNote').hidden = !team_;
-  $('vsLobby').hidden = selectedLevel !== 'versus' && selectedLevel !== 'defense'; if (selectedLevel === 'versus') buildLobby(); else if (selectedLevel === 'defense') buildDefLobby();
-  { const dz = selectedLevel === 'defense' && !net;   // 滅星行動：代碼連線還在製作中（先只能加 AI）
+  $('vsLobby').hidden = !['versus', 'defense', 'collapse'].includes(selectedLevel); if (selectedLevel === 'versus') buildLobby(); else if (selectedLevel === 'defense' || selectedLevel === 'collapse') buildDefLobby();
+  { const dz = (selectedLevel === 'defense' || selectedLevel === 'collapse') && !net;   // 滅星行動：代碼連線還在製作中（先只能加 AI）
     for (const id of ['vsHostBtn', 'vsJoinBtn', 'vsCode']) $(id).disabled = dz;
-    if (dz) netStatus('滅星行動的代碼連線還在製作中，目前先加入 AI 隊友；連線遊玩請先用雲圖對戰。'); else if (selectedLevel === 'versus' && !net && /滅星行動/.test($('vsNetStatus').textContent)) netStatus('建立房間會得到一組代碼，朋友輸入代碼就能加入（需要在網站版）。'); }
+    if (dz) netStatus((selectedLevel === 'collapse' ? '塌縮之谷' : '滅星行動') + '的代碼連線還在製作中，目前先加入 AI 隊友；連線遊玩請先用雲圖對戰。'); else if (selectedLevel === 'versus' && !net && /滅星行動/.test($('vsNetStatus').textContent)) netStatus('建立房間會得到一組代碼，朋友輸入代碼就能加入（需要在網站版）。'); }
   if (netHosting()) netLobbyChanged();
   if (netGuest() && net.conn && net.conn.open && net.sentChar !== selectedId) { net.sentChar = selectedId; net.conn.send({ t: 'char', charId: selectedId }); }
   const lv = LEVELS.find((l) => l.id === selectedLevel); $('levelDesc').textContent = lv ? lv.desc : '';
@@ -8223,7 +8225,7 @@ function defIntroPlay(loadAll) {
   return p;
 }
 function startGame() {
-  if (selectedLevel === 'defense') { defLobby = defLobby || defDefaultLobby(); defLobby.slots = defLobby.slots.filter((x) => CHARACTERS[x.id]); defSquad = defLobby.slots.map((x) => x.id); }   // 滅星行動：大廳裡的 AI 隊友
+  if (selectedLevel === 'defense' || selectedLevel === 'collapse') { defLobby = defLobby || defDefaultLobby(); defLobby.slots = defLobby.slots.filter((x) => CHARACTERS[x.id]); defSquad = defLobby.slots.map((x) => x.id); }   // 滅星行動：大廳裡的 AI 隊友
   for (const k in capBlock) delete capBlock[k]; smoothT = 0; perfMs = perfN = 0;   // 自動畫質：每次開局都重新往上試
   if (gameLoading) return;
   audio();
@@ -8623,7 +8625,7 @@ function beginGame() {
   if (selectedLevel === 'night') floatText(player.x, player.y - 80, '敵方勢力：' + NIGHT_ROSTERS[nightRoster].name, '#ff9a8a');   // 夜戰：這場抽到的出敵清單
   setState('play'); last = performance.now();
   bulwarkPend = [];
-  if (phase && phase.collapse) { MAPGEN.fog = false; npcReset(); collapseIntroStart(); }   // 塌縮之谷：先播坍塌液炸彈的爆炸動畫（試作：每次進場都播）
+  if (phase && phase.collapse) { MAPGEN.fog = false; colT = 0; colBombed = false; npcReset(); colSpawnSquad(); }   // 塌縮之谷：倒數 5:00（或進入安全屋）才引爆坍塌液炸彈   // 塌縮之谷：先播坍塌液炸彈的爆炸動畫（試作：每次進場都播）
   if (selectedLevel === 'war' || selectedLevel === 'night' || selectedLevel === 'defense') bgmStart('normal', 3); else if (selectedLevel === 'versus') bgmStart('normal', 5); else bgmStop(true);   // 背景音樂：亂序戰事從普通歌單抽 3 首、雲圖對戰抽 5 首（菁英對決只有 Boss 歌單）
 }
 // 角色相關的介面（技能圖示、彈藥、生命、閃避、效果列、切換按鈕）依目前出擊的人形更新
@@ -9506,8 +9508,9 @@ let defLobby = null, defPickSlot = null;
 function defDefaultLobby() { const ids = Object.keys(CHARACTERS).filter((id) => id !== selectedId); const out = []; while (out.length < 4 && ids.length) out.push({ id: ids.splice(Math.floor(Math.random() * ids.length), 1)[0], level: 'normal' }); return { slots: out }; }
 function buildDefLobby() {
   const L = defLobby || (defLobby = defDefaultLobby()), box = $('vsTeams'); box.textContent = '';
+  const col4 = selectedLevel === 'collapse', MAXS = col4 ? 3 : 4; if (L.slots.length > MAXS) L.slots.length = MAXS;   // 塌縮之谷：四人小隊（你＋3 名 AI）
   const col = document.createElement('div'); col.className = 'vs-team blue';
-  const h = document.createElement('div'); h.className = 'vs-head'; const nm = document.createElement('b'); nm.textContent = '防守小隊（' + (L.slots.length + 1) + '/5）'; h.appendChild(nm); col.appendChild(h);
+  const h = document.createElement('div'); h.className = 'vs-head'; const nm = document.createElement('b'); nm.textContent = (col4 ? '四人小隊（' : '防守小隊（') + (L.slots.length + 1) + '/' + (MAXS + 1) + '）'; h.appendChild(nm); col.appendChild(h);
   const row = (tag, cls, name, onName, onX) => {
     const r = document.createElement('div'); r.className = 'vs-row';
     const g = document.createElement('span'); g.className = 'vs-tag ' + cls; g.textContent = tag;
@@ -9521,12 +9524,12 @@ function buildDefLobby() {
   L.slots.forEach((sl, i) => row(sl.level === 'elite' ? '精銳' : '普通', sl.level, CHARACTERS[sl.id].name + ' ▾', () => { defPickSlot = i; openDefPick(); }, () => { L.slots.splice(i, 1); buildDefLobby(); }));
   const add = document.createElement('div'); add.className = 'vs-add';
   for (const [lv, label] of [['normal', '＋普通 AI'], ['elite', '＋精銳 AI']]) {
-    const b = document.createElement('button'); b.type = 'button'; b.className = 'btn'; b.textContent = label; b.disabled = L.slots.length >= 4;
-    b.addEventListener('click', () => { if (L.slots.length >= 4) return; const used = new Set([selectedId, ...L.slots.map((x) => x.id)]), pool = Object.keys(CHARACTERS).filter((id) => !used.has(id)); L.slots.push({ id: pool[Math.floor(Math.random() * pool.length)] || vsRandId(), level: lv }); buildDefLobby(); prefetch(); });
+    const b = document.createElement('button'); b.type = 'button'; b.className = 'btn'; b.textContent = label; b.disabled = L.slots.length >= MAXS;
+    b.addEventListener('click', () => { if (L.slots.length >= MAXS) return; const used = new Set([selectedId, ...L.slots.map((x) => x.id)]), pool = Object.keys(CHARACTERS).filter((id) => !used.has(id)); L.slots.push({ id: pool[Math.floor(Math.random() * pool.length)] || vsRandId(), level: lv }); buildDefLobby(); prefetch(); });
     add.appendChild(b);
   }
   col.appendChild(add);
-  const note = document.createElement('small'); note.className = 'vs-note'; note.textContent = '精銳 AI 反應更快、會預判；倒下後復活要 3 核心（普通 1 核心）。'; col.appendChild(note);
+  const note = document.createElement('small'); note.className = 'vs-note'; note.textContent = col4 ? '精銳 AI 反應更快、會預判。' : '精銳 AI 反應更快、會預判；倒下後復活要 3 核心（普通 1 核心）。'; col.appendChild(note);
   box.appendChild(col);
 }
 // 挑選 AI 隊友（大廳裡點名字：換掉那一格的人形）
@@ -15455,7 +15458,7 @@ function update(dt) {
   tickEffects(player, dt); for (const c of clones) tickEffects(c, dt);
   smokeTick(dt);   // 迷霧煙盒
   bulwarkTick();   // 反擊者壁壘：金盾撐過 3 秒就給增益
-  if (phase && phase.collapse) { npcTick(dt); caveTick(dt); }   // 塌縮之谷的倖存人形、安全屋山洞的進出
+  if (phase && phase.collapse) { npcTick(dt); caveTick(dt); colTimerTick(dt); }   // 塌縮之谷的倖存人形、安全屋山洞的進出
   if (trainNpcFoes.size) trainNpcCheck();
   moonTick(dt);    // 月海盈輝
   m6Sync();        // M6 ASW 的模式
@@ -15616,7 +15619,7 @@ function update(dt) {
   const P0 = player;
   for (let i = enemies.length - 1; i >= 0; i--) {
     if (enemies[i].npcFoe) { npcStep(enemies[i], dt, true); continue; }   // 訓練場召喚的敵對 NPC
-    const C0 = clones, nT = isNight() || isTrain() ? nightEnemyTarget(enemies[i]) : null;   // 夜戰：敵人會鎖定離自己最近的人形（含 AI 隊友）
+    const C0 = clones, nT = isNight() || isTrain() || (phase && phase.collapse) ? nightEnemyTarget(enemies[i]) : null;   // 夜戰：敵人會鎖定離自己最近的人形（含 AI 隊友）
     if (nT && nT !== P0) { player = nT; clones = C0.filter((c) => c !== nT); nightProxy = nT; }
     try {
     const e = enemies[i], toward = Math.atan2(player.y - e.y, player.x - e.x), dist = Math.hypot(player.x - e.x, player.y - e.y);
@@ -16426,7 +16429,8 @@ function draw(t) {
   hz.addColorStop(0.82, 'rgba(4,14,20,0)'); hz.addColorStop(1, 'rgba(4,14,20,0.32)');
   ctx.fillStyle = hz; ctx.fillRect(0, 0, W, H);
   if (bigMap() && MAPGEN && MAPGEN.fog && !cine && !inCave(player)) drawCollapseFog(1);
-  if (caveTrans) drawCaveTrans();   // 塌縮之谷：爆炸後滿地圖的紫藍色迷霧
+  if (caveTrans) drawCaveTrans();
+  drawColTimer();   // 塌縮之谷：爆炸後滿地圖的紫藍色迷霧
   if (isNight() && !phase.day && player && state !== 'menu') drawNightDark();
   drawDoseFx();   // 劑量官的衝刺預警、刀痕
   drawRepelFx(1 / 60);   // 異類相斥的扇形衝擊波
@@ -16481,6 +16485,38 @@ function draw(t) {
 const COLLAPSE_PRELOAD = [];
 const CINE = { blast: 8.2, zoomOut: [9.4, 12.4], pan: [12.4, 19.4], fog: [17.5, 23.5], back: [23.5, 27], end: 27.4 };   // pan：拉遠後沿著山谷往右移，其餘四顆炸彈在鏡頭經過前陸續爆炸，最後停在安全屋附近
 let cine = null;
+// 塌縮之谷的倒數：COL_BOMB 秒後（或玩家先進入安全屋）播放爆炸動畫；爆炸時還在外面、又在爆炸範圍裡的人直接被炸死
+const COL_BOMB = 300, COL_KILL_R = 700;
+let colT = 0, colBombed = false;
+function colTimerTick(dt) {
+  if (colBombed || cine) return;
+  colT += dt;
+  if (colT >= COL_BOMB || inCave(player)) { colBombed = true; collapseIntroStart(); }
+}
+function colBlastKill() {   // 爆炸結束：在外面、又在任何一顆炸彈 700 範圍內的單位直接死亡（山洞裡安全）
+  const hitAt = (u) => !inCave(u) && MAPGEN.blasts.some((b) => Math.hypot(u.x - b.x, u.y - b.y) < COL_KILL_R);
+  for (const n of MAPGEN.npcs || []) if (n.def && !n.dead && hitAt(n)) { n.hp = 0; n.dead = true; npcDie(n, 0); }
+  for (const n of MAPGEN.npcs || []) if (!n.def && !n.dead && hitAt(n)) n.dead = true;
+  for (const c of clones) if (c.hp > 0 && hitAt(c)) c.hp = 0;
+  if (player && player.hp > 0 && hitAt(player)) { player.invT = 0; player.gold = []; player.sakura = null; floatText(player.x, player.y - 60, '被坍塌液炸彈炸死', '#ff8f83'); damage(player.hp * 1000 + 99999, true); }
+}
+function drawColTimer() {
+  if (!(phase && phase.collapse) || colBombed || cine || state !== 'play') return;
+  const left = Math.max(0, COL_BOMB - colT), mm = Math.floor(left / 60), ss = Math.floor(left % 60), warn = left < 30;
+  ctx.setTransform(DPR, 0, 0, DPR, 0, 0); ctx.font = '800 15px sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  const txt = '坍塌液炸彈引爆　' + mm + ':' + String(ss).padStart(2, '0'), tw = ctx.measureText(txt).width + 28, y = 82;
+  ctx.fillStyle = warn ? 'rgba(90,14,14,0.85)' : 'rgba(10,16,20,0.78)'; ctx.beginPath(); ctx.roundRect(W / 2 - tw / 2, y - 15, tw, 30, 15); ctx.fill();
+  ctx.fillStyle = warn && Math.floor(gameTime * 3) % 2 ? '#ffffff' : warn ? '#ffb0a8' : '#e8eef2'; ctx.fillText(txt, W / 2, y);
+}
+// 四人小隊：大廳裡加入的 AI 隊友（最多 3 名）跟著玩家出發
+function colSpawnSquad() {
+  const L = defLobby ? defLobby.slots.slice(0, 3) : [];
+  L.forEach((sl, i) => {
+    const u = makePlayer(CHARACTERS[sl.id]); u.x = player.x - 60 - i * 50; u.y = player.y + (i - 1) * 60;
+    Object.assign(u, { clone: true, nightAlly: true, eliteAI: sl.level === 'elite', level: sl.level === 'elite' ? 'elite' : 'normal', slot: CLONE_SLOTS[i % 4], invT: 0.6, moving: false, aiming: false, shot: 0, trail: [] });
+    clones.push(u); nightOrder(); nightTeam.push(u);
+  });
+}
 function collapseIntroStart() {
   for (const pid of COLLAPSE_PRELOAD) ensurePack(pid).catch(() => {});
   const S = MAPGEN.cine, G = { x: S.x + 30, y: S.y + 30 };
@@ -16543,7 +16579,7 @@ function cineTick(dt) {
   zoom = C.z0 * (1.25 - zo * 1.03 - Math.sin(pn * Math.PI) * 0.06 + pn * 0.07) * (1 - bk) + C.z0 * bk;   // 移動途中再拉遠一點，停在安全屋時拉近
   for (let i = 1; i < C.B.length; i++) if (t >= C.bt[i] && !C.boomedB.has(i)) { C.boomedB.add(i); cineBoom(0.75, 3, 220); shake = Math.max(shake, 12); }   // 其餘四顆炸彈
   stream();
-  if (t >= CINE.end) { cine = null; zoom = C.z0; MAPGEN.fog = true; shake = 0; hud.hidden = false; touchui.hidden = false; $('miniSlot').style.visibility = ''; last = performance.now(); chunks.clear(); stream(); }
+  if (t >= CINE.end) { cine = null; zoom = C.z0; MAPGEN.fog = true; colBlastKill(); shake = 0; hud.hidden = false; touchui.hidden = false; $('miniSlot').style.visibility = ''; last = performance.now(); chunks.clear(); stream(); }
 }
 function drawCineUnit(u) {
   if (u.dead || u.alpha <= 0) return;
