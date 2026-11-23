@@ -132,6 +132,8 @@ h2{margin:0 0 8px;font-size:26px;font-weight:800}
 #introCap{position:absolute;left:50%;bottom:calc(92px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);width:min(760px,calc(100% - 32px));padding:12px 18px;border-radius:12px;background:rgba(4,12,20,.78);border:1px solid rgba(160,210,225,.25);color:#e6f2f5;font-size:clamp(13px,1.9vw,16px);line-height:1.65;text-align:center;opacity:0;transition:opacity .45s}
 #introTip{position:absolute;left:50%;bottom:calc(14px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);margin:0;width:min(30em,calc(100% - 32px));background:rgba(11,34,48,.88)}
 #introWait{position:absolute;left:50%;top:42%;transform:translate(-50%,-50%);color:#9fc3cc;font-size:15px;letter-spacing:.1em}
+#cineSkipBtn{position:fixed;z-index:30;right:calc(16px + env(safe-area-inset-right,0px));bottom:calc(16px + env(safe-area-inset-bottom,0px));padding:9px 18px;border-radius:10px;border:1px solid rgba(255,255,255,.4);background:rgba(4,12,20,.7);color:#fff;font-size:15px;font-weight:800}
+#cineSkipBtn[hidden]{display:none}
 #introSkip{position:absolute;top:calc(14px + env(safe-area-inset-top,0px));right:calc(14px + env(safe-area-inset-right,0px));padding:7px 14px;border-radius:8px;border:1px solid rgba(255,255,255,.35);background:rgba(4,12,20,.6);color:#fff;font-size:13px;cursor:pointer}
 .def-help{text-align:left}.def-help h2{text-align:center}.def-help h4{margin:14px 0 4px;color:#7fd4ff;font-size:14px;letter-spacing:.05em}.def-help ul{margin:0;padding-left:1.3em;font-size:13px;line-height:1.6;color:#d6e4e8}.def-help li{margin:3px 0}.def-help b{color:#ffd28a}
 .help{margin:14px 0 0;font-size:13px;line-height:1.6;color:var(--muted)}
@@ -456,7 +458,7 @@ body.touch #testPanel{max-height:38vh}   /* 手機：不要擋到左下的移動
 <div id="defClone" class="def-panel" hidden><h3>數據機：複製防禦人形</h3><div class="sub">全隊強化 5 段後，可以花零件複製隊伍裡的人形。防禦人形的數值是強化 5 段的 50% 生命、70% 傷害，只會在基地裡沿著外側巡邏，開槍時會停下來，不會閃避子彈也不會用技能（王牌會優先打血最少的敵人），最多 5 個。普通 20 零件、王牌 25 零件。</div><div class="sub" id="defCloneTxt"></div><div class="def-row train-btns" id="defCloneBtns"></div><div class="def-row"><button id="defCloneClose" type="button">關閉（B）</button></div></div>
 <div id="defNet" class="def-panel" hidden><h3>網路控制室</h3><div class="sub">最終時段可以花電池遠端連線東北方廢棄基地的九頭蛇。操作時本人會留在控制室。</div><div class="def-row" id="defMechRow"><span id="defMechTxt"></span><button id="defMech1" type="button">操作一台（20 電池）</button><button id="defMech2" type="button">兩台一起（40 電池）</button></div><div class="def-row"><button id="defNetClose" type="button">關閉（B）</button></div></div>
 <div id="defRev" class="def-panel" hidden><h3>復活台</h3><div class="sub">倒下 10 秒後可以花核心復活：一般 1 核心、精銳 AI 3 核心。打開「自動復活 AI」後，有 AI 倒下時其他 AI 會自己來這裡幫忙復活。</div><div id="defRevList"></div><div class="def-row"><span id="defRevTxt" class="sub"></span></div><div class="def-row"><button id="defAutoBtn" type="button">自動復活 AI：關</button><button id="defRevClose" type="button">關閉（B）</button></div></div>
-<div id="specBanner" hidden></div><div id="defFeed"></div>
+<div id="specBanner" hidden></div><button id="cineSkipBtn" type="button" hidden>跳過 ▶</button><div id="defFeed"></div>
 <div id="defPick" class="def-panel" hidden><h3>滅星行動：挑選 4 名 AI 隊友</h3><div class="sub" id="defPickTxt"></div><div id="defPickGrid"></div><div class="def-row"><button id="defPickRand" type="button">隨機挑選</button><button id="defPickGo" type="button">出擊</button><button id="defPickCancel" type="button">取消</button></div></div>
 <button id="commBtn" type="button" hidden title="使用通訊器（C）">通訊器<small id="commNum">×1</small><small class="only-mouse">C</small></button>
 <div id="invitePanel" hidden><img id="inviteImg" alt=""><div class="inv-txt"><b id="inviteName"></b><span>請求加入你的隊伍</span></div><button id="inviteYes" type="button">邀請加入<small id="inviteCost" class="only-mouse">Z</small></button><button id="inviteNo" type="button">不邀請<small class="only-mouse">X</small></button></div>
@@ -3856,7 +3858,7 @@ function npcStep(n, dt, foe) {
     // 索敵：鎖敵距離內最近的目標
     let tgt = null, best = D.lockRange;
     if (foe) { for (const u of friendlyUnits()) { if (!u || u.hp <= 0 || u.dead) continue; const d = Math.hypot(u.x - n.x, u.y - n.y); if (d < best) { best = d; tgt = u; } } }
-    else for (const e of enemies) { if (e.hp <= 0 || e.dead) continue; if (npcFlee() && e.x < n.x + 20) continue; const d = Math.hypot(e.x - n.x, e.y - n.y); if (d < best) { best = d; tgt = e; } }   // 逃跑中：後方（左邊）的敵人不理
+    else if (!inCave(n)) for (const e of enemies) { if (e.hp <= 0 || e.dead) continue; if (npcFlee() && colStage < 4 && e.x < n.x + 20) continue;   /* 爆炸之後（走出安全屋）：四面八方的敵人都打 */ const d = Math.hypot(e.x - n.x, e.y - n.y); if (d < best) { best = d; tgt = e; } }   // 逃跑中：後方（左邊）的敵人不理
     if (!tgt && foe) {   // 敵對：往玩家靠近到射程內
       const d = Math.hypot(player.x - n.x, player.y - n.y), ux = (player.x - n.x) / d, uy = (player.y - n.y) / d;
       if (d > D.lockRange * 0.85) { if (!go(ux, uy, D.speed) && !go(Math.sign(ux), 0, D.speed)) go(0, Math.sign(uy) || 1, D.speed); if (Math.abs(ux) > 0.2) n.faceLeft = ux < 0; }
@@ -3929,7 +3931,7 @@ function trainNpcCheck() {
   }
 }
 // NPC 受到傷害（光束、砲擊）
-function npcHurt(n, dmg, vx) { if (n.dead || n.invT > 0) return; n.hp -= dmg; floatText(n.x, n.y - 40, String(Math.round(dmg)), '#ff8f83'); if (n.hp <= 0) { n.hp = 0; n.dead = true; npcDie(n, vx || 0); npcSay(n); } }
+function npcHurt(n, dmg, vx) { if (n.dead || n.invT > 0) return; dmg = hazAbsorb(n, dmg); if (dmg <= 0) return; n.hp -= dmg; floatText(n.x, n.y - 40, String(Math.round(dmg)), '#ff8f83'); if (n.hp <= 0) { n.hp = 0; n.dead = true; npcDie(n, vx || 0); npcSay(n); } }
 // 敵方子彈打到 NPC：迴避（閃避值）→ 金盾 → 扣血。回傳 true＝子彈被吃掉
 function npcBulletHit(b) {
   for (const n of liveNpcs()) {
@@ -3937,6 +3939,7 @@ function npcBulletHit(b) {
     if (!b.elec && Math.random() < evadeRate(n.def) + effSum(n, 'evade')) { (b.missedC || (b.missedC = new Set())).add(n); floatText(n.x, n.y - 40, 'MISS', '#bfefff'); return false; }
     let dmg = (b.dmg ?? ENEMY.bulletDmg) * atkMulNow; dmg = absorbGold(n, dmg);
     { const ar = n.def.armor; if (ar && ar.value > 0 && dmg > 0 && !b.elec && Math.random() < (dmg <= ar.value ? ar.blockLow : ar.blockHigh)) { dmg = Math.max(1, dmg - ar.value); floatText(n.x, n.y - 34, '格擋', '#f9cf70'); } }   // 護甲格擋
+    dmg = hazAbsorb(n, dmg);
     if (dmg > 0) { n.hp -= dmg; floatText(n.x, n.y - 40, String(Math.round(dmg)), '#ff8f83'); burst(b.x, b.y, '#ff8f83', 4); if (n.hp <= 0) { n.hp = 0; n.dead = true; npcDie(n, b.vx); npcSay(n); } }
     return true;
   }
@@ -3992,18 +3995,62 @@ function caveTick(dt) {
     return;
   }
   // 山洞裡的醫療櫃：靠近按功能鍵（B）補滿全部人的生命（含倖存人形）
-  const med = inCave(player) && MAPGEN.solids.find((o) => o.kind === 'cprop' && o.img === 'medcab' && Math.hypot(player.x - o.x, player.y - o.y) < 100);
-  caveMedNear = !!med; $('boardBtn').hidden = !med; if (med) $('boardBtn').firstChild.textContent = '醫療櫃';
+  const near = (img) => inCave(player) && MAPGEN.solids.find((o) => o.kind === 'cprop' && o.img === img && Math.hypot(player.x - o.x, player.y - o.y) < 100);
+  const med = near('medcab'), suit = !med && near('hazlocker');
+  caveMedNear = med ? 'med' : suit ? 'suit' : null; $('boardBtn').hidden = !caveMedNear; if (caveMedNear) $('boardBtn').firstChild.textContent = med ? '醫療櫃' : '生化服';
+  if (inCave(player) && !caveHintShown) { caveHintShown = true; colHint = { t0: gameTime, text: '安全屋裡有醫療櫃（治療全員）和生化服衣櫃（穿上後有 50 點護盾、不會被坍塌污染扣血），靠近後按 B' }; }
   const door = { x: S.x, y: S.y + 75 };   // 安全屋大門（地堡正面中間）
   if (!inCave(player) && Math.abs(player.x - door.x) < 42 && player.y < door.y + 34 && player.y > door.y - 20) caveTrans = { t: 0, dest: { x: C.x, y: C.y + C.ry * 0.62 } };
   else if (inCave(player) && player.y > C.y + C.ry + 40) caveTrans = { t: 0, dest: { x: door.x, y: door.y + 70 } };
 }
-let caveMedNear = false;
+let caveMedNear = null, caveHintShown = false, colHint = null;
+const HAZ_MAX = 50;
+function hazAbsorb(u, amt) {   // 生化服的白色護盾：最先吸收傷害
+  if (!u || !(u.hazmat > 0) || !(amt > 0)) return amt;
+  const use = Math.min(u.hazmat, amt); u.hazmat -= use; burst(u.x, u.y - 20, '#f2f6f8', 3);
+  if (u.hazmat <= 0) { u.hazmat = 0; floatText(u.x, u.y - 60, '生化服破損', '#e0e6ea'); }
+  return amt - use;
+}
 function caveHeal() {
-  if (!caveMedNear) return;
+  if (caveMedNear === 'suit') {   // 生化服衣櫃：全隊（含跟著的倖存人形）穿上生化服
+    for (const u of [player, ...nightAllies(), ...liveNpcs().filter((n) => n.joined)]) if (u && u.hp > 0) { u.hazmat = HAZ_MAX; burst(u.x, u.y - 20, '#ffffff', 10); }
+    floatText(player.x, player.y - 60, '全員穿上生化服（護盾 ' + HAZ_MAX + '）', '#f2f6f8'); sfx.reload(); return;
+  }
+  if (caveMedNear !== 'med') return;
   for (const u of [player, ...clones]) if (u && u.hp > 0) { u.hp = u.maxHp; burst(u.x, u.y, '#7dff9a', 10); }
   for (const n of MAPGEN.npcs || []) if (n.def && !n.dead) { n.hp = n.maxHp; burst(n.x, n.y, '#7dff9a', 10); }
   updateHp(); floatText(player.x, player.y - 60, '全員生命補滿', '#7dff9a'); sfx.reload();
+}
+function drawHazLocker(o) {   // 生化服衣櫃：灰綠色鐵櫃，門開著看得到掛著的白色生化服，門上有黃黑警示條
+  const q = proj(o.x, o.y); if (!onScreen(q, 160)) return;
+  ground(q, o.x, o.y); ctx.fillStyle = 'rgba(8,6,4,0.4)'; ctx.beginPath(); ctx.ellipse(o.x, o.y + 2, 50, 16, 0, 0, Math.PI * 2); ctx.fill();
+  upright(q, o.x, o.y); const x0 = o.x - 42, w = 84, h = 120, y0 = o.y + 4 - h;
+  ctx.fillStyle = '#4f5a50'; ctx.fillRect(x0, y0, w, h); ctx.strokeStyle = '#1a1e1a'; ctx.lineWidth = 2; ctx.strokeRect(x0, y0, w, h);
+  ctx.fillStyle = '#20251f'; ctx.fillRect(x0 + 5, y0 + 6, w - 10, h - 12);   // 櫃子內部
+  ctx.strokeStyle = '#8b939a'; ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(x0 + 6, y0 + 14); ctx.lineTo(x0 + w - 6, y0 + 14); ctx.stroke();   // 掛桿
+  for (const dx of [20, 44, 66]) {   // 三套白色生化服
+    const cx = x0 + dx; ctx.fillStyle = '#e8ecee'; ctx.beginPath(); ctx.moveTo(cx - 9, y0 + 18); ctx.lineTo(cx + 9, y0 + 18); ctx.lineTo(cx + 11, y0 + 70); ctx.lineTo(cx + 7, y0 + 100); ctx.lineTo(cx + 1, y0 + 100); ctx.lineTo(cx, y0 + 74); ctx.lineTo(cx - 1, y0 + 100); ctx.lineTo(cx - 7, y0 + 100); ctx.lineTo(cx - 11, y0 + 70); ctx.closePath(); ctx.fill();
+    ctx.fillStyle = '#f4c542'; ctx.beginPath(); ctx.arc(cx, y0 + 30, 5, 0, Math.PI * 2); ctx.fill(); ctx.fillStyle = '#9ad7ff'; ctx.fillRect(cx - 4, y0 + 22, 8, 4); }
+  ctx.fillStyle = '#5c6a5d'; ctx.beginPath(); ctx.moveTo(x0 + w, y0); ctx.lineTo(x0 + w + 26, y0 + 8); ctx.lineTo(x0 + w + 26, y0 + h - 4); ctx.lineTo(x0 + w, y0 + h); ctx.closePath(); ctx.fill(); ctx.strokeStyle = '#1a1e1a'; ctx.stroke();   // 打開的門
+  for (let k = 0; k < 5; k++) { ctx.fillStyle = k % 2 ? '#1b1b1b' : '#f2c230'; ctx.beginPath(); const yy = y0 + 18 + k * 8; ctx.moveTo(x0 + w + 2, yy); ctx.lineTo(x0 + w + 24, yy + 6); ctx.lineTo(x0 + w + 24, yy + 14); ctx.lineTo(x0 + w + 2, yy + 8); ctx.fill(); }
+  ctx.fillStyle = '#f2c230'; ctx.font = '800 13px sans-serif'; ctx.textAlign = 'center'; ctx.fillText('☣', x0 + w + 13, y0 + 80);
+  ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+}
+function drawCaveLabels() {   // 山洞裡的功能櫃：頭上標示名稱
+  if (!(phase && phase.collapse) || !inCave(player) || cine) return;
+  ctx.setTransform(DPR, 0, 0, DPR, 0, 0); ctx.font = '800 13px sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  for (const o of MAPGEN.solids) { if (o.kind !== 'cprop' || (o.img !== 'medcab' && o.img !== 'hazlocker')) continue; const q = proj(o.x, o.y), y = q.y - 150 * q.k, t = (o.img === 'medcab' ? '醫療櫃' : '生化服衣櫃') + (isTouch() ? '' : '［B］'); ctx.lineWidth = 3; ctx.strokeStyle = 'rgba(0,0,0,0.7)'; ctx.strokeText(t, q.x, y); ctx.fillStyle = o.img === 'medcab' ? '#9dffb4' : '#ffe08a'; ctx.fillText(t, q.x, y); }
+  if (colHint) { const u = gameTime - colHint.t0; if (u > 8) colHint = null; else { const a = clamp(Math.min(u / 0.4, (8 - u) / 0.6), 0, 1), w = Math.min(W - 30, 640); ctx.globalAlpha = a; ctx.fillStyle = 'rgba(10,16,20,0.85)'; ctx.beginPath(); ctx.roundRect((W - w) / 2, H - 120, w, 44, 10); ctx.fill(); ctx.fillStyle = '#f1f5f7'; ctx.font = '700 ' + Math.max(11, Math.min(15, w / 44)) + 'px sans-serif'; ctx.fillText(colHint.text, W / 2, H - 98); ctx.globalAlpha = 1; } }
+}
+function drawHazShields() {   // 生化服：人形身上一層白色半透明護盾
+  if (!(phase && phase.collapse) || cine) return;
+  for (const u of [player, ...clones, ...liveNpcs()]) {
+    if (!u || !(u.hazmat > 0) || u.hp <= 0 || (u === player && player.defDown)) continue; const q = proj(u.x, u.y); if (!onScreen(q, 80)) continue;
+    const k = u.hazmat / HAZ_MAX, cx = q.x, cy = q.y - 30 * q.k, rx = 26 * q.k, ry = 38 * q.k, g = ctx.createRadialGradient(cx, cy, rx * 0.3, cx, cy, ry);
+    g.addColorStop(0, 'rgba(255,255,255,0.03)'); g.addColorStop(1, 'rgba(255,255,255,' + (0.16 + 0.14 * k) + ')'); ctx.fillStyle = g; ctx.beginPath(); ctx.ellipse(cx, cy, rx, ry, 0, 0, Math.PI * 2); ctx.fill();
+    ctx.strokeStyle = 'rgba(255,255,255,' + (0.35 + 0.35 * k) + ')'; ctx.lineWidth = 1.5; ctx.stroke();
+  }
+  if (player.hazmat > 0 && state === 'play') { ctx.font = '800 13px sans-serif'; ctx.textAlign = 'left'; ctx.textBaseline = 'middle'; ctx.fillStyle = '#f2f6f8'; ctx.fillText('生化服 ' + Math.ceil(player.hazmat) + ' / ' + HAZ_MAX, Math.max(14, $('miniSlot').getBoundingClientRect().left), 136); }
 }
 function drawCaveTrans() { if (!caveTrans) return; const t = caveTrans.t, a = t < 0.3 ? t / 0.3 : 1 - (t - 0.3) / 0.3; ctx.setTransform(DPR, 0, 0, DPR, 0, 0); ctx.fillStyle = 'rgba(0,0,0,' + clamp(a, 0, 1) + ')'; ctx.fillRect(0, 0, W, H); }
 // 山洞的地面與洞壁
@@ -4035,6 +4082,7 @@ function drawCave() {
   { const q = proj(C.x, C.y + C.ry + 60); ctx.font = '700 13px sans-serif'; ctx.textAlign = 'center'; ctx.fillStyle = 'rgba(232,238,242,0.75)'; ctx.fillText('▼ 出口', q.x, q.y); }
 }
 function drawCaveProp(o) {
+  if (o.img === 'hazlocker') { drawHazLocker(o); return; }
   const im = (imgs[packBox.cave] || {})[o.img], q = proj(o.x, o.y); if (!im || !onScreen(q, 160)) return;
   ground(q, o.x, o.y); ctx.fillStyle = 'rgba(8,6,4,0.4)'; ctx.beginPath(); ctx.ellipse(o.x, o.y + 2, o.iw * 0.5, o.iw * 0.18, 0, 0, Math.PI * 2); ctx.fill();
   upright(q, o.x, o.y); const h = o.iw * im.height / im.width; ctx.drawImage(im, o.x - o.iw / 2, o.y + 6 - h, o.iw, h);
@@ -4576,7 +4624,7 @@ function genCollapseMap1() {
   // 安全屋內的山洞：做在地圖外面（地圖下方 3000），從安全屋大門進出
   const cave = { x: safe.x - 300, y: HH + 3000, rx: 900, ry: 440 };
   for (const [img, dx, dy, w, r] of [['desk', -120, -330, 150, 34], ['table', 160, -320, 120, 30], ['shelf', -430, -300, 120, 30], ['wrack', -600, -230, 60, 20], ['ammo', 420, -290, 90, 28], ['ammo', 520, -250, 80, 26], ['cases', 640, -160, 110, 30],
-    ['medcab', 330, -340, 80, 22], ['boxes', -700, -60, 110, 30], ['water', 720, 40, 100, 28], ['ammo', -620, 120, 80, 26], ['boxes', 600, 210, 100, 28]])
+    ['medcab', 330, -340, 80, 22], ['hazlocker', -285, -338, 92, 26], ['boxes', -700, -60, 110, 30], ['water', 720, 40, 100, 28], ['ammo', -620, 120, 80, 26], ['boxes', 600, 210, 100, 28]])
     solids.push({ kind: 'cprop', img, x: cave.x + dx, y: cave.y + dy, iw: w, r });   // iw：圖寬（不用 w，免得被當成方形障礙物）
   for (const b of blasts) ground.push({ kind: 'blast', x: b.x, y: b.y, r: 430, s: rnd() });   // 爆炸後才會出現的焦土大坑
   const M = finishVsMap({ hw: HW, hh: HH, cellsX: CX, cellsY: CY, label: '塌縮之谷・第一階段　220 × 26 格', theme: 'valley', bases: [{ team: 'blue', x: start.x, y: start.y, x0: start.x - 200, x1: start.x + 200, y0: start.y - 160, y1: start.y + 160 }], blobs, solids, trees, ground });
@@ -8832,7 +8880,7 @@ function beginGame() {
   if (selectedLevel === 'night') floatText(player.x, player.y - 80, '敵方勢力：' + NIGHT_ROSTERS[nightRoster].name, '#ff9a8a');   // 夜戰：這場抽到的出敵清單
   setState('play'); last = performance.now();
   bulwarkPend = [];
-  if (phase && phase.collapse) { MAPGEN.fog = false; colT = 0; colDown = []; colStage = 1; colLine = null; colSmoke = []; colPoisonT = 0; colCaveT = 0; colWinT = 0; navSolid.clear(); colBombed = false; colBombDeath = false; colArty = []; colPursuit = false; colSpawnSangvis(); openingStart(); npcReset(); colSpawnSquad(); }   // 塌縮之谷：倒數 5:00（或進入安全屋）才引爆坍塌液炸彈   // 塌縮之谷：先播坍塌液炸彈的爆炸動畫（試作：每次進場都播）
+  if (phase && phase.collapse) { MAPGEN.fog = false; colT = 0; colDown = []; colStage = 1; colLine = null; colSmoke = []; colPoisonT = 0; colCaveT = 0; colWinT = 0; caveHintShown = false; colHint = null; navSolid.clear(); colBombed = false; colBombDeath = false; colArty = []; colPursuit = false; colSpawnSangvis(); openingStart(); npcReset(); colSpawnSquad(); }   // 塌縮之谷：倒數 5:00（或進入安全屋）才引爆坍塌液炸彈   // 塌縮之谷：先播坍塌液炸彈的爆炸動畫（試作：每次進場都播）
   if (selectedLevel === 'war' || selectedLevel === 'night' || selectedLevel === 'defense') bgmStart('normal', 3); else if (selectedLevel === 'versus') bgmStart('normal', 5); else bgmStop(true);   // 背景音樂：亂序戰事從普通歌單抽 3 首、雲圖對戰抽 5 首（菁英對決只有 Boss 歌單）
 }
 // 角色相關的介面（技能圖示、彈藥、生命、閃避、效果列、切換按鈕）依目前出擊的人形更新
@@ -11593,6 +11641,7 @@ function damage(amount, pierce, armorPen = 0) {
   if (player.invT > 0) return;   // 閃避無敵中
   amount *= atkMulNow;   // 攻擊被削弱的敵人（埃癸斯之盾）在自己的回合直接造成的傷害
   amount = vulnCrit(player, amount);   // 易傷：有機率被暴擊
+  amount = hazAbsorb(player, amount); if (amount <= 0) { updateHp(); return; }   // 塌縮之谷：生化服的護盾最先吸收
   amount = absorbSakura(player, amount); if (amount <= 0) { updateHp(); return; }   // 櫻花護盾：比金盾更先吸收
   // 金盾：最先吸收，受到多少扣多少（不經過護甲）
   if (player.gold && player.gold.length) {
@@ -11917,6 +11966,7 @@ function damageClone(c, amount, pierce, armorPen = 0) {
   lastBlk = false;
   if (c.invT > 0) return;
   amount *= atkMulNow;
+  amount = hazAbsorb(c, amount); if (amount <= 0) return;   // 塌縮之谷：生化服
   amount = vulnCrit(c, amount);   // 易傷：有機率被暴擊
   amount = absorbSakura(c, amount); if (amount <= 0) return;   // 櫻花護盾
   amount = absorbGold(c, amount); if (amount <= 0) return;   // 金盾最先吸收
@@ -12792,7 +12842,7 @@ function typhonCore(e, dt, toward, aimTo, dist, canMove) {
   if (e.kvx || e.kvy) { e.kvx = e.kvy = 0; }   // 重型坦克：不會被擊退
 }
 // 砲口位置（地面座標＋高度）；光束從砲口拉到 650 外
-const TYP_HIT_H = -3;   // 人形身體中間的高度（相對腳下座標）
+const TYP_HIT_H = -3, TYP_BODY_H = -24;   // TYP_BODY_H：畫光束時對準的身體中間高度   // 人形身體中間的高度（相對腳下座標）
 function typMuzzle(e) { const m = e.B.assets.meta, sc = m.scale, dx = (m.muzzle[0] - m.cx) * sc * (e.faceLeft ? 1 : -1), h = (m.muzzle[1] - m.cy) * sc; return { x: e.x + dx, y: e.y, h }; }
 function typBeamSeg(e) { const M = typMuzzle(e), R = e.B.laser.range, a = e.beam; return { M, E: { x: M.x + Math.cos(a) * R, y: M.y + Math.sin(a) * R } }; }
 const segDist = (px, py, ax, ay, bx, by) => { const vx = bx - ax, vy = by - ay, L2 = vx * vx + vy * vy || 1, t = clamp(((px - ax) * vx + (py - ay) * vy) / L2, 0, 1); return Math.hypot(px - ax - vx * t, py - ay - vy * t); };
@@ -12823,8 +12873,11 @@ function drawTyphonBeams() {
     const L = e.B.laser, M = typMuzzle(e), a = e.mode === 'fire' ? e.beam : e.aim; let len = L.range;
     { const vb = viewBounds(), maxY = cam.y + Math.min(P3 * 0.6, vb.b + 80), sy = Math.sin(a); if (sy > 0 && M.y + sy * len > maxY) len = Math.max(0, (maxY - M.y) / sy); }   // 鏡頭拉近時：畫面下方太遠的部分不畫（投影會無限放大）
     const E = { x: M.x + Math.cos(a) * len, y: M.y + Math.sin(a) * len };
-    const dT = clamp(Number.isFinite(e.aimD) ? e.aimD : 300, 90, L.range), hE = clamp(M.h + (TYP_HIT_H - M.h) * len / dT, M.h, 8);   // 光束斜斜往下，在目標的距離剛好打在身體中間
-    const qa = proj(M.x, M.y), qb = proj(E.x, E.y), ax = qa.x, ay = qa.y + M.h * qa.k, bx = qb.x, by = qb.y + hE * qb.k;
+    const dT = clamp(Number.isFinite(e.aimD) ? e.aimD : 300, 90, L.range);
+    const qa = proj(M.x, M.y), ax = qa.x, ay = qa.y + M.h * qa.k;
+    // 光束在畫面上要剛好穿過目標身體中間（之前用高度內插，透視下會從頭頂上方掠過）：先算目標距離那一點的螢幕位置，再沿同一條線延長到光束末端
+    const TX = M.x + Math.cos(a) * dT, TY = M.y + Math.sin(a) * dT, qt = proj(TX, TY), tx = qt.x, ty = qt.y + TYP_BODY_H * qt.k, kk = len / dT;
+    const bx = ax + (tx - ax) * kk, by = ay + (ty - ay) * kk;
     ctx.save(); ctx.globalCompositeOperation = 'lighter'; ctx.lineCap = 'round';
     if (e.mode === 'charge') {   // 蓄力：細的瞄準線越來越亮＋砲口聚光
       const k = clamp(e.t / L.charge, 0, 1);
@@ -16676,6 +16729,7 @@ function draw(t) {
   hz.addColorStop(0.82, 'rgba(4,14,20,0)'); hz.addColorStop(1, 'rgba(4,14,20,0.32)');
   ctx.fillStyle = hz; ctx.fillRect(0, 0, W, H);
   if (phase && phase.collapse && colSmoke.length && !cine) drawColSmoke();
+  if (phase && phase.collapse) { drawHazShields(); drawCaveLabels(); }
   if (phase && phase.collapse && !cine) drawColBossFx();
   if (phase && phase.collapse && colArty.length && !cine) drawColArty();
   if (phase && phase.collapse && colDown.length && !cine) drawColDown();
@@ -16814,7 +16868,7 @@ function drawColTimer() {   // 左上角（小地圖下方）顯示經過時間
 const COL_HOLD_X = -520, COL_ARTY = { start: 5, on: 10, off: 10, every: 0.7, r: 300, spread: 480, dmg: 22, warn: [1.8, 2.6] };   // r：爆炸範圍；spread：落點離隊員的隨機距離
 const COL_KCCO = {
   cyc: () => scaleStats(CYCLOPS, { hp: 10, speed: 2 }), hydra: () => scaleStats(HYDRA, { hp: 10, speed: 2.5, lock: 2 }), cent: () => scaleStats(CENTAUR, { hp: 10, speed: 2 }),
-  typhon: () => ({ ...BOSSES.typhon, speed: 250, laser: { ...BOSSES.typhon.laser, range: 1500, charge: 1 } }),
+  typhon: () => ({ ...BOSSES.typhon, speed: 250, lockRange: 400, laser: { ...BOSSES.typhon.laser, range: 1500, charge: 1 } }),   // 開到 400 內才開火（太遠蓄力常被打斷）
 };
 let colArty = [], colPursuit = false, colGod = false, opening = null;
 function colCaveFollow(c, dt) {
@@ -17012,7 +17066,7 @@ function colAfterBomb() {   // 爆炸動畫結束：第二追擊隊被炸到只�
   for (const e of enemies) if (e.colSquad === 2 && e.hp > 0) e.hp = 0;
   enemies = enemies.filter((e) => !(e.colSquad === 2));
   const S = MAPGEN.safe, P = nightSpot(S.x - 700, S.y + 900, 60);
-  const e = colTyphonAt(P.x, P.y, { ...BOSSES.typhon }, { colBoss: true, damaged: true });   // 正常倍率
+  const e = colTyphonAt(P.x, P.y, { ...BOSSES.typhon, lockRange: 400 }, { colBoss: true, damaged: true });   // 正常倍率（400 內才開火）
   boss = e; $('bossName').textContent = '受損的提豐'; $('bossBar').hidden = inCave(player); updateBossBar();   // 還在安全屋裡就先不顯示血條
   floatText(player.x, player.y - 90, '擊敗受損的提豐！', '#ffb070');
 }
@@ -17025,9 +17079,10 @@ function colLateTick(dt) {   // 爆炸動畫之後：坍塌污染（每 30 秒�
   colPoisonT += dt;
   if (colPoisonT >= COL_S2.poison[0]) {
     colPoisonT = 0; const D = COL_S2.poison[1], out = (u) => !inCave(u);
-    if (player.hp > 0 && out(player)) { damage(D, true); floatText(player.x, player.y - 50, '坍塌污染 −' + D, '#a99cff'); }
-    for (const c of clones.slice()) if (c.hp > 0 && out(c)) damageClone(c, D, true);
-    for (const n of liveNpcs()) if (out(n)) npcHurt(n, D, 0);
+    const suit = (u) => (u.hazmat || 0) > 0;   // 穿著生化服：不會被污染扣血
+    if (player.hp > 0 && out(player) && !suit(player)) { const iv = player.invT; player.invT = 0; damage(D, true); player.invT = iv; floatText(player.x, player.y - 50, '坍塌污染 −' + D, '#a99cff'); }
+    for (const c of clones.slice()) if (c.hp > 0 && out(c) && !suit(c)) damageClone(c, D, true);
+    for (const n of liveNpcs()) if (out(n) && !suit(n)) npcHurt(n, D, 0);
     for (const o of enemies) if (o.hp > 0) hitEnemy(o, D, '#a99cff', true);
   }
   if (colWinT > 0 && (colWinT -= dt) <= 0 && state === 'play') endGame(true);
@@ -17092,7 +17147,9 @@ function collapseIntroStart() {
   hud.hidden = true; touchui.hidden = true; $('miniSlot').style.visibility = 'hidden'; chunks.clear(); stream();
 }
 function cineSkip() { if (cine && cine.t < CINE.back[0]) { cine.t = CINE.back[0]; for (const u of cine.units) u.dead = true; } }
-addEventListener('pointerdown', () => { cineSkip(); openSkip(); }, true); addEventListener('keydown', () => { cineSkip(); openSkip(); }, true);
+addEventListener('keydown', (e) => { if (e.code === 'Space' && (cine || opening)) { e.preventDefault(); cineSkip(); openSkip(); } }, true);   // 電腦：空白鍵跳過；手機：右下角的跳過按鈕
+$('cineSkipBtn').addEventListener('click', () => { cineSkip(); openSkip(); });
+function syncSkipBtn() { const b = $('cineSkipBtn'), on = isTouch() && ((cine && cine.t < CINE.back[0]) || (opening && opening.t < OP.back[0])); if (b.hidden === on) b.hidden = !on; }
 function cineBoom(vol, dur, f) {   // 爆炸聲：低通的白噪音
   const a = muted ? null : AC; if (!a) return;
   const t = a.currentTime, n = Math.floor(a.sampleRate * dur), buf = a.createBuffer(1, n, a.sampleRate), ch = buf.getChannelData(0);
@@ -17265,14 +17322,14 @@ function drawCine() {
   if (t < 1.2) { ctx.fillStyle = 'rgba(0,0,0,' + (1 - t / 1.2) + ')'; ctx.fillRect(0, 0, W, H); }
   // 上下黑邊＋字幕
   const bar = H * 0.09 * (1 - cineEase((t - CINE.back[0]) / 1.5)); ctx.fillStyle = '#000'; ctx.fillRect(0, 0, W, bar); ctx.fillRect(0, H - bar, W, bar);
-  ctx.font = '600 13px sans-serif'; ctx.textAlign = 'right'; ctx.textBaseline = 'middle'; ctx.fillStyle = 'rgba(255,255,255,0.55)'; if (t < CINE.back[0]) ctx.fillText('點擊畫面或按任意鍵跳過', W - 16, H - bar / 2);
+  ctx.font = '600 13px sans-serif'; ctx.textAlign = 'right'; ctx.textBaseline = 'middle'; ctx.fillStyle = 'rgba(255,255,255,0.55)'; if (t < CINE.back[0] && !isTouch()) ctx.fillText('按空白鍵跳過', W - 16, H - bar / 2);
   const cap = t < 6 ? '東喀爾巴阡山麓・河谷森林' : t > CINE.fog[0] + 1 && t < CINE.back[0] ? '坍塌液污染擴散中' : '';
   if (cap) { ctx.textAlign = 'left'; ctx.font = '700 16px sans-serif'; ctx.fillStyle = 'rgba(230,236,240,0.85)'; ctx.fillText(cap, 18, H - bar / 2); }
 }
 /* ───── 塌縮之谷・第一階段的開場動畫 ─────
    黑幕＋文字 → 山腰鐵路（寒風）：阿爾戈裝甲列車的船底座從左邊開進來 → 主砲特寫開火 → 鏡頭跟著高爆彈飛向山谷
    → 山谷裡 4 名人形正在跟鐵血交戰 → 高爆彈落在交戰中心，雙方都被炸飛，留下一個深坑 → 第一階段開始（友軍通訊：快跑！） */
-const OP = { text: [1, 4.6], scene: 4.6, train: [5.4, 9.2], close: [9.2, 12.2], shell: [12.2, 14.6], world: 14.6, impact: 17.4, back: [19, 20.5], end: 20.8 };
+const OP = { text: [1, 4.6], scene: 4.6, train: [5.4, 9.2], close: [9.2, 12.2], shell: [12.2, 15.4], world: 15.4, impact: 18.2, back: [19.8, 21.3], end: 21.6 };
 let colComm = null, opImgCache = {};
 function opImg(k) { const im = (imgs[packBox.argo] || {})[k]; return im; }
 function openingStart() {
@@ -17399,6 +17456,9 @@ function opFadeDraw(im, x, y, w, h) {   // 畫一張圖，左右兩側與下緣�
   gr = g.createLinearGradient(0, 0, 0, ch); gr.addColorStop(0, '#000'); gr.addColorStop(0.8, '#000'); gr.addColorStop(1, 'rgba(0,0,0,0)'); g.fillStyle = gr; g.fillRect(0, 0, cw, ch);
   ctx.drawImage(c, x, y, w, h);
 }
+function opShellH(v) {   // 砲彈高度（相對發射點）：上升段（0～0.3）、平飛段（0.3～0.62）、下降段（0.62～1，一路掉到比發射點低）
+  const Hm = 1000; if (v < 0.3) return Hm * Math.sin(v / 0.3 * Math.PI / 2); if (v < 0.62) return Hm; return Hm * (Math.cos((v - 0.62) / 0.38 * Math.PI / 2) * 1.7 - 0.7);
+}
 function opBgShells(t, u) {   // 背景的砲彈群：各自一條拋物線，越遠越小、越淡、越慢；鏡頭往右跟，所以它們相對往左漂
   for (let i = 0; i < 16; i++) {
     const far = 0.25 + 0.75 * hash(i, 1, 61), sp = 0.55 + 0.6 * hash(i, 2, 61), ph = hash(i, 3, 61);
@@ -17435,23 +17495,27 @@ function drawOpening() {
         }
         opWind(t);
       } else if (t < OP.close[1]) {   // 主砲特寫：開火動畫
-        opScenery(t, 400); const m = (ASSETS.argo || {}).meta, lt = t - OP.close[0], dur = m ? m.fire.dur : 1.43, n = m ? m.fire.n : 44, fT = dur / n, rise = 12 * fT, cyc = 0.45 + 8 * fT;
-        let idx, cyN = 0; if (lt < rise) idx = Math.floor(lt / fT); else { const c = lt - rise, u = c % cyc; cyN = Math.floor(c / cyc); idx = u < 8 * fT ? 12 + Math.floor(u / fT) : 11; }   // 砲管抬升只播一次（第 1～12 幀），之後固定角度重複開火（第 13～20 幀＋停頓）
+        opScenery(t, 400); const m = (ASSETS.argo || {}).meta, lt = t - OP.close[0], dur = m ? m.fire.dur : 1.43, n = m ? m.fire.n : 44, fT = dur / n, rise = 12 * fT, cyc = 0.45 + 6 * fT;
+        let idx, cyN = 0, idx2 = -1, xf = 0; if (lt < rise) idx = Math.floor(lt / fT); else { const c = lt - rise, u = c % cyc; cyN = Math.floor(c / cyc); if (u < 6 * fT) idx = 12 + Math.floor(u / fT); else { idx = 17; if (u > 6 * fT + 0.3) { idx2 = 12; xf = clamp((u - 6 * fT - 0.3) / 0.15, 0, 1); } } }   // 開火 13～18 幀 → 停在第 18 幀 → 淡入回第 13 幀，接上下一發（無縫）   // 砲管抬升只播一次（第 1～12 幀），之後固定角度重複開火（第 13～20 幀＋停頓）
         const im = opImg('f' + String(idx + 1).padStart(2, '0'));
-        if (im) { const w = Math.min(W * 0.84, H * 1.25 * im.width / im.height), h = w * im.height / im.width, x = (W - w) / 2 + W * 0.04, y = H * 0.12; opFadeDraw(im, x, y, w, h);   // 特寫：比之前小一點，素材的左右下裁切邊淡出到背景
-          const sc = w / im.width, fired = idx >= 12 && idx < 20; if (fired) { for (const [mx, my] of [[760, 42], [660, 92]]) { const px = x + mx * sc, py = y + my * sc, R = (idx - 11) * 18 * sc / 0.6; const g = ctx.createRadialGradient(px, py, 0, px, py, R + 40); g.addColorStop(0, 'rgba(255,250,220,0.95)'); g.addColorStop(0.35, 'rgba(255,170,60,0.8)'); g.addColorStop(1, 'rgba(120,80,60,0)'); ctx.fillStyle = g; ctx.beginPath(); ctx.arc(px + R * 0.6, py - R * 0.4, R + 40, 0, Math.PI * 2); ctx.fill(); } if (idx === 12) { shake = 14; if (!O['fx' + cyN]) { O['fx' + cyN] = 1; cineBoom(0.7, 0.7, 900); } } } }
+        if (im) { const w = Math.min(W * 0.84, H * 1.25 * im.width / im.height), h = w * im.height / im.width, x = (W - w) / 2 + W * 0.04, y = H * 0.12; opFadeDraw(im, x, y, w, h); if (idx2 >= 0 && xf > 0) { const im2 = opImg('f' + String(idx2 + 1).padStart(2, '0')); if (im2) { ctx.globalAlpha = xf; opFadeDraw(im2, x, y, w, h); ctx.globalAlpha = 1; } }   // 特寫：比之前小一點，素材的左右下裁切邊淡出到背景
+          const sc = w / im.width, fired = idx >= 12 && idx < 18 && idx2 < 0; if (fired) { for (const [mx, my] of [[760, 42], [660, 92]]) { const px = x + mx * sc, py = y + my * sc, R = (idx - 11) * 18 * sc / 0.6; const g = ctx.createRadialGradient(px, py, 0, px, py, R + 40); g.addColorStop(0, 'rgba(255,250,220,0.95)'); g.addColorStop(0.35, 'rgba(255,170,60,0.8)'); g.addColorStop(1, 'rgba(120,80,60,0)'); ctx.fillStyle = g; ctx.beginPath(); ctx.arc(px + R * 0.6, py - R * 0.4, R + 40, 0, Math.PI * 2); ctx.fill(); } if (idx === 12) { shake = 14; if (!O['fx' + cyN]) { O['fx' + cyN] = 1; cineBoom(0.7, 0.7, 900); } } } }
         opWind(t);
       } else {   // 鏡頭跟著高爆彈：往右飛過天空，再往下掉向山谷
-        // 拋物線：彈道高度 4h·u(1−u)，鏡頭水平跟著砲彈、垂直只跟一半 → 畫面上看得到砲彈先爬升、越過頂點再往下掉
-        const u = (t - OP.shell[0]) / (OP.shell[1] - OP.shell[0]), kx = W / 2400, sy = H / 1000, HT = (v) => 3600 * v * (1 - v), camH = HT(u) * 0.55;
+        // 斜拋：上升段 → 平飛段 → 下降段。鏡頭水平跟著砲彈、垂直跟一半；背景的砲彈群走同一條彈道（角度一樣），遠的小、淡、起伏小
+        const u = (t - OP.shell[0]) / (OP.shell[1] - OP.shell[0]), kx = W / 2400, sy = H / 1000, HT = opShellH, camH = HT(u) * 0.75;
         opScenery(t, 400 + u * 3000 * kx * 3, camH * sy * 0.35);
-        opBgShells(t, u);   // 遠處同時飛著許多大小、速度不一的砲彈：大規模砲擊
-        const sx = (v) => W * (0.22 + 0.4 * u) - (u - v) * 3000 * kx, syv = (v) => H * 0.6 - (HT(v) - camH) * sy;
-        ctx.strokeStyle = 'rgba(230,230,225,0.55)'; ctx.lineCap = 'round'; ctx.lineWidth = 6; ctx.beginPath();   // 煙跡沿著走過的拋物線
-        for (let i = 0; i <= 24; i++) { const v = Math.max(0, u - 0.45 * (1 - i / 24)); if (i) ctx.lineTo(sx(v), syv(v)); else ctx.moveTo(sx(v), syv(v)); } ctx.stroke();
-        const a = Math.atan2(-(3600 * (1 - 2 * u)) * sy, 3000 * kx);
-        opShellSprite(sx(u), syv(u), a, Math.min(W, H) / 220); opWind(t);
-        if (u > 0.8) { ctx.fillStyle = 'rgba(255,255,255,' + (u - 0.8) * 5 + ')'; ctx.fillRect(0, 0, W, H); }
+        const path = (dv, f, ox, oy) => ({ x: (v) => W * (0.22 + 0.4 * u) + ox - (u + dv - v) * 3000 * kx * f, y: (v) => H * 0.6 + oy - (HT(v) - camH) * sy * f });
+        const fly = (dv, f, ox, oy, main) => {
+          const v = u + dv; if (v <= 0.01 || v > 1.05) return; const P = path(dv, f, ox, oy), sc = Math.min(W, H) / 220 * (main ? 1 : 0.2 + 0.55 * f);
+          ctx.globalAlpha = main ? 1 : 0.3 + 0.6 * f; ctx.strokeStyle = 'rgba(230,230,225,' + (main ? 0.55 : 0.45) + ')'; ctx.lineCap = 'round'; ctx.lineWidth = main ? 6 : 1.5 + 3 * f; ctx.beginPath();
+          for (let i = 0; i <= 24; i++) { const w = Math.max(0, v - 0.4 * (1 - i / 24)); if (i) ctx.lineTo(P.x(w), P.y(w)); else ctx.moveTo(P.x(w), P.y(w)); } ctx.stroke();   // 煙跡沿著走過的彈道
+          const dh = (HT(v + 0.002) - HT(v - 0.002)) / 0.004, a = Math.atan2(-dh * sy * f, 3000 * kx * f);
+          opShellSprite(P.x(v), P.y(v), a, sc); ctx.globalAlpha = 1;
+        };
+        for (let i = 0; i < 14; i++) { const f = 0.3 + 0.6 * hash(i, 1, 63); fly((hash(i, 2, 63) - 0.5) * 0.16, f, (hash(i, 3, 63) - 0.5) * W * 1.1, (hash(i, 4, 63) - 0.55) * H * 0.55, false); }
+        fly(0, 1, 0, 0, true); opWind(t);
+        if (u > 0.88) { ctx.fillStyle = 'rgba(255,255,255,' + (u - 0.88) / 0.12 + ')'; ctx.fillRect(0, 0, W, H); }
       }
       ctx.restore();
       if (t < OP.scene + 1) { ctx.fillStyle = 'rgba(0,0,0,' + (1 - (t - OP.scene)) + ')'; ctx.fillRect(0, 0, W, H); }   // 黑幕漸漸散去
@@ -17490,7 +17554,7 @@ function drawOpening() {
     if (t < OP.world + 0.5) { ctx.fillStyle = 'rgba(255,255,255,' + (1 - (t - OP.world) / 0.5) + ')'; ctx.fillRect(0, 0, W, H); }   // 從白光切進山谷
   }
   const bar = H * 0.08 * (O.t > OP.back[0] ? 1 - cineEase((O.t - OP.back[0]) / 1.2) : 1); ctx.fillStyle = '#000'; ctx.fillRect(0, 0, W, bar); ctx.fillRect(0, H - bar, W, bar);   // 上下黑邊
-  if (t < OP.back[0]) { ctx.font = '600 13px sans-serif'; ctx.textAlign = 'right'; ctx.textBaseline = 'middle'; ctx.fillStyle = 'rgba(255,255,255,0.55)'; ctx.fillText('點擊畫面或按任意鍵跳過', W - 16, H - bar / 2); }
+  if (t < OP.back[0]) { ctx.font = '600 13px sans-serif'; ctx.textAlign = 'right'; ctx.textBaseline = 'middle'; ctx.fillStyle = 'rgba(255,255,255,0.55)'; if (!isTouch()) ctx.fillText('按空白鍵跳過', W - 16, H - bar / 2); }
 }
 // 友軍通訊：畫面上方的立繪＋文字
 function drawColComm() {   // 通訊：友軍（立繪）或未知通訊（雜訊）
@@ -17511,7 +17575,7 @@ function drawColComm() {   // 通訊：友軍（立繪）或未知通訊（雜�
 }
 function frame(t) {
   // rAF 的時間戳可能早於按下開始時記錄的 last，所以 dt 要夾在 0 以上
-  watchPerf(t - last); syncGodBtn();
+  watchPerf(t - last); syncGodBtn(); syncSkipBtn();
   const dt = clamp((t - last) / 1000, 0, 0.05); last = t;
   try {
     bgmTick(dt);
