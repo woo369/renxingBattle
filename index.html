@@ -4012,7 +4012,7 @@ function caveTick(dt) {
   const near = (img) => inCave(player) && MAPGEN.solids.find((o) => o.kind === 'cprop' && o.img === img && Math.hypot(player.x - o.x, player.y - o.y) < 100);
   const med = near('medcab'), suit = !med && near('hazlocker');
   caveMedNear = med ? 'med' : suit ? 'suit' : null; $('boardBtn').hidden = !caveMedNear; if (caveMedNear) $('boardBtn').firstChild.textContent = med ? '醫療櫃' : '生化服';
-  if (inCave(player) && !caveHintShown) { caveHintShown = true; colHint = { t0: gameTime, text: '安全屋裡有醫療櫃（治療全員）和生化服衣櫃（穿上後有 50 點護盾、不會被坍塌污染扣血），靠近後按 B' }; }
+  if (inCave(player) && !caveHintShown && colStage >= 4 && !cine) { caveHintShown = true; colHint = { t0: gameTime, next: '外頭好像有被爆炸波及的提豐坦克，趁這個機會趕緊拿下吧', text: '安全屋裡有醫療櫃（治療全員）和生化服衣櫃（穿上後有 50 點護盾、不會被坍塌污染扣血），靠近後按 B' }; }
   const door = { x: S.x, y: S.y + 75 };   // 安全屋大門（地堡正面中間）
   if (!inCave(player) && Math.abs(player.x - door.x) < 42 && player.y < door.y + 34 && player.y > door.y - 20) caveTrans = { t: 0, dest: { x: C.x, y: C.y + C.ry * 0.62 } };
   else if (inCave(player) && player.y > C.y + C.ry + 40) caveTrans = { t: 0, dest: { x: door.x, y: door.y + 70 } };
@@ -4051,10 +4051,12 @@ function drawHazLocker(o) {   // 生化服衣櫃：灰綠色鐵櫃，門開著�
   ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
 }
 function drawCaveLabels() {   // 山洞裡的功能櫃：頭上標示名稱
-  if (!(phase && phase.collapse) || !inCave(player) || cine) return;
+  if (!(phase && phase.collapse) || cine) return;
+  ctx.setTransform(DPR, 0, 0, DPR, 0, 0); ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  if (colHint) { const u = gameTime - colHint.t0; if (u > 8) colHint = colHint.next ? { t0: gameTime, text: colHint.next } : null; else { const a = clamp(Math.min(u / 0.4, (8 - u) / 0.6), 0, 1), w = Math.min(W - 30, 640); ctx.globalAlpha = a; ctx.fillStyle = 'rgba(10,16,20,0.85)'; ctx.beginPath(); ctx.roundRect((W - w) / 2, H - 120, w, 44, 10); ctx.fill(); ctx.fillStyle = '#f1f5f7'; ctx.font = '700 ' + Math.max(11, Math.min(15, w / 44)) + 'px sans-serif'; ctx.fillText(colHint.text, W / 2, H - 98); ctx.globalAlpha = 1; } }
+  if (!inCave(player)) return;
   ctx.setTransform(DPR, 0, 0, DPR, 0, 0); ctx.font = '800 13px sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
   for (const o of MAPGEN.solids) { if (o.kind !== 'cprop' || (o.img !== 'medcab' && o.img !== 'hazlocker')) continue; const q = proj(o.x, o.y), y = q.y - 150 * q.k, t = (o.img === 'medcab' ? '醫療櫃' : '生化服衣櫃') + (isTouch() ? '' : '［B］'); ctx.lineWidth = 3; ctx.strokeStyle = 'rgba(0,0,0,0.7)'; ctx.strokeText(t, q.x, y); ctx.fillStyle = o.img === 'medcab' ? '#9dffb4' : '#ffe08a'; ctx.fillText(t, q.x, y); }
-  if (colHint) { const u = gameTime - colHint.t0; if (u > 8) colHint = null; else { const a = clamp(Math.min(u / 0.4, (8 - u) / 0.6), 0, 1), w = Math.min(W - 30, 640); ctx.globalAlpha = a; ctx.fillStyle = 'rgba(10,16,20,0.85)'; ctx.beginPath(); ctx.roundRect((W - w) / 2, H - 120, w, 44, 10); ctx.fill(); ctx.fillStyle = '#f1f5f7'; ctx.font = '700 ' + Math.max(11, Math.min(15, w / 44)) + 'px sans-serif'; ctx.fillText(colHint.text, W / 2, H - 98); ctx.globalAlpha = 1; } }
 }
 function drawHazShields() {}   // （生化服改成顯示在血條上）
 function drawCaveTrans() { if (!caveTrans) return; const t = caveTrans.t, a = t < 0.3 ? t / 0.3 : 1 - (t - 0.3) / 0.3; ctx.setTransform(DPR, 0, 0, DPR, 0, 0); ctx.fillStyle = 'rgba(0,0,0,' + clamp(a, 0, 1) + ')'; ctx.fillRect(0, 0, W, H); }
@@ -16975,7 +16977,7 @@ function colEnemyTarget(e) {
   const alert = e.colBase && MAPGEN.base && gameTime < (MAPGEN.base.alertT || 0);
   const lr = (e.boss ? e.B.lockRange : e.T.lockRange) || 300, home = alert && !(e.B && e.B.building) ? MAPGEN.base : e.sentry, R = alert ? 1900 : home ? 650 : Infinity;   // 基地遇襲：只在基地周圍 1900 內反擊，不會一路追殺
   { const LS = liveNpcs().filter((n) => n.lastStand); let bl = null, bdl = lr + 500; for (const n of LS) { const d = Math.hypot(n.x - e.x, n.y - e.y); if (d < bdl) { bdl = d; bl = n; } } if (bl) { e.ctg = bl; e.ctT = gameTime + 0.6; e.navX = bl.x; e.navY = bl.y; return colAim(e, bl); } }   // 殿後的倖存人形：敵人優先打他們
-  if (e.colSquad === 3 && !(e.B && e.B.ai === 'typhon')) { let bs = null, bds = lr * 1.5; for (const o of enemies) { if (o.fac !== 'sv' || o.hp <= 0) continue; const d = Math.hypot(o.x - e.x, o.y - e.y); if (d < bds) { bds = d; bs = o; } } if (bs) { e.ctg = bs; e.ctT = gameTime + 0.6; e.navX = bs.x; e.navY = bs.y; return colAim(e, bs); } }   // 第三追擊隊：遇到鐵血先打鐵血
+  if (e.colSquad === 3 || (e.B && e.B.ai === 'typhon' && (e.colSquad || e.colBoss))) { let bs = null, bds = e.B && e.B.ai === "typhon" ? 1400 : lr * 1.5; /* 提豐（第一隊以外）也先打鐵血 */ for (const o of enemies) { if (o.fac !== 'sv' || o.hp <= 0) continue; const d = Math.hypot(o.x - e.x, o.y - e.y); if (d < bds) { bds = d; bs = o; } } if (bs) { e.ctg = bs; e.ctT = gameTime + 0.6; e.navX = bs.x; e.navY = bs.y; return colAim(e, bs); } }   // 第三追擊隊：遇到鐵血先打鐵血
   if (e.ctg && gameTime < (e.ctT || 0) && (e.ctg === player ? player.hp > 0 && !inCave(player) : e.ctg.hp > 0 && !e.ctg.dead)) return colAim(e, e.ctg);
   const U = [player, ...nightAllies(), ...liveNpcs().filter((n) => n.joined)].filter((u) => u.hp > 0 && !inCave(u));   // 還沒跟隨玩家的倖存人形是無敵的：不當目標
   const F = e.fac && !(e.B && e.B.ai === 'typhon' && e.fac === 'kcco' && !e.colSquad && !e.colBoss) ? enemies.filter((o) => o !== e && o.fac && o.fac !== e.fac && o.hp > 0) : [];
@@ -17103,7 +17105,6 @@ function colAfterBomb() {   // 爆炸動畫結束：第二追擊隊被炸到只�
   const S = MAPGEN.safe, P = nightSpot(S.x - 700, S.y + 900, 60);
   const e = colTyphonAt(P.x, P.y, { ...BOSSES.typhon, lockRange: 400 }, { colBoss: true, damaged: true });   // 正常倍率（400 內才開火）
   boss = e; $('bossName').textContent = '受損的提豐'; $('bossBar').hidden = inCave(player); updateBossBar();   // 還在安全屋裡就先不顯示血條
-  floatText(player.x, player.y - 90, '擊敗受損的提豐！', '#ffb070');
 }
 function colBossDown(e) {
   colStage = 5; bgmStop(false); colComm = { t0: gameTime, unknown: true, text: '受損的提豐已擊破，前往右下角的出口', dur: 4.5 }; $('bossBar').hidden = true;   // 開放第一張地圖右下角的出口
@@ -17127,7 +17128,7 @@ function drawColBossFx() {   // 受損的提豐：冒黑煙、偶爾迸出火花
     if (!e.damaged || e.hp <= 0) continue; const q = proj(e.x, e.y); if (!onScreen(q, 300)) continue;
     for (let i = 0; i < 5; i++) { const v = (gameTime * 0.45 + i / 5) % 1, x = q.x + (Math.sin(i * 1.7) * 30 + v * 40) * q.k, y = q.y - (110 + v * 160) * q.k, r = (18 + v * 46) * q.k;
       const g = ctx.createRadialGradient(x, y, 0, x, y, r); g.addColorStop(0, 'rgba(30,28,26,' + 0.55 * (1 - v) + ')'); g.addColorStop(1, 'rgba(30,28,26,0)'); ctx.fillStyle = g; ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI * 2); ctx.fill(); }
-    if (Math.sin(gameTime * 13 + e.x) > 0.93) { ctx.save(); ctx.globalCompositeOperation = 'lighter'; ctx.strokeStyle = 'rgba(255,220,140,0.9)'; ctx.lineWidth = 2; for (let k = 0; k < 4; k++) { const a = Math.random() * 6.28, x0 = q.x + rand(-30, 30) * q.k, y0 = q.y - rand(60, 110) * q.k; ctx.beginPath(); ctx.moveTo(x0, y0); ctx.lineTo(x0 + Math.cos(a) * 18 * q.k, y0 + Math.sin(a) * 18 * q.k); ctx.stroke(); } ctx.restore(); }
+    if (Math.sin(gameTime * 13 + e.x) > 0.93) { ctx.save(); ctx.globalCompositeOperation = 'lighter'; ctx.strokeStyle = 'rgba(255,220,140,0.9)'; ctx.lineWidth = 2; for (let k = 0; k < 4; k++) { const a = Math.random() * 6.28, x0 = q.x + rand(-30, 30) * q.k, y0 = q.y - rand(22, 55) * q.k; ctx.beginPath(); ctx.moveTo(x0, y0); ctx.lineTo(x0 + Math.cos(a) * 18 * q.k, y0 + Math.sin(a) * 18 * q.k); ctx.stroke(); } ctx.restore(); }
   }
 }
 /* ═══════════ 塌縮之谷・第二張地圖（第三階段：毒氣戰場撤離） ═══════════
@@ -17322,7 +17323,7 @@ function col2Tick(dt) {
 // 倖存人形陣亡：在畫面外的話用通訊留下遺言
 function colNpcDeathComm(n) {
   if (!(phase && phase.collapse) || colStage < 6 || !n.def) return;
-  if (Math.hypot(n.x - player.x, n.y - player.y) < 650 && !n.lastStand) return;   // 在玩家身邊陣亡就只有頭上的對白；殿後的、或離得遠的用通訊留下遺言
+  if (!n.lastStand) return;   // 只有殿後的倖存人形用通訊留下遺言   // 在玩家身邊陣亡就只有頭上的對白；殿後的、或離得遠的用通訊留下遺言
   colCommPush({ id: n.who, text: n.def.deathLine || '……', dur: 4.5, last: true });
 }
 function drawColExtras() {   // 第二張地圖的補給、出口提示；第一張地圖打完提豐後的出口
