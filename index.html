@@ -3455,7 +3455,7 @@ function mapSolidAt(x, y, r, bullet) {
     if (o.kind === 'npc' && bullet) continue;   // 倖存人形：擋人不擋子彈
     if (o.kind === 'log') { if (bullet) continue; const ux = Math.cos(o.ang), uy = Math.sin(o.ang), t = clamp((x - o.x) * ux + (y - o.y) * uy, -o.len / 2, o.len / 2); if (Math.hypot(x - o.x - ux * t, y - o.y - uy * t) < o.th + r) return o; continue; }   // 倒下的樹：擋人，子彈從上面飛過
     if (o.kind === 'forest' || (bullet && (o.kind === 'lake' || o.kind === 'river' || o.kind === 'lowrock' || o.kind === 'lowwall' || o.kind === 'rubble' || o.kind === 'bush'))) continue;   // 子彈可以飛過湖、河、半磚掩體   // 子彈可以飛過湖和河
-    if (bullet && (o.kind === 'tent' || o.kind === 'pit')) continue;   // 帳篷、砲擊線的深坑：擋人不擋子彈
+    if (bullet && (o.kind === 'tent' || o.kind === 'pit' || o.kind === 'ironfence')) continue;   // 帳篷、砲擊線的深坑：擋人不擋子彈
     if (o.kind === 'tent') { const dx = (x - o.x) / (o.w / 2 + r), dy = (y - (o.y + o.h / 2 - 28)) / (34 + r); if (dx * dx + dy * dy < 1) return o; continue; }   // 帳篷：碰撞是貼著畫面上帳篷底部的橢圓（不是整個方框）
     if (o.w) { if (Math.abs(x - o.x) < o.w / 2 + r && Math.abs(y - o.y) < o.h / 2 + r) return o; }
     else if ((x - o.x) ** 2 + (y - o.y) ** 2 < (o.r + r) ** 2) return o;
@@ -3555,7 +3555,7 @@ function drawBigMapGround(x0, x1, y0, y1) {
   poly(-HX, -HY, HX, HY, null, 'rgba(255,214,120,0.7)', 3);
 }
 // 立體物件（跟角色一起依前後排序）：樹、平房、佔領點旗桿
-const ACTOR_KIND = { pillbox: 'k', tree: 't', house: 'h', rock: 'r', igloo: 'i', tower: 'T', log: 'L', cprop: 'C', npc: 'N', safehouse: 'X', tent: 'k', crate: 'k', drum: 'k', rwall: 'w', lowwall: 'w', rubble: 'w', bush: 'w', console: 'w' };   // 半磚（lowrock）跟全磚畫成同一塊岩石
+const ACTOR_KIND = { pillbox: 'k', factory: 'k', ironfence: 'k', tree: 't', house: 'h', rock: 'r', igloo: 'i', tower: 'T', log: 'L', cprop: 'C', npc: 'N', safehouse: 'X', tent: 'k', crate: 'k', drum: 'k', rwall: 'w', lowwall: 'w', rubble: 'w', bush: 'w', console: 'w' };   // 半磚（lowrock）跟全磚畫成同一塊岩石
 function mapActors() {
   if (!bigMap() && !isNight() && !isTrain()) return [];
   const vb = viewBounds(), [x0, x1, y0, y1] = viewClip(cam.x - vb.hw - 300, cam.x + vb.hw + 300, cam.y + vb.t - 300, cam.y + vb.b + 400), out = [];
@@ -3604,6 +3604,8 @@ const TENTCOL = [['#6f7a4a', '#566038'], ['#7c7258', '#615842'], ['#5f6f5a', '#4
 const DRUMCOL = ['#a8432f', '#4f6b3a', '#3e5f86'];
 function drawCamp(o) {
   if (o.kind === 'pillbox') { drawPillbox(o); return; }
+  if (o.kind === 'factory') { drawFactory(o); return; }
+  if (o.kind === 'ironfence') { drawIronFence(o); return; }
   if (o.kind === 'tent') {
     const by = o.y + o.h / 2, q = proj(o.x, by), [c1, c2] = o.burnt ? ['#4a463c', '#2f2c26'] : TENTCOL[o.col], L = o.x - o.w / 2, R = o.x + o.w / 2, Ht = 105, back = 52;
     ground(q, o.x, by); ctx.fillStyle = 'rgba(5,15,20,0.4)'; ctx.fillRect(L + 10, by - 8, o.w, 22);
@@ -17206,8 +17208,13 @@ function genCollapseMap2() {
   solids.push({ kind: 'tent', x: camp.x - 200, y: camp.y - 80, w: 200, h: 140, col: 1 }, { kind: 'tent', x: camp.x + 190, y: camp.y - 90, w: 200, h: 140, col: 0 }, { kind: 'crate', x: camp.x + 20, y: camp.y - 150, r: 36, n: 2, s: 0.4 });
   ground.push({ kind: 'campfire', x: camp.x, y: camp.y + 40, r: 26 });
   // 工業小鎮：廠房、高樓、煙囪
-  for (const [dx, dy, w, h, c] of [[-560, -260, 420, 200, 3], [140, -300, 520, 220, 4], [-640, 180, 360, 170, 2], [520, 160, 340, 170, 3], [40, 420, 300, 150, 1]]) solids.push({ kind: 'house', x: town.x + dx, y: town.y + dy, w, h, col: c });
-  for (const [dx, dy] of [[-160, 40], [700, -40]]) solids.push({ kind: 'tower', x: town.x + dx, y: town.y + dy, r: 70, w: 140, h: 140, s: rnd() });
+  // 工廠：鋸齒屋頂的廠房（附煙囪）、倉庫；外圍一圈鐵圍欄，西南角留大門給公路進來
+  for (const [dx, dy, w, h, ch] of [[-420, -330, 560, 210, 1], [400, -320, 500, 200, 2], [560, 250, 420, 180, 1]]) solids.push({ kind: 'factory', x: town.x + dx, y: town.y + dy, w, h, ch, s: rnd() });
+  for (const [dx, dy, w, h, c] of [[-660, 210, 300, 150, 2], [-80, 440, 260, 140, 1]]) solids.push({ kind: 'house', x: town.x + dx, y: town.y + dy, w, h, col: c });
+  solids.push({ kind: 'tower', x: town.x - 120, y: town.y - 40, r: 70, w: 140, h: 140, s: rnd() });
+  for (const [dx, dy, n] of [[-300, 90, 3], [250, 60, 2], [-480, 420, 2]]) solids.push({ kind: 'crate', x: town.x + dx, y: town.y + dy, r: 36, n, s: rnd() });
+  { const X0 = town.x - 880, X1 = town.x + 880, Y0 = town.y - 580, Y1 = town.y + 620, seg = (ax, ay, bx, by) => { const L = Math.hypot(bx - ax, by - ay), n = Math.ceil(L / 240); for (let i = 0; i < n; i++) { const x0 = ax + (bx - ax) * i / n, y0 = ay + (by - ay) * i / n, x1 = ax + (bx - ax) * (i + 1) / n, y1 = ay + (by - ay) * (i + 1) / n; solids.push(ay === by ? { kind: 'ironfence', x: (x0 + x1) / 2, y: y0, w: Math.abs(x1 - x0), h: 14 } : { kind: 'ironfence', x: x0, y: (y0 + y1) / 2, w: 14, h: Math.abs(y1 - y0), vert: true }); } };
+    seg(X0, Y0, X1, Y0); seg(X1, Y0, X1, Y1); seg(X0 + 520, Y1, X1, Y1); seg(X0, Y0, X0, Y1 - 340); }   // 西南角缺口＝大門
   ground.push({ kind: 'rect', x0: town.x - 900, x1: town.x + 900, y0: town.y - 520, y1: town.y + 620, fill: '#3e4143' });
   const M = finishVsMap({ hw: HW, hh: HH, cellsX: CX, cellsY: CY, label: '塌縮之谷・第二階段　200 × 30 格', theme: 'valley', bases: [{ team: 'blue', x: start.x, y: start.y, x0: start.x - 200, x1: start.x + 200, y0: start.y - 160, y1: start.y + 160 }], solids, trees, blobs, ground, decor: [] });
   M.hills = hills; M.npcs = []; M.sites = []; M.fog = true; M.fogX = COL2.fogX; M.map2 = true;
@@ -17233,6 +17240,50 @@ function drawPillbox(o) {
   ctx.strokeStyle = 'rgba(0,0,0,0.18)'; ctx.lineWidth = 1.5; for (let k = 1; k < 3; k++) { ctx.beginPath(); ctx.moveTo(pts[1][0], top + pts[1][1] - 18 + k * H / 3); ctx.lineTo(pts[2][0], top + pts[2][1] - 18 + k * H / 3); ctx.stroke(); }
   // 沙包
   ctx.fillStyle = '#8b7a55'; for (let i = 0; i < 5; i++) { const x = o.x + o.face * (R * 0.7 + i * 16) - (o.face < 0 ? 16 : 0), y = by + 4 - (i % 2) * 2; ctx.beginPath(); ctx.ellipse(x, y, 11, 6, 0, 0, Math.PI * 2); ctx.fill(); }
+  ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+}
+// 工廠：灰色廠房、鋸齒屋頂（北向採光窗）、一排高窗、捲門；一端有紅白煙囪冒煙
+function drawFactory(o) {
+  const by = o.y + o.h / 2, q = proj(o.x, by); if (!onScreen(q, (o.w + 200) * q.k)) return;
+  ground(q, o.x, by); ctx.fillStyle = 'rgba(5,10,8,0.45)'; ctx.fillRect(o.x - o.w / 2 + 14, by - 6, o.w, 26);
+  upright(q, o.x, by);
+  const L = o.x - o.w / 2, R = o.x + o.w / 2, Hw = 120, back = 60, top = by - Hw, n = Math.max(3, Math.round(o.w / 110)), tw = o.w / n;
+  ctx.fillStyle = '#5b6064'; ctx.beginPath(); ctx.moveTo(R, by); ctx.lineTo(R + 26, by - back * 0.45); ctx.lineTo(R + 26, top - back * 0.45); ctx.lineTo(R, top); ctx.closePath(); ctx.fill();   // 側牆
+  for (let i = 0; i < n; i++) {   // 鋸齒屋頂：每一段一個斜面＋玻璃
+    const x0 = L + i * tw, x1 = x0 + tw;
+    ctx.fillStyle = '#6e7377'; ctx.beginPath(); ctx.moveTo(x0, top); ctx.lineTo(x1, top); ctx.lineTo(x1 + 26, top - back * 0.45); ctx.lineTo(x0 + 26, top - back * 0.45); ctx.closePath(); ctx.fill();
+    ctx.fillStyle = '#4a4f53'; ctx.beginPath(); ctx.moveTo(x0, top); ctx.lineTo(x0 + tw * 0.15, top - 46); ctx.lineTo(x1, top); ctx.closePath(); ctx.fill();
+    ctx.fillStyle = '#9fc3d6'; ctx.beginPath(); ctx.moveTo(x0 + tw * 0.15, top - 46); ctx.lineTo(x0 + tw * 0.15 + 3, top - 2); ctx.lineTo(x0 + 4, top - 2); ctx.closePath(); ctx.fill();
+  }
+  ctx.fillStyle = '#8c9195'; ctx.fillRect(L, top, o.w, Hw);   // 正面
+  ctx.fillStyle = '#767b7f'; for (let x = L + 8; x < R; x += 22) ctx.fillRect(x, top, 2, Hw);   // 浪板
+  ctx.fillStyle = '#2f3a42'; for (let i = 0; i < n * 2; i++) { const x = L + 16 + i * (o.w - 32) / (n * 2); ctx.fillRect(x, top + 14, (o.w - 32) / (n * 2) - 10, 22); }   // 高窗
+  ctx.fillStyle = 'rgba(160,200,220,0.25)'; for (let i = 0; i < n * 2; i++) { const x = L + 16 + i * (o.w - 32) / (n * 2); ctx.fillRect(x, top + 14, 6, 22); }
+  const dw = Math.min(110, o.w * 0.24), dx = o.x - dw / 2 + (hash(1, 2, o.s * 1e3 | 0) - 0.5) * o.w * 0.4;
+  ctx.fillStyle = '#4c5257'; ctx.fillRect(dx, by - 74, dw, 74); ctx.fillStyle = 'rgba(0,0,0,0.25)'; for (let y = by - 70; y < by; y += 8) ctx.fillRect(dx, y, dw, 2);   // 捲門
+  ctx.fillStyle = '#f2c230'; ctx.fillRect(dx - 6, by - 80, dw + 12, 5);
+  ctx.strokeStyle = 'rgba(0,0,0,0.35)'; ctx.lineWidth = 2; ctx.strokeRect(L, top, o.w, Hw);
+  for (let c = 0; c < (o.ch || 0); c++) {   // 煙囪
+    const cx = c ? L + 40 : R - 50, cb = top - back * 0.3, ht = 190 + c * 40;
+    ctx.fillStyle = '#b44a3c'; ctx.fillRect(cx - 13, cb - ht, 26, ht); ctx.fillStyle = '#e8e2d8'; for (let k = 0; k < 3; k++) ctx.fillRect(cx - 13, cb - ht + 16 + k * 46, 26, 12);
+    ctx.fillStyle = '#3b3b3b'; ctx.fillRect(cx - 15, cb - ht - 6, 30, 8);
+    for (let k = 0; k < 4; k++) { const v = (gameTime * 0.25 + k / 4 + c * 0.3) % 1, sx = cx + v * 60, sy = cb - ht - 10 - v * 150, r = 12 + v * 34; ctx.fillStyle = 'rgba(70,70,72,' + 0.4 * (1 - v) + ')'; ctx.beginPath(); ctx.arc(sx, sy, r, 0, Math.PI * 2); ctx.fill(); }
+  }
+  ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+}
+// 鐵圍欄：鐵柱＋上下兩條橫桿＋直條，頂端尖刺；擋人不擋子彈
+function drawIronFence(o) {
+  const q = proj(o.x, o.y); if (!onScreen(q, (Math.max(o.w, o.h) + 100) * q.k)) return;
+  if (o.vert) {   // 南北向：在畫面上是一條往後退的線，畫成一排柱子
+    for (let y = o.y - o.h / 2; y <= o.y + o.h / 2; y += 30) { const qq = proj(o.x, y); upright(qq, o.x, y); ctx.fillStyle = '#2e3236'; ctx.fillRect(o.x - 2, y - 58, 4, 58); ctx.fillStyle = '#4a5056'; ctx.beginPath(); ctx.moveTo(o.x - 4, y - 58); ctx.lineTo(o.x, y - 66); ctx.lineTo(o.x + 4, y - 58); ctx.fill(); }
+    const a = proj(o.x, o.y - o.h / 2), b = proj(o.x, o.y + o.h / 2); ctx.setTransform(DPR, 0, 0, DPR, 0, 0); ctx.strokeStyle = '#3a3f44'; ctx.lineWidth = 2.5;
+    for (const hh of [14, 48]) { ctx.beginPath(); ctx.moveTo(a.x, a.y - hh * a.k); ctx.lineTo(b.x, b.y - hh * b.k); ctx.stroke(); }
+    return;
+  }
+  upright(q, o.x, o.y); const L = o.x - o.w / 2, R = o.x + o.w / 2;
+  ctx.fillStyle = '#3a3f44'; ctx.fillRect(L, o.y - 50, o.w, 3); ctx.fillRect(L, o.y - 16, o.w, 3);
+  for (let x = L; x <= R; x += 12) { ctx.fillStyle = '#2e3236'; ctx.fillRect(x - 1, o.y - 58, 2.4, 58); ctx.fillStyle = '#4a5056'; ctx.beginPath(); ctx.moveTo(x - 3, o.y - 58); ctx.lineTo(x, o.y - 65); ctx.lineTo(x + 3, o.y - 58); ctx.fill(); }
+  for (const x of [L, R]) { ctx.fillStyle = '#25292d'; ctx.fillRect(x - 4, o.y - 66, 8, 66); }
   ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
 }
 function colBossAt(id, B, x, y, extra) {
