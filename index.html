@@ -3944,7 +3944,7 @@ function trainNpcCheck() {
   }
 }
 // NPC 受到傷害（光束、砲擊）
-function npcHurt(n, dmg, vx) { if (n.dead || n.invT > 0 || n.rescuer) return; if (n.lastStand) dmg *= 0.1; dmg = hazAbsorb(n, dmg); if (dmg <= 0) return; n.hp -= dmg; floatText(n.x, n.y - 40, String(Math.round(dmg)), '#ff8f83'); if (n.hp <= 0) { n.hp = 0; n.dead = true; npcDie(n, vx || 0); npcSay(n); } }
+function npcHurt(n, dmg, vx) { if (n.dead || n.invT > 0 || n.rescuer) return; if (n.lastStand) dmg *= 0.5; dmg = hazAbsorb(n, dmg); if (dmg <= 0) return; n.hp -= dmg; floatText(n.x, n.y - 40, String(Math.round(dmg)), '#ff8f83'); if (n.hp <= 0) { n.hp = 0; n.dead = true; npcDie(n, vx || 0); npcSay(n); } }
 // 敵方子彈打到 NPC：迴避（閃避值）→ 金盾 → 扣血。回傳 true＝子彈被吃掉
 function npcBulletHit(b) {
   for (const n of liveNpcs()) {
@@ -3952,7 +3952,7 @@ function npcBulletHit(b) {
     if (!b.elec && Math.random() < evadeRate(n.def) + effSum(n, 'evade')) { (b.missedC || (b.missedC = new Set())).add(n); floatText(n.x, n.y - 40, 'MISS', '#bfefff'); return false; }
     let dmg = (b.dmg ?? ENEMY.bulletDmg) * atkMulNow; dmg = absorbGold(n, dmg);
     { const ar = n.def.armor; if (ar && ar.value > 0 && dmg > 0 && !b.elec && Math.random() < (dmg <= ar.value ? ar.blockLow : ar.blockHigh)) { dmg = Math.max(1, dmg - ar.value); floatText(n.x, n.y - 34, '格擋', '#f9cf70'); } }   // 護甲格擋
-    if (n.rescuer) return true; if (n.lastStand) dmg *= 0.1;   // 勇氣的讚歌：抗性 90%
+    if (n.rescuer) return true; if (n.lastStand) dmg *= 0.5;   // 勇氣的讚歌：抗性 50%
     dmg = hazAbsorb(n, dmg);
     if (dmg > 0) { n.hp -= dmg; floatText(n.x, n.y - 40, String(Math.round(dmg)), '#ff8f83'); burst(b.x, b.y, '#ff8f83', 4); if (n.hp <= 0) { n.hp = 0; n.dead = true; npcDie(n, b.vx); npcSay(n); } }
     return true;
@@ -16726,7 +16726,7 @@ function draw(t) {
     }
     ctx.stroke(); ctx.setLineDash([]);
     // 擴編人形和目前操控的人形不同時：另外畫出擴編人形的鎖敵範圍（螢光綠虛線，圓心一樣是玩家）
-    const otherDefs = isDef() ? [] : [...new Set(clones.filter((c) => c.def && c.def !== cfg).map((c) => c.def))];   // 滅星行動：只顯示自己的鎖敵範圍
+    const otherDefs = isDef() || (phase && phase.collapse) ? [] : [...new Set(clones.filter((c) => c.def && c.def !== cfg && !c.nightAlly).map((c) => c.def))];   // 只顯示自己（和擴編人形）的鎖敵範圍，不畫 AI 隊友的   // 滅星行動：只顯示自己的鎖敵範圍
     for (const D of otherDefs) {
       ctx.strokeStyle = 'rgba(80,255,140,0.8)'; ctx.lineWidth = 1.6; ctx.setLineDash([7, 5]); ctx.beginPath();
       for (let i = 0; i <= 72; i++) { const a = i / 72 * Math.PI * 2, q = proj(player.x + Math.cos(a) * D.lockRange, player.y + Math.sin(a) * D.lockRange); i ? ctx.lineTo(q.x, q.y) : ctx.moveTo(q.x, q.y); }
@@ -17035,6 +17035,7 @@ function colWarTick(dt) {
   // 追擊部隊
   if (!colPursuit && t >= 5) { colPursuit = true; colPursuitSpawn('cyc', 6); colPursuitSpawn('hydra', 4); colPursuitSpawn('cent', 4); colPursuitSpawn('typhon', 1); floatText(player.x, player.y - 80, '正規軍追上來了！', '#ff8f83'); }
   colStageTick(dt);
+  for (const e of enemies.slice()) if (e.hp <= 0 && !e.escaped && enemies.includes(e)) killEnemy(e);   // 被陣營火力、光束、砲擊、污染打到 0 的敵人：補上擊殺（之前會卡在 0 血不死）
   if (colPursuit && colStage === 1) {
     colArty.reinT = (colArty.reinT || 0) - dt;
     if (colArty.reinT <= 0) { colArty.reinT = 1;
@@ -17136,7 +17137,7 @@ function drawColBossFx() {   // 受損的提豐：冒黑煙、偶爾迸出火花
    下半部是二戰風格的碉堡區（零散但數量多的鐵血）；3/4 之後轉成平原，一道山脈把山谷隔開，只能從下方出谷，
    公路從下方往右上延伸到工業小鎮（剩下的三名倖存人形在那裡接應，抵達＝成功撤離）。
    污染迷霧只在地圖左半；入場 15 秒正規軍第三追擊隊（有生化套件、不吃污染、遇到鐵血先打鐵血）；
-   走到出谷口前，第四追擊隊從下方殺出，還活著的倖存人形留下來殿後（勇氣的讚歌：抗性 90%）。 */
+   走到出谷口前，第四追擊隊殺出，還活著的倖存人形留下來殿後（勇氣的讚歌：抗性 50%）。 */
 const COL2 = { cx: 200, cy: 30, sq3At: 15, comm1At: 1.5, comm2At: 10, evacAt: 180, fogX: 0,
   comm1: '格里芬單位注意，請往東前往羅馬尼亞跟指揮官會合', comm2: '軍方已經重新發動攻勢，我只能幫你們拖延這些時間，保重',
   stand: '這邊交給我們，你們先走', elites: ['agent', 'witch', 'elk', 'moth'] };
@@ -17305,12 +17306,16 @@ function col2Tick(dt) {
     const st = liveNpcs().filter((n) => n.joined && !n.rescuer);
     if (st.length) {   // 還活著的倖存人形留下來殿後
       colCommPush({ id: st[0].who, text: COL2.stand, dur: 4.5 });
-      for (const n of st) { n.lastStand = true; n.joined = false; n.effects = (n.effects || []).filter((e) => e.id !== 'courage'); n.effects.push({ id: 'courage', name: '勇氣的讚歌：抗性 90%', mark: '勇', color: '#ffd76a', time: 1e9 }); floatText(n.x, n.y - 60, '勇氣的讚歌', '#ffd76a'); }
+      for (const n of st) { n.lastStand = true; n.joined = false; n.effects = (n.effects || []).filter((e) => e.id !== 'courage'); n.effects.push({ id: 'courage', name: '勇氣的讚歌：抗性 50%', mark: '勇', color: '#ffd76a', time: 1e9 }); floatText(n.x, n.y - 60, '勇氣的讚歌', '#ffd76a'); }
     }
   }
   // 撤離中的鐵血：抵達右下角就離開地圖
   for (const e of enemies) if (e.colGoal && e.hp > 0 && Math.hypot(e.x - e.colGoal.x, e.y - e.colGoal.y) < 260) { e.hp = 0; e.escaped = true; }
   if (enemies.some((e) => e.escaped)) enemies = enemies.filter((e) => !e.escaped);
+  // 醫療箱：補滿全隊生命（含跟著的倖存人形）
+  for (let i = medkits.length - 1; i >= 0; i--) { const m = medkits[i]; if (Math.hypot(m.x - player.x, m.y - player.y) > 60 || player.defDown) continue; medkits.splice(i, 1);
+    for (const u of [player, ...nightAllies(), ...liveNpcs().filter((n) => n.joined)]) if (u.hp > 0) { u.hp = u.maxHp; burst(u.x, u.y, '#7dff9a', 8); }
+    floatText(player.x, player.y - 60, '全隊生命補滿', '#7dff9a'); updateHp(); sfx.reload(); }
   // 生化服補給
   for (const k of M.hazkits || []) if (!k.taken && Math.hypot(player.x - k.x, player.y - k.y) < 70) { k.taken = true; for (const u of [player, ...nightAllies(), ...liveNpcs().filter((n) => n.joined)]) if (u.hp > 0) u.hazmat = HAZ_MAX; floatText(player.x, player.y - 60, '全員換上新的生化服', '#f2f6f8'); sfx.reload(); updateHp(); }
   // 抵達工業小鎮＝成功撤離
