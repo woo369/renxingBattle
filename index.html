@@ -3872,7 +3872,8 @@ function npcStep(n, dt, foe) {
     }
     if (!tgt && n.lastStand) {   // 殿後：主動找附近的敵人交戰
       let ne = null, nd = 1500; for (const e of enemies) { if (e.hp <= 0) continue; const d = Math.hypot(e.x - n.x, e.y - n.y); if (d < nd) { nd = d; ne = e; } }
-      if (ne) { const ux = (ne.x - n.x) / nd, uy = (ne.y - n.y) / nd; if (go(ux, uy, D.speed) && Math.abs(ux) > 0.2) n.faceLeft = ux < 0; }
+      if (ne && Math.abs(ne.x) < MAPGEN.hw - 100 && Math.abs(ne.y) < MAPGEN.hh - 100) { const ux = (ne.x - n.x) / nd, uy = (ne.y - n.y) / nd; if (go(ux, uy, D.speed) && Math.abs(ux) > 0.2) n.faceLeft = ux < 0; }   // 不追到地圖外
+      n.x = clamp(n.x, -MAPGEN.hw + 60, MAPGEN.hw - 60); n.y = clamp(n.y, -MAPGEN.hh + 60, MAPGEN.hh - 60);
       return;
     }
     if (!tgt && npcFlee() && npcFollow(n, dt, go)) return;
@@ -16882,7 +16883,7 @@ function drawColTimer() {   // 左上角（小地圖下方）顯示經過時間
    地圖左半部上下兩側有零星的鐵血單位（一～二階）守著自己的位置 */
 const COL_HOLD_X = -520, COL_ARTY = { start: 5, on: 10, off: 10, every: 0.7, r: 300, spread: 480, dmg: 22, warn: [1.8, 2.6] };   // r：爆炸範圍；spread：落點離隊員的隨機距離
 // 正規軍（提豐以外）的加速只在離玩家隊伍遠的時候生效：靠近到 COL_NEAR 以內就回到原本的速度，不會一路衝到臉上
-const COL_NEAR = 1000;
+const COL_NEAR = 300;
 function colBoost(T, base) { T.speedF = T.speed; T.speed0 = base.speed; return T; }
 function colSpeedGate(e) {
   const T = e.T; if (!T || T.speed0 == null) return;
@@ -16974,7 +16975,7 @@ function colEnemyTarget(e) {
   const alert = e.colBase && MAPGEN.base && gameTime < (MAPGEN.base.alertT || 0);
   const lr = (e.boss ? e.B.lockRange : e.T.lockRange) || 300, home = alert && !(e.B && e.B.building) ? MAPGEN.base : e.sentry, R = alert ? 1900 : home ? 650 : Infinity;   // 基地遇襲：只在基地周圍 1900 內反擊，不會一路追殺
   { const LS = liveNpcs().filter((n) => n.lastStand); let bl = null, bdl = lr + 500; for (const n of LS) { const d = Math.hypot(n.x - e.x, n.y - e.y); if (d < bdl) { bdl = d; bl = n; } } if (bl) { e.ctg = bl; e.ctT = gameTime + 0.6; e.navX = bl.x; e.navY = bl.y; return colAim(e, bl); } }   // 殿後的倖存人形：敵人優先打他們
-  if (e.colSquad === 3) { let bs = null, bds = lr * 1.5; for (const o of enemies) { if (o.fac !== 'sv' || o.hp <= 0) continue; const d = Math.hypot(o.x - e.x, o.y - e.y); if (d < bds) { bds = d; bs = o; } } if (bs) { e.ctg = bs; e.ctT = gameTime + 0.6; e.navX = bs.x; e.navY = bs.y; return colAim(e, bs); } }   // 第三追擊隊：遇到鐵血先打鐵血
+  if (e.colSquad === 3 && !(e.B && e.B.ai === 'typhon')) { let bs = null, bds = lr * 1.5; for (const o of enemies) { if (o.fac !== 'sv' || o.hp <= 0) continue; const d = Math.hypot(o.x - e.x, o.y - e.y); if (d < bds) { bds = d; bs = o; } } if (bs) { e.ctg = bs; e.ctT = gameTime + 0.6; e.navX = bs.x; e.navY = bs.y; return colAim(e, bs); } }   // 第三追擊隊：遇到鐵血先打鐵血
   if (e.ctg && gameTime < (e.ctT || 0) && (e.ctg === player ? player.hp > 0 && !inCave(player) : e.ctg.hp > 0 && !e.ctg.dead)) return colAim(e, e.ctg);
   const U = [player, ...nightAllies(), ...liveNpcs().filter((n) => n.joined)].filter((u) => u.hp > 0 && !inCave(u));   // 還沒跟隨玩家的倖存人形是無敵的：不當目標
   const F = e.fac && !(e.B && e.B.ai === 'typhon' && e.fac === 'kcco' && !e.colSquad && !e.colBoss) ? enemies.filter((o) => o !== e && o.fac && o.fac !== e.fac && o.hp > 0) : [];
@@ -17295,11 +17296,11 @@ function col2Tick(dt) {
     floatText(player.x, player.y - 90, '鐵血基地開始往東南撤離', '#ffd27a');
   }
   if (!C.sq4 && player.x > M.x34 - 1200 && player.y > M.gapY - 450) {   // 出谷口前：第四追擊隊從地圖下方殺出
-    C.sq4 = true; const ex = { colSquad: 4 }, y0 = M.hh + 450;   // 從地圖外的下方殺上來
+    C.sq4 = true; const ex = { colSquad: 4 }, y0 = -M.hh + 520;   // 從地圖上方殺下來
     for (let i = 0; i < 6; i++) colAddEnemy(scaleStats(HIND, { hp: 3, lock: 2 }), player.x - 800 + i * 320 + rand(-40, 40), y0, 'kcco', { ...ex });
-    for (let i = 0; i < 4; i++) colAddEnemy(COL_KCCO.cent(), player.x - 600 + i * 400, y0 + 60, 'kcco', { ...ex });   // 肯陶羅斯（倍率同第一隊）
-    for (let i = 0; i < 8; i++) colAddEnemy(COL_KCCO.hydra(), player.x - 900 + i * 260, y0 + 120, 'kcco', { ...ex });
-    floatText(player.x, player.y - 90, '正規軍第四追擊隊從下方殺出！', '#ff8f83');
+    for (let i = 0; i < 4; i++) colAddEnemy(COL_KCCO.cent(), player.x - 600 + i * 400, y0 - 60, 'kcco', { ...ex });   // 肯陶羅斯（倍率同第一隊）
+    for (let i = 0; i < 8; i++) colAddEnemy(COL_KCCO.hydra(), player.x - 900 + i * 260, y0 - 120, 'kcco', { ...ex });
+    floatText(player.x, player.y - 90, '正規軍第四追擊隊從北方殺出！', '#ff8f83');
     const st = liveNpcs().filter((n) => n.joined && !n.rescuer);
     if (st.length) {   // 還活著的倖存人形留下來殿後
       colCommPush({ id: st[0].who, text: COL2.stand, dur: 4.5 });
@@ -17321,7 +17322,7 @@ function col2Tick(dt) {
 // 倖存人形陣亡：在畫面外的話用通訊留下遺言
 function colNpcDeathComm(n) {
   if (!(phase && phase.collapse) || colStage < 6 || !n.def) return;
-  const q = proj(n.x, n.y); if (onScreen(q, 20)) return;
+  if (Math.hypot(n.x - player.x, n.y - player.y) < 650 && !n.lastStand) return;   // 在玩家身邊陣亡就只有頭上的對白；殿後的、或離得遠的用通訊留下遺言
   colCommPush({ id: n.who, text: n.def.deathLine || '……', dur: 4.5, last: true });
 }
 function drawColExtras() {   // 第二張地圖的補給、出口提示；第一張地圖打完提豐後的出口
