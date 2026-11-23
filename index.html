@@ -4489,7 +4489,7 @@ function genCollapseMap1() {
   for (let x = -HW - 300; x < HW + 300;) { const rx = rr(450, 820), ry = rx * rr(0.6, 0.95); hills.push({ x: x + rx * 0.5, y: -HH + rr(-0.35, 0.45) * ry, rx, ry, seed: rnd() * 1e6 | 0, peaks: rnd() < 0.4 ? 2 : 1 }); x += rx * rr(0.8, 1.25); }
   for (const H of hills) if (Math.abs(H.x) < H.rx + 700) H.y = Math.min(H.y, -1060 - H.ry);   // 地圖中間讓出空間給上方的營地
   // 安全屋：右側一座山腳，地堡嵌在山腳前緣
-  const SH = hills.reduce((a, H) => Math.abs(H.x - (HW - 1100)) < Math.abs(a.x - (HW - 1100)) ? H : a); Object.assign(SH, { x: HW - 1100, rx: 720, ry: 560, y: -HH + 0.05 * 560 });
+  const SH = hills.reduce((a, H) => Math.abs(H.x - (HW - 3200)) < Math.abs(a.x - (HW - 3200)) ? H : a);   // 安全屋往左移（地圖拉長） Object.assign(SH, { x: HW - 3200, rx: 720, ry: 560, y: -HH + 0.05 * 560 });
   for (const H of hills) if (H !== SH && Math.abs(H.x - SH.x) < SH.rx + H.rx * 0.7) H.y = Math.min(H.y, SH.y + SH.ry * 0.45 - H.ry);   // 旁邊的山腳往後退，不要蓋住安全屋
   const safe = { x: SH.x, y: SH.y + SH.ry * 0.97 };
   const inHill = (x, y, m) => hills.some((H) => ((x - H.x) / (H.rx + m)) ** 2 + ((y - H.y) / (H.ry + m)) ** 2 < 1);
@@ -10018,6 +10018,7 @@ function drawNightDark() {
 const SWAP_CD = 1;   // 切換冷卻（秒），避免連續切換
 const isMainActive = () => !team || team.active === 0;
 function swapChar(forced) {
+  if (phase && phase.collapse && player && player.defDown) { if (state === 'play') defSpecNext(1); return true; }   // 塌縮之谷：倒下觀戰時 F 換觀戰對象
   if (isNight()) return state === 'play' && nightSwapNext();   // 夜戰：輪流切換隊伍裡的人形
   if (!team || state !== 'play') return false;
   const other = 1 - team.active;
@@ -10118,7 +10119,8 @@ window.addEventListener('keydown', (e) => {
   if (e.code === 'KeyB' && state === 'play' && phase && phase.collapse) caveHeal();   // 塌縮之谷：山洞的醫療櫃
   if (e.code === 'KeyB' && state === 'play' && isTrain()) { if (!$('trainPanel').hidden) $('trainPanel').hidden = true; else if (!$('boardBtn').hidden) openTrainPanel(); }   // 訓練場：B 開關操作台
   if (e.code === 'KeyB' && state === 'play' && isDef()) { if (!$('defBoard').hidden || !$('defRev').hidden || !$('defNet').hidden || !$('defClone').hidden) { $('defBoard').hidden = true; $('defRev').hidden = true; $('defNet').hidden = true; $('defClone').hidden = true; } else if (!$('boardBtn').hidden) openDefPanel(); }   // 滅星行動：B 開關佈告欄
-  if (e.code === 'KeyG' && state === 'play' && isNight()) nightSwapNext(-1);   // 夜戰：G 切換上一個人形
+  if (e.code === 'KeyG' && state === 'play' && isNight()) nightSwapNext(-1);
+  if (e.code === 'KeyG' && state === 'play' && phase && phase.collapse && player && player.defDown) defSpecNext(-1);   // 夜戰：G 切換上一個人形
   if (e.code === 'KeyE' && state === 'play' && !$('expandBtn').hidden) expandEchelon();   // 擴編（電腦版）
   if (e.code === 'KeyF' && state === 'play') swapChar(false);   // 切換主／副角色
   if (e.code === 'KeyM' && state === 'play' && bigMap()) mapOpen = !mapOpen;   // 戰局：全圖
@@ -11585,7 +11587,7 @@ function shootEnemy(e) {
 }
 function damage(amount, pierce, armorPen = 0) {
   if (player && player.fake) { if (player.ctrl) defHitCtrl(amount * atkMulNow); return; }   // 滅星行動：敵人帶路用的假目標／控制室
-  if (isDef() && player.defDown) return;   // 滅星行動：倒下（觀戰中）
+  if (player.defDown) return;   // 滅星行動／塌縮之谷：倒下（觀戰中）
   if (nightProxy && player === nightProxy) { damageClone(nightProxy, amount, pierce, armorPen); return; }   // 夜戰：敵人打的是 AI 隊友
   lastBlk = false; const shotHit = hitDirA != null;
   if (player.invT > 0) return;   // 閃避無敵中
@@ -15697,7 +15699,7 @@ function update(dt) {
   tickEffects(player, dt); for (const c of clones) tickEffects(c, dt);
   smokeTick(dt);   // 迷霧煙盒
   bulwarkTick();   // 反擊者壁壘：金盾撐過 3 秒就給增益
-  if (phase && phase.collapse) { npcTick(dt); caveTick(dt); colTimerTick(dt); colWarTick(dt); colDownTick(dt); colLateTick(dt); }   // 塌縮之谷的倖存人形、安全屋山洞的進出
+  if (phase && phase.collapse) { npcTick(dt); caveTick(dt); colTimerTick(dt); colWarTick(dt); colDownTick(dt); colLateTick(dt); colSpecTick(); }   // 塌縮之谷的倖存人形、安全屋山洞的進出
   if (trainNpcFoes.size) trainNpcCheck();
   moonTick(dt);    // 月海盈輝
   m6Sync();        // M6 ASW 的模式
@@ -16208,7 +16210,7 @@ function update(dt) {
   for (let i = particles.length - 1; i >= 0; i--) { const p = particles[i]; p.x += p.vx * dt; p.y += p.vy * dt; p.life -= dt; if (p.life <= 0) particles.splice(i, 1); }
   for (let i = floaters.length - 1; i >= 0; i--) { const f = floaters[i]; f.y -= 28 * dt; f.life -= dt; if (f.life <= 0) floaters.splice(i, 1); }
 
-  { const ct = defPilot && clones.includes(defPilot) ? defPilot : isDef() && player.defDown && defSpec ? defSpec : player; cam.x += (ct.x - cam.x) * (1 - Math.exp(-dt * 12)); cam.y += (ct.y - cam.y) * (1 - Math.exp(-dt * 12)); }   // 滅星行動觀戰：鏡頭跟著觀戰的隊友
+  { const ct = defPilot && clones.includes(defPilot) ? defPilot : (isDef() || (phase && phase.collapse)) && player.defDown && defSpec ? defSpec : player; cam.x += (ct.x - cam.x) * (1 - Math.exp(-dt * 12)); cam.y += (ct.y - cam.y) * (1 - Math.exp(-dt * 12)); }   // 滅星行動觀戰：鏡頭跟著觀戰的隊友
   shake = Math.max(0, shake - dt * 14); hurtT = Math.max(0, hurtT - dt);
   stream();
   if (team && team.cd > 0) { team.cd = Math.max(0, team.cd - dt); updateSwap(); }
@@ -16217,7 +16219,7 @@ function update(dt) {
   else if (player.hp <= 0) {
     // 亂序戰事：出擊中的人形倒下 → 另一名還活著就自動換上
     if (isDef()) defPlayerDown();   // 滅星行動：倒下後觀戰，等隊友到復活台復活
-    else if (phase && phase.collapse && nightAllies().length) { const old = player, fallen = cfg.name; colAllyDown(old); nightSwap(nightAllies()[0], true); floatText(old.x, old.y - 80, fallen + ' 倒下（10 秒後復活）', '#ff8f83'); }   // 塌縮之谷：換操控還活著的隊友；全隊倒下才失敗
+    else if (phase && phase.collapse && nightAllies().length) colPlayerDown();   // 塌縮之谷：倒下後觀戰還活著的隊友，10 秒後復活；全隊倒下才失敗
     else if (isNight() && nightAllies().length) { const fallen = cfg.name; nightSwap(nightStep(1) || nightAllies()[0], true); floatText(player.x, player.y - 80, fallen + ' 倒下', '#ff8f83'); }
     else if (team && !team.down[1 - team.active]) {
       const fallen = cfg.name; team.down[team.active] = true;
@@ -16735,7 +16737,7 @@ const COLLAPSE_PRELOAD = [];
 const CINE = { blast: 8.2, zoomOut: [9.4, 12.4], pan: [12.4, 19.4], fog: [17.5, 23.5], back: [23.5, 27], end: 27.4 };   // pan：拉遠後沿著山谷往右移，其餘四顆炸彈在鏡頭經過前陸續爆炸，最後停在安全屋附近
 let cine = null;
 // 塌縮之谷的倒數：COL_BOMB 秒後（或玩家先進入安全屋）播放爆炸動畫；爆炸時還在外面、又在爆炸範圍裡的人直接被炸死
-const COL_BOMB = 450, COL_KILL_R = 700;   // 地圖拉長後倒數改成 7:30
+const COL_BOMB = 300, COL_KILL_R = 700;   // 5:00 引爆
 let colT = 0, colBombed = false, colBombDeath = false;
 // 塌縮之谷：倒下的人形（玩家或 AI 隊友）10 秒後在玩家身邊復活；全隊同時倒下才失敗
 const COL_REVIVE = 10;
@@ -16747,7 +16749,12 @@ function colAllyDown(u) {
 function colDownTick(dt) {
   for (let i = colDown.length - 1; i >= 0; i--) {
     const d = colDown[i]; d.t -= dt; if (d.t > 0) continue;
-    colDown.splice(i, 1); const u = d.u; if (u === player) continue;
+    colDown.splice(i, 1); const u = d.u;
+    if (u === player) {   // 玩家復活：在觀戰中的隊友身邊
+      const A = defSpec && clones.includes(defSpec) ? defSpec : nightAllies()[0] || player, p = nightSpot(A.x + rand(-60, 60), A.y + rand(-50, 50), player.r || 16);
+      Object.assign(player, { x: p.x, y: p.y, hp: player.maxHp, defDown: false, invT: 2, dodgeT: 0, shot: 0, prone: 0, trail: [], castT: 0 }); defSpec = null; $('specBanner').hidden = true;
+      burst(player.x, player.y, '#9cf0c8', 18); floatText(player.x, player.y - 60, cfg.name + ' 復活', '#9cf0c8'); updateHp(); refreshCharHud(); continue;
+    }
     const p = nightSpot(player.x + rand(-70, 70), player.y + rand(-70, 70), u.r || 16);
     Object.assign(u, { x: p.x, y: p.y, hp: u.maxHp, dead: false, deadT: 0, clone: true, nightAlly: true, invT: 2, dodgeT: 0, shot: 0, prone: 0, aiming: false, moving: false, trail: [], effects: [], buffT: 0, castT: 0, cool: 0, goal: null, target: null, reload: 0, ammo: u.def.weapon.magazine, shield: 0, hitT: 0 });
     if (!clones.includes(u)) clones.push(u);
@@ -16755,6 +16762,17 @@ function colDownTick(dt) {
     clones.filter((c) => c.nightAlly).forEach((c, k) => { c.slot = CLONE_SLOTS[k % 4]; });
     burst(u.x, u.y, '#9cf0c8', 16); floatText(u.x, u.y - 56, u.def.name + ' 復活', '#9cf0c8'); updateSwap();
   }
+}
+function colPlayerDown() {
+  if (player.defDown) return;
+  player.defDown = true; player.hp = 0; colAllyDown(player); defSpec = nightAllies()[0] || null;
+  floatText(player.x, player.y - 80, cfg.name + ' 倒下（10 秒後復活）', '#ff8f83'); updateHp();
+}
+function colSpecTick() {   // 觀戰中的提示
+  const sb = $('specBanner'); if (!player.defDown) { if (!sb.hidden && phase && phase.collapse) sb.hidden = true; return; }
+  if (!defSpec || !clones.includes(defSpec) || defSpec.hp <= 0) defSpec = nightAllies()[0] || null;
+  const me = colDown.find((d) => d.u === player); sb.hidden = false;
+  sb.textContent = '觀戰中：' + (defSpec ? defSpec.def.name : '—') + '（F／G 切換）　' + (me ? Math.ceil(me.t) : 0) + ' 秒後復活';
 }
 function drawColDown() {   // 倒下的位置：顯示名字和復活倒數（螢幕座標）
   ctx.save(); ctx.font = '800 13px system-ui, sans-serif'; ctx.textAlign = 'center';
@@ -16870,8 +16888,8 @@ function colEnemyTarget(e) {
   }
   const lr = (e.boss ? e.B.lockRange : e.T.lockRange) || 300, home = e.sentry, R = home ? 650 : Infinity;
   if (e.ctg && gameTime < (e.ctT || 0) && (e.ctg === player ? player.hp > 0 && !inCave(player) : e.ctg.hp > 0 && !e.ctg.dead)) return colAim(e, e.ctg);
-  const U = [player, ...nightAllies(), ...liveNpcs()].filter((u) => u.hp > 0 && !inCave(u));
-  const F = e.fac ? enemies.filter((o) => o !== e && o.fac && o.fac !== e.fac && o.hp > 0) : [];
+  const U = [player, ...nightAllies(), ...liveNpcs().filter((n) => n.joined)].filter((u) => u.hp > 0 && !inCave(u));   // 還沒跟隨玩家的倖存人形是無敵的：不當目標
+  const F = e.fac && !(e.B && e.B.ai === 'typhon' && e.fac === 'kcco' && !e.colSquad && !e.colBoss) ? enemies.filter((o) => o !== e && o.fac && o.fac !== e.fac && o.hp > 0) : [];
   let best = null, bd = Infinity;
   const near = (u) => !home || Math.hypot(u.x - home.x, u.y - home.y) < R;
   if (e.boss && e.B.ai === 'typhon' && e.ctg && Math.hypot(e.ctg.x - e.x, e.ctg.y - e.y) < 1200 && (e.ctg === player ? player.hp > 0 && !inCave(player) : e.ctg.hp > 0 && !e.ctg.dead)) best = e.ctg;   // 提豐：先看到誰就一直打誰（目標死掉或跑遠才換）
@@ -16952,13 +16970,13 @@ function colStageTick(dt) {
     if (!colArty.some((s) => s.line && !s.done)) { colLine.landed = true; colLine.commT = 1.2; navSolid.clear(); for (const e of enemies) if (e.colRetreat && e.x > colLine.x) e.colRetreat = false; }   // 沒撤回去的正規軍留在這一側繼續打
   }
   if (colStage === 2 && colLine && colLine.landed) {
-    if (colLine.commT > 0 && (colLine.commT -= dt) <= 0) colComm = { t0: gameTime, unknown: true, text: COL_S2.comm, dur: COL_S2.commDur };
-    if (colLine.commT <= 0 && !colComm) {   // 通訊斷開：砲擊繼續（範圍 100）；南方渡河的第二追擊隊；右側中部的鐵血殘部
+    if (colLine.commT > 0 && (MAPGEN.npcs || []).some((n) => n.joined) && (colLine.commT -= dt) <= 0) colComm = { t0: gameTime, unknown: true, text: COL_S2.comm, dur: COL_S2.commDur };
+    if (colLine.commT <= 0 && !colComm) {   // （神秘通訊要等玩家至少接觸到一名倖存人形才會播放）   // 通訊斷開：砲擊繼續（範圍 100）；南方渡河的第二追擊隊；右側中部的鐵血殘部
       colStage = 3; colT = Math.max(colT, COL_ARTY.start);
       for (let i = 0; i < 4; i++) colTyphonAt(clamp(player.x - 600 + i * 400 + rand(-80, 80), -HW + 300, HW - 300), HH - 70, COL_KCCO.typhon(), { colSquad: 2 });
       for (let i = 0; i < 8; i++) colAddEnemy(COL_KCCO.hydra(), clamp(player.x - 800 + i * 220 + rand(-60, 60), -HW + 300, HW - 300), HH - 60 - rand(0, 40), 'kcco', { colKind: 'hydra2', colSquad: 2 });
       const pool = [WASP, RIPPER, STRIKER, DRAGOON, RIPPER, STRIKER];
-      for (const gy of [-560, 0, 560]) { const gx = HW * 0.42 + rand(-300, 300); for (let i = 0; i < 6; i++) { const x0 = gx + (i % 3) * 80 + rand(-30, 30), y0 = gy + Math.floor(i / 3) * 90 + rand(-30, 30); colAddEnemy(pool[i % pool.length], x0, y0, 'sv', { sentry: { x: x0, y: y0 }, colLegion: true }); } }
+      for (const [gxk, gy] of [[0.42, -560], [0.42, 0], [0.42, 560], [0.6, -320], [0.6, 520], [0.84, -180], [0.84, 560]]) { const gx = HW * gxk + rand(-250, 250);   /* 鐵血殘部：中右 3 隊＋更右方 4 隊 */ for (let i = 0; i < 6; i++) { const x0 = gx + (i % 3) * 80 + rand(-30, 30), y0 = gy + Math.floor(i / 3) * 90 + rand(-30, 30); colAddEnemy(pool[i % pool.length], x0, y0, 'sv', { sentry: { x: x0, y: y0 }, colLegion: true }); } }
       floatText(player.x, player.y - 90, '南方出現新的追擊部隊！', '#ff8f83');
     }
   }
@@ -16995,7 +17013,7 @@ function colAfterBomb() {   // 爆炸動畫結束：第二追擊隊被炸到只�
   enemies = enemies.filter((e) => !(e.colSquad === 2));
   const S = MAPGEN.safe, P = nightSpot(S.x - 700, S.y + 900, 60);
   const e = colTyphonAt(P.x, P.y, { ...BOSSES.typhon }, { colBoss: true, damaged: true });   // 正常倍率
-  boss = e; $('bossName').textContent = '受損的提豐'; $('bossBar').hidden = false; updateBossBar();
+  boss = e; $('bossName').textContent = '受損的提豐'; $('bossBar').hidden = inCave(player); updateBossBar();   // 還在安全屋裡就先不顯示血條
   floatText(player.x, player.y - 90, '擊敗受損的提豐！', '#ffb070');
 }
 function colBossDown(e) {
@@ -17003,6 +17021,7 @@ function colBossDown(e) {
 }
 function colLateTick(dt) {   // 爆炸動畫之後：坍塌污染（每 30 秒所有單位 −10 生命，山洞裡除外）、過關倒數
   if (colStage < 4 || cine) return;
+  if (boss && boss.colBoss) { const h = inCave(player); if ($('bossBar').hidden !== h) $('bossBar').hidden = h; }   // 受損的提豐：出了安全屋才顯示血條
   colPoisonT += dt;
   if (colPoisonT >= COL_S2.poison[0]) {
     colPoisonT = 0; const D = COL_S2.poison[1], out = (u) => !inCave(u);
@@ -17293,7 +17312,7 @@ function openTick(dt) {
   }
   if (t >= OP.end) {   // 第一階段開始：友軍通訊
     opening = null; zoom = O.z0; shake = 0; hud.hidden = false; touchui.hidden = false; $('miniSlot').style.visibility = ''; syncGodBtn(); last = performance.now(); chunks.clear(); stream();
-    const ids = Object.keys(NPC_DEFS); colComm = { t0: gameTime, id: ids[Math.floor(Math.random() * ids.length)], text: '快跑！' };
+    const ids = Object.keys(NPC_DEFS); colComm = { t0: gameTime, id: ids[Math.floor(Math.random() * ids.length)], text: '快跑！往東方集合！' };
   }
 }
 // 山腰鐵路的背景（螢幕座標）：天空、遠山、山腰、鐵軌、寒風
@@ -17380,6 +17399,18 @@ function opFadeDraw(im, x, y, w, h) {   // 畫一張圖，左右兩側與下緣�
   gr = g.createLinearGradient(0, 0, 0, ch); gr.addColorStop(0, '#000'); gr.addColorStop(0.8, '#000'); gr.addColorStop(1, 'rgba(0,0,0,0)'); g.fillStyle = gr; g.fillRect(0, 0, cw, ch);
   ctx.drawImage(c, x, y, w, h);
 }
+function opBgShells(t, u) {   // 背景的砲彈群：各自一條拋物線，越遠越小、越淡、越慢；鏡頭往右跟，所以它們相對往左漂
+  for (let i = 0; i < 16; i++) {
+    const far = 0.25 + 0.75 * hash(i, 1, 61), sp = 0.55 + 0.6 * hash(i, 2, 61), ph = hash(i, 3, 61);
+    const v = ((u * sp * 1.6 + ph) % 1), x = W * (1.15 - 1.4 * hash(i, 4, 61)) + (v - 0.5) * W * 0.9 * far - u * W * 0.35 * (1 - far), base = H * (0.25 + 0.4 * hash(i, 5, 61)), peak = H * (0.12 + 0.22 * hash(i, 6, 61)) * far;
+    const y = base - 4 * peak * v * (1 - v), dy = -4 * peak * (1 - 2 * v), dx = W * 0.9 * far, a = Math.atan2(dy, dx), sc = Math.min(W, H) / 220 * (0.18 + 0.5 * far), al = 0.35 + 0.55 * far;
+    if (x < -60 || x > W + 60) continue;
+    ctx.globalAlpha = al * clamp(Math.min(v / 0.08, (1 - v) / 0.08), 0, 1);
+    ctx.strokeStyle = 'rgba(225,225,220,' + 0.45 * far + ')'; ctx.lineWidth = 1 + 3 * far; ctx.lineCap = 'round'; ctx.beginPath();
+    for (let k = 0; k <= 10; k++) { const w = Math.max(0, v - 0.18 * k / 10), xx = x - (v - w) * dx, yy = base - 4 * peak * w * (1 - w); if (k) ctx.lineTo(xx, yy); else ctx.moveTo(xx, yy); } ctx.stroke();
+    opShellSprite(x, y, a, sc); ctx.globalAlpha = 1;
+  }
+}
 function opShellSprite(x, y, a, s) {   // 高爆彈：橄欖綠彈體＋黃色彈帶、尖頭引信
   ctx.save(); ctx.translate(x, y); ctx.rotate(a); ctx.scale(s, s);
   const g = ctx.createLinearGradient(0, -7, 0, 7); g.addColorStop(0, '#7c8a5a'); g.addColorStop(0.5, '#56633d'); g.addColorStop(1, '#2f3822'); ctx.fillStyle = g;
@@ -17404,14 +17435,17 @@ function drawOpening() {
         }
         opWind(t);
       } else if (t < OP.close[1]) {   // 主砲特寫：開火動畫
-        opScenery(t, 400); const m = (ASSETS.argo || {}).meta, lt = t - OP.close[0], dur = m ? m.fire.dur : 1.43, k = Math.min(1, lt / dur) < 1 ? lt % dur : (lt - dur) % dur, n = m ? m.fire.n : 44, idx = Math.min(n - 1, Math.floor(k / dur * n)), im = opImg('f' + String(idx + 1).padStart(2, '0'));
+        opScenery(t, 400); const m = (ASSETS.argo || {}).meta, lt = t - OP.close[0], dur = m ? m.fire.dur : 1.43, n = m ? m.fire.n : 44, fT = dur / n, rise = 12 * fT, cyc = 0.45 + 8 * fT;
+        let idx, cyN = 0; if (lt < rise) idx = Math.floor(lt / fT); else { const c = lt - rise, u = c % cyc; cyN = Math.floor(c / cyc); idx = u < 8 * fT ? 12 + Math.floor(u / fT) : 11; }   // 砲管抬升只播一次（第 1～12 幀），之後固定角度重複開火（第 13～20 幀＋停頓）
+        const im = opImg('f' + String(idx + 1).padStart(2, '0'));
         if (im) { const w = Math.min(W * 0.84, H * 1.25 * im.width / im.height), h = w * im.height / im.width, x = (W - w) / 2 + W * 0.04, y = H * 0.12; opFadeDraw(im, x, y, w, h);   // 特寫：比之前小一點，素材的左右下裁切邊淡出到背景
-          const sc = w / im.width, fired = idx >= 12 && idx < 20; if (fired) { for (const [mx, my] of [[760, 42], [660, 92]]) { const px = x + mx * sc, py = y + my * sc, R = (idx - 11) * 18 * sc / 0.6; const g = ctx.createRadialGradient(px, py, 0, px, py, R + 40); g.addColorStop(0, 'rgba(255,250,220,0.95)'); g.addColorStop(0.35, 'rgba(255,170,60,0.8)'); g.addColorStop(1, 'rgba(120,80,60,0)'); ctx.fillStyle = g; ctx.beginPath(); ctx.arc(px + R * 0.6, py - R * 0.4, R + 40, 0, Math.PI * 2); ctx.fill(); } if (idx === 12) { shake = 14; if (!O['fx' + Math.floor(lt / dur)]) { O['fx' + Math.floor(lt / dur)] = 1; cineBoom(0.7, 0.7, 900); } } } }
+          const sc = w / im.width, fired = idx >= 12 && idx < 20; if (fired) { for (const [mx, my] of [[760, 42], [660, 92]]) { const px = x + mx * sc, py = y + my * sc, R = (idx - 11) * 18 * sc / 0.6; const g = ctx.createRadialGradient(px, py, 0, px, py, R + 40); g.addColorStop(0, 'rgba(255,250,220,0.95)'); g.addColorStop(0.35, 'rgba(255,170,60,0.8)'); g.addColorStop(1, 'rgba(120,80,60,0)'); ctx.fillStyle = g; ctx.beginPath(); ctx.arc(px + R * 0.6, py - R * 0.4, R + 40, 0, Math.PI * 2); ctx.fill(); } if (idx === 12) { shake = 14; if (!O['fx' + cyN]) { O['fx' + cyN] = 1; cineBoom(0.7, 0.7, 900); } } } }
         opWind(t);
       } else {   // 鏡頭跟著高爆彈：往右飛過天空，再往下掉向山谷
         // 拋物線：彈道高度 4h·u(1−u)，鏡頭水平跟著砲彈、垂直只跟一半 → 畫面上看得到砲彈先爬升、越過頂點再往下掉
         const u = (t - OP.shell[0]) / (OP.shell[1] - OP.shell[0]), kx = W / 2400, sy = H / 1000, HT = (v) => 3600 * v * (1 - v), camH = HT(u) * 0.55;
         opScenery(t, 400 + u * 3000 * kx * 3, camH * sy * 0.35);
+        opBgShells(t, u);   // 遠處同時飛著許多大小、速度不一的砲彈：大規模砲擊
         const sx = (v) => W * (0.22 + 0.4 * u) - (u - v) * 3000 * kx, syv = (v) => H * 0.6 - (HT(v) - camH) * sy;
         ctx.strokeStyle = 'rgba(230,230,225,0.55)'; ctx.lineCap = 'round'; ctx.lineWidth = 6; ctx.beginPath();   // 煙跡沿著走過的拋物線
         for (let i = 0; i <= 24; i++) { const v = Math.max(0, u - 0.45 * (1 - i / 24)); if (i) ctx.lineTo(sx(v), syv(v)); else ctx.moveTo(sx(v), syv(v)); } ctx.stroke();
