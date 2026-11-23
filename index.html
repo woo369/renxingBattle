@@ -3899,7 +3899,7 @@ function npcStep(n, dt, foe) {
       buff, res: buff, crit: critRate(D) + effSum(n, 'crit'), purple: false, segs: null, apv: apOf(n, D), flat: effSum(n, 'dmgFlat'), cdm: effSum(n, 'critDmg') });
     }
     n.ammo--; n.cool = wp.cooldown / Math.max(0.2, 1 + effSum(n, 'rate')); if (!(m.attack.loop && n.atkT < atkDur)) n.animT = 0; n.atkT = 0; burst(mx, my, '#f6cb76', 3);
-    if (AC && !muted) { const d = Math.hypot(n.x - player.x, n.y - player.y), vol = ENEMY_SFX_VOL * clamp(1 - (d - 150) / 650, 0, 1); if (vol >= 0.03) playShot(wp.class, vol, wp.class + ':npc'); }   // NPC 槍聲：各自槍種的音效，音量跟敵人一樣   // 連射中不從頭播，接著循環
+    if (AC && !muted) { const d = Math.hypot(n.x - cam.x, n.y - cam.y), vol = ENEMY_SFX_VOL * clamp(1 - (d - 120) / 520, 0, 1); if (vol >= 0.03) playShot(wp.class, vol, wp.class + ':npc'); }   // NPC 槍聲：各自槍種的音效，音量跟敵人一樣   // 連射中不從頭播，接著循環
     if (n.ammo <= 0) n.reloadT = wp.reload;
 }
 // NPC 死亡：子彈從左邊打過來就往右倒（反之往左），正上下方打來的隨機挑一邊；有死亡動畫的 NPC 播動畫，沒有的變成半透明灰色
@@ -5254,7 +5254,7 @@ function vsShoot(f, shooter, ang) {
   shooter.cool = wp.cooldown / Math.max(0.2, 1 + effSum(f, 'rate') + ((md && md.rate) || 0));
   shooter.shot = shooter.shotMax = wp.anim;
   burst(mz.x, mz.y, '#f6cb76', 4);
-  const dd = Math.hypot(shooter.x - player.x, shooter.y - player.y), vol = 0.45 * (1 - dd / 1300);
+  const dd = Math.hypot(shooter.x - cam.x, shooter.y - cam.y), vol = 0.45 * (1 - dd / 1000);
   if (isMain && vol > 0.04) playShot(wp.class, vol);
   if (isMain && !free && f.ammo <= 0) vsReload(f);
 }
@@ -12675,7 +12675,7 @@ function enemyShotSfx(e, nb0, nm0, nh0) {
   if (!AC || muted) return;
   const map = e.boss ? ENEMY_SFX_BOSS[e.id] : e.T === ENEMY ? (e.def && { b: e.def.weapon.class }) : ENEMY_SFX_SPRITE[e.T.sprite];
   if (!map) return;
-  const d = Math.hypot(e.x - player.x, e.y - player.y), vol = ENEMY_SFX_VOL * clamp(1 - (d - 150) / 650, 0, 1);
+  const d = Math.hypot(e.x - cam.x, e.y - cam.y), vol = ENEMY_SFX_VOL * clamp(1 - (d - 120) / 520, 0, 1);   // 用鏡頭位置當聽點（塌縮之谷的敵人更新時 player 會暫時換成它的目標，之前遠處交戰也聽得很大聲）
   if (vol < 0.03) return;
   const key = (k) => k + (e.boss ? ':boss' : ':e');   // 敵人和玩家分開計算重複間隔
   const nb = bullets.length > nb0 ? bullets.slice(nb0).filter((b) => b.team === 'e' && !b.elec && !b.beam) : [];
@@ -12933,7 +12933,7 @@ function drawTyphon(e) {
 let typSnd = [];
 function typSfx(e, kind, dur) {
   typSfxStop(e); const a = muted ? null : AC; if (!a) return;
-  const d = Math.hypot(e.x - player.x, e.y - player.y), vol = 0.22 * clamp(1 - (d - 200) / 900, 0.12, 1), t = a.currentTime, out = a.createGain(); out.connect(sfxOut(a));
+  const d = Math.hypot(e.x - cam.x, e.y - cam.y), vk = clamp(1 - (d - 200) / 700, 0, 1); if (vk <= 0.02) return; const vol = 0.22 * vk, t = a.currentTime, out = a.createGain(); out.connect(sfxOut(a));   // 太遠就聽不到
   const nodes = [];
   if (kind === 'charge') {
     const T = e.B.laser.charge;
@@ -13664,7 +13664,7 @@ function updateLadon(e, dt, toward, dist) {
 // 拉冬的電磁音效：charge＝充能時越來越高的嗡鳴＋劈啪電流聲；zap＝發射瞬間的放電聲
 function ladonSfx(e, kind, T = 1) {
   const a = muted ? null : AC; if (!a) return;
-  const d = Math.hypot(e.x - player.x, e.y - player.y), vol = 0.2 * clamp(1 - (d - 200) / 800, 0.1, 1), t = a.currentTime, out = a.createGain(); out.connect(sfxOut(a));
+  const d = Math.hypot(e.x - cam.x, e.y - cam.y), vk = clamp(1 - (d - 200) / 700, 0, 1); if (vk <= 0.02) return; const vol = 0.2 * vk, t = a.currentTime, out = a.createGain(); out.connect(sfxOut(a));
   const noise = (len) => { const n = Math.floor(a.sampleRate * len), buf = a.createBuffer(1, n, a.sampleRate), ch = buf.getChannelData(0); for (let i = 0; i < n; i++) ch[i] = Math.random() < 0.08 ? Math.random() * 2 - 1 : (Math.random() * 2 - 1) * 0.15; const s = a.createBufferSource(); s.buffer = buf; return s; };
   if (kind === 'charge') {
     for (const [type, f0, f1, v] of [['sawtooth', 110, 620, 0.35], ['sine', 220, 1240, 0.6]]) { const o = a.createOscillator(); o.type = type; o.frequency.setValueAtTime(f0, t); o.frequency.exponentialRampToValueAtTime(f1, t + T); const g = a.createGain(); g.gain.value = v; o.connect(g); g.connect(out); o.start(t); o.stop(t + T + 0.05); }
