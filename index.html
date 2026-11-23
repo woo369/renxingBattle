@@ -3153,7 +3153,7 @@ const DUEL_PHASES = [
 // 測試模式：不自動出怪、不會結束；零件無限，畫面左側有召喚面板
 const TEST_PHASES = [{ name: '測試模式', end: Infinity, spawnTable: [], initial: 0, packs: [], test: true, infiniteParts: true }];
 const BATTLE_PHASES = [{ name: '戰局', end: Infinity, spawnTable: [], initial: 0, packs: [], bigmap: true, noParts: true }];   // 戰局：沒有零件（也不能擴編）
-const COLLAPSE_PHASES = [{ name: '塌縮之谷・第一階段', end: Infinity, spawnTable: [], initial: 0, packs: ['argo', 'cave', 'hydra', 'aegis', 'striker', 'dragoon', 'cyc', 'cent', 'wasp', 'ripper', 'maxim', 'c14', 'lynx', 'vepr', 'm43', 'cf05', 'apc', 'm1', 'ak47', 'm1014', 'qsb', 'tmp', 'hk23', 'arx', 'm14'], bigmap: true, noParts: true, collapse: true }];   // 線性模式：分段載入，目前只有第一段地圖
+const COLLAPSE_PHASES = [{ name: '塌縮之谷・第一階段', end: Infinity, spawnTable: [], initial: 0, packs: ['argo', 'cave', 'hydra', 'guard', 'striker', 'dragoon', 'cyc', 'cent', 'wasp', 'ripper', 'maxim', 'c14', 'lynx', 'vepr', 'm43', 'cf05', 'apc', 'm1', 'ak47', 'm1014', 'qsb', 'tmp', 'hk23', 'arx', 'm14'], bigmap: true, noParts: true, collapse: true }];   // 線性模式：分段載入，目前只有第一段地圖
 const VERSUS_PHASES = [{ name: '雲圖對戰', end: Infinity, spawnTable: [], initial: 0, packs: [], bigmap: true, versus: true, startParts: 10 }];   // 對戰：零件由對戰模式自己生成
 // 夜戰：敵人與 Boss 照亂序戰事的三個階段，地圖換成野外地形；通訊器每 40 秒出現一個（手上＋場上＋隊友加起來最多 3）
 const NIGHT_PHASES = [
@@ -3801,7 +3801,7 @@ function npcFollow(n, dt, go) {
   let dx = player.x - n.x, dy = player.y - n.y; const d = Math.hypot(dx, dy);   // 跟著玩家：離太遠就靠過去（不排固定位置）
   if (d < (n.near ? 170 : 120)) { n.near = true; return true; } n.near = false;   // 已經在玩家旁邊：原地待著（回傳 true，才不會改成走回據點）
   for (const o of MAPGEN.npcs) if (o !== n && !o.dead && o.joined) { const ox = n.x - o.x, oy = n.y - o.y, od = Math.hypot(ox, oy); if (od > 0 && od < 50) { dx += ox / od * 60; dy += oy / od * 60; } }   // 不要擠成一團
-  const dd = Math.hypot(dx, dy) || 1, sp = (n.def ? n.def.speed : 250) * (d > 300 ? 1.15 : 1), ux = dx / dd, uy = dy / dd;
+  const dd = Math.hypot(dx, dy) || 1, sp = (n.def ? n.def.speed : 250) * (d > 600 ? 1.4 : d > 300 ? 1.15 : 1), ux = dx / dd, uy = dy / dd;
   const a0 = Math.atan2(uy, ux), sd = n.detour || 1;   // 被擋住：依序試著往左右偏 35°、70°、105° 繞過去，記住上次繞的方向
   let ok = false; for (const off of [0, 0.6, -0.6, 1.2, -1.2, 1.8, -1.8]) { const aa = a0 + off * sd; if (go(Math.cos(aa), Math.sin(aa), sp)) { ok = true; if (off) n.detour = Math.sign(off) * sd; break; } }
   if (!ok) n.detour = -sd;
@@ -3859,6 +3859,8 @@ function npcStep(n, dt, foe) {
         if (!down && r < 0.6) { n.stepT = 0.35; n.stepDir = dir; return; }   // 側移
       }
     }
+    // 第二階段起：跟著玩家的倖存人形離玩家太遠（> 600）就先停止交戰、全速跟上（不要戀戰白白送死）
+    if (!foe && npcFlee() && n.joined && !n.lastStand && colStage >= 2 && Math.hypot(player.x - n.x, player.y - n.y) > 600 && npcFollow(n, dt, go)) return;
     // 索敵：鎖敵距離內最近的目標
     let tgt = null, best = D.lockRange;
     if (foe) { for (const u of friendlyUnits()) { if (!u || u.hp <= 0 || u.dead) continue; const d = Math.hypot(u.x - n.x, u.y - n.y); if (d < best) { best = d; tgt = u; } } }
@@ -12823,6 +12825,9 @@ function typhonCore(e, dt, toward, aimTo, dist, canMove) {
   const B = e.B, L = B.laser;
   e.phase = (e.phase || 0) + dt; e.angle = aimTo; e.aimD = dist; e.t = (e.t || 0) + dt; e.mode = e.mode || 'hover'; e.cd = Math.max(0, (e.cd || 0) - dt); e.moving = false;
   const go = (m) => { e.mode = m; e.t = 0; };
+  if ((e.mode === 'charge' || e.mode === 'fire' || e.mode === 'ground') && Number.isFinite(dist) && e.B.assets) {   // 瞄準要從砲口算（砲口偏離車身中心，近距離時角度會歪）
+    const Mz = typMuzzle(e), tx = e.x + Math.cos(aimTo) * dist, ty = e.y + Math.sin(aimTo) * dist; aimTo = Math.atan2(ty - Mz.y, tx - Mz.x); e.aimD = Math.hypot(tx - Mz.x, ty - Mz.y);
+  }
   const front = (a) => { const f = e.faceLeft ? Math.PI : 0; let d = Math.atan2(Math.sin(a - f), Math.cos(a - f)); d = clamp(d, -L.arc, L.arc); return f + d; };   // 光束只能朝車頭前方
   if (e.mode === 'hover' && e.retreat) {
     // 拉開距離：車頭一直朝著目標，往反方向（稍微斜著）浮空後退，退到打得到的距離再降下
@@ -16876,10 +16881,16 @@ function drawColTimer() {   // 左上角（小地圖下方）顯示經過時間
    入場 15 秒：正規軍追擊部隊（獨眼巨人 6、九頭蛇 4、肯陶羅斯 4、提豐 1）從後方（左側）出現；追到地圖中間就停在外圍
    地圖左半部上下兩側有零星的鐵血單位（一～二階）守著自己的位置 */
 const COL_HOLD_X = -520, COL_ARTY = { start: 5, on: 10, off: 10, every: 0.7, r: 300, spread: 480, dmg: 22, warn: [1.8, 2.6] };   // r：爆炸範圍；spread：落點離隊員的隨機距離
+// 正規軍（提豐以外）的加速只在離玩家隊伍遠的時候生效：靠近到 COL_NEAR 以內就回到原本的速度，不會一路衝到臉上
+const COL_NEAR = 1000;
+function colBoost(T, base) { T.speedF = T.speed; T.speed0 = base.speed; return T; }
+function colSpeedGate(e) {
+  const T = e.T; if (!T || T.speed0 == null) return;
+  let d = Math.hypot(player.x - e.x, player.y - e.y); for (const c of nightAllies()) d = Math.min(d, Math.hypot(c.x - e.x, c.y - e.y));
+  T.speed = d < COL_NEAR ? T.speed0 : T.speedF;
+}
 const COL_KCCO = {
-  cyc: () => scaleStats(CYCLOPS, { hp: 10, speed: 2 }), hydra: () => scaleStats(HYDRA, { hp: 10, speed: 2.5, lock: 2 }), cent: () => scaleStats(CENTAUR, { hp: 10, speed: 2 }),
-  cyc2: () => scaleStats(CYCLOPS, { hp: 10, speed: 1.4 }), hydra2: () => scaleStats(HYDRA, { hp: 10, speed: 1.5, lock: 2 }),   // 第二、三追擊隊：血量同第一隊，速度放慢（之前從邊緣衝進畫面像瞬移）
-  typhon2: () => ({ ...BOSSES.typhon, speed: 190, lockRange: 400, laser: { ...BOSSES.typhon.laser, range: 1500, charge: 1 } }),
+  cyc: () => colBoost(scaleStats(CYCLOPS, { hp: 10, speed: 2 }), CYCLOPS), hydra: () => colBoost(scaleStats(HYDRA, { hp: 10, speed: 2.5, lock: 2 }), HYDRA), cent: () => colBoost(scaleStats(CENTAUR, { hp: 10, speed: 2 }), CENTAUR),
   typhon: () => ({ ...BOSSES.typhon, speed: 250, lockRange: 400, laser: { ...BOSSES.typhon.laser, range: 1500, charge: 1 } }),   // 開到 400 內才開火（太遠蓄力常被打斷）
 };
 let colArty = [], colPursuit = false, colGod = false, opening = null;
@@ -16946,7 +16957,7 @@ function colNavStep(en) {
   return P[0];
 }
 function colEnemyTarget(e) {
-  e.sentryIdle = false;
+  e.sentryIdle = false; colSpeedGate(e);
   if (e.colRetreat && colLine) {   // 往砲擊線的西邊撤退
     const P = e.cwp || (e.cwp = { r: 14, hp: 1, maxHp: 1, invT: 99, fake: true, effects: [], def: cfg, vx: 0, vy: 0, clone: true });
     const gx = colLine.x - 1500; P.x = Math.min(e.x - 400, gx); P.y = e.y; if (e.x < gx + 60) { P.x = e.x; e.sentryIdle = true; }
@@ -16961,7 +16972,7 @@ function colEnemyTarget(e) {
     if (e._hp0 != null && e.hp < e._hp0) MAPGEN.base.alertT = gameTime + 10; e._hp0 = e.hp;
   }
   const alert = e.colBase && MAPGEN.base && gameTime < (MAPGEN.base.alertT || 0);
-  const lr = (e.boss ? e.B.lockRange : e.T.lockRange) || 300, home = alert && !(e.B && e.B.building) ? null : e.sentry, R = home ? 650 : Infinity;
+  const lr = (e.boss ? e.B.lockRange : e.T.lockRange) || 300, home = alert && !(e.B && e.B.building) ? MAPGEN.base : e.sentry, R = alert ? 1900 : home ? 650 : Infinity;   // 基地遇襲：只在基地周圍 1900 內反擊，不會一路追殺
   { const LS = liveNpcs().filter((n) => n.lastStand); let bl = null, bdl = lr + 500; for (const n of LS) { const d = Math.hypot(n.x - e.x, n.y - e.y); if (d < bdl) { bdl = d; bl = n; } } if (bl) { e.ctg = bl; e.ctT = gameTime + 0.6; e.navX = bl.x; e.navY = bl.y; return colAim(e, bl); } }   // 殿後的倖存人形：敵人優先打他們
   if (e.colSquad === 3) { let bs = null, bds = lr * 1.5; for (const o of enemies) { if (o.fac !== 'sv' || o.hp <= 0) continue; const d = Math.hypot(o.x - e.x, o.y - e.y); if (d < bds) { bds = d; bs = o; } } if (bs) { e.ctg = bs; e.ctT = gameTime + 0.6; e.navX = bs.x; e.navY = bs.y; return colAim(e, bs); } }   // 第三追擊隊：遇到鐵血先打鐵血
   if (e.ctg && gameTime < (e.ctT || 0) && (e.ctg === player ? player.hp > 0 && !inCave(player) : e.ctg.hp > 0 && !e.ctg.dead)) return colAim(e, e.ctg);
@@ -17050,8 +17061,8 @@ function colStageTick(dt) {
     if (colLine.commT > 0 && (MAPGEN.npcs || []).some((n) => n.joined) && (colLine.commT -= dt) <= 0) colComm = { t0: gameTime, unknown: true, text: COL_S2.comm, dur: COL_S2.commDur };
     if (colLine.commT <= 0 && !colComm) {   // （神秘通訊要等玩家至少接觸到一名倖存人形才會播放）   // 通訊斷開：砲擊繼續（範圍 100）；南方渡河的第二追擊隊；右側中部的鐵血殘部
       colStage = 3; colT = Math.max(colT, COL_ARTY.start);
-      for (let i = 0; i < 4; i++) colTyphonAt(clamp(player.x - 1500 + i * 1000 + rand(-120, 120), -HW + 300, HW - 300), HH + 650 + rand(0, 200), COL_KCCO.typhon2(), { colSquad: 2 });   // 從地圖外的南方開進來（畫面外），再渡河
-      for (let i = 0; i < 8; i++) colAddEnemy(COL_KCCO.hydra2(), clamp(player.x - 1600 + i * 450 + rand(-80, 80), -HW + 300, HW - 300), HH + 550 + rand(0, 200), 'kcco', { colKind: 'hydra2', colSquad: 2 });
+      for (let i = 0; i < 4; i++) colTyphonAt(clamp(player.x - 1500 + i * 1000 + rand(-120, 120), -HW + 300, HW - 300), HH + 650 + rand(0, 200), COL_KCCO.typhon(), { colSquad: 2 });   // 從地圖外的南方開進來（畫面外），再渡河
+      for (let i = 0; i < 8; i++) colAddEnemy(COL_KCCO.hydra(), clamp(player.x - 1600 + i * 450 + rand(-80, 80), -HW + 300, HW - 300), HH + 550 + rand(0, 200), 'kcco', { colKind: 'hydra2', colSquad: 2 });
       const pool = [WASP, RIPPER, STRIKER, DRAGOON, RIPPER, STRIKER];
       for (const [gxk, gy] of [[0.42, -560], [0.42, 0], [0.42, 560], [0.6, -320], [0.6, 520], [0.84, -180], [0.84, 560]]) { const gx = HW * gxk + rand(-250, 250);   /* 鐵血殘部：中右 3 隊＋更右方 4 隊 */ for (let i = 0; i < 6; i++) { const x0 = gx + (i % 3) * 80 + rand(-30, 30), y0 = gy + Math.floor(i / 3) * 90 + rand(-30, 30); colAddEnemy(pool[i % pool.length], x0, y0, 'sv', { sentry: { x: x0, y: y0 }, colLegion: true }); } }
       floatText(player.x, player.y - 90, '南方出現新的追擊部隊！', '#ff8f83');
@@ -17094,7 +17105,7 @@ function colAfterBomb() {   // 爆炸動畫結束：第二追擊隊被炸到只�
   floatText(player.x, player.y - 90, '擊敗受損的提豐！', '#ffb070');
 }
 function colBossDown(e) {
-  colStage = 5; colComm = { t0: gameTime, unknown: true, text: '受損的提豐已擊破，前往右下角的出口', dur: 4.5 }; $('bossBar').hidden = true;   // 開放第一張地圖右下角的出口
+  colStage = 5; bgmStop(false); colComm = { t0: gameTime, unknown: true, text: '受損的提豐已擊破，前往右下角的出口', dur: 4.5 }; $('bossBar').hidden = true;   // 開放第一張地圖右下角的出口
 }
 function colLateTick(dt) {   // 爆炸動畫之後：坍塌污染（每 30 秒所有單位 −10 生命，山洞裡除外）、過關倒數
   if (colStage < 4 || cine) return;
@@ -17106,7 +17117,7 @@ function colLateTick(dt) {   // 爆炸動畫之後：坍塌污染（每 30 秒�
     if (player.hp > 0 && out(player) && !suit(player)) { const iv = player.invT; player.invT = 0; damage(D, true); player.invT = iv; floatText(player.x, player.y - 50, '坍塌污染 −' + D, '#a99cff'); }
     for (const c of clones.slice()) if (c.hp > 0 && out(c) && !suit(c)) damageClone(c, D, true);
     for (const n of liveNpcs()) if (out(n) && !suit(n)) npcHurt(n, D, 0);
-    for (const o of enemies) if (o.hp > 0 && out(o) && o.colSquad !== 3 && !(o.B && o.B.building)) hitEnemy(o, D, '#a99cff', true);   // 第三追擊隊有生化套件
+    for (const o of enemies) if (o.hp > 0 && out(o) && o.colSquad !== 3 && !(o.B && o.B.building)) { hitEnemy(o, D, '#a99cff', true); o._hp0 = o.hp; }   // 污染扣的血不算「基地遭到攻擊」   // 第三追擊隊有生化套件
   }
   if (colWinT > 0 && (colWinT -= dt) <= 0 && state === 'play') endGame(true);
 }
@@ -17259,7 +17270,7 @@ function colEnterMap2() {
   // 補給營地：醫療箱、生化服
   medkits.push({ x: M.camp.x - 60, y: M.camp.y + 110, ph: 0 }, { x: M.camp.x + 60, y: M.camp.y + 120, ph: 1 });
   M.hazkits = [{ x: M.camp.x - 20, y: M.camp.y + 190 }, { x: M.camp.x + 110, y: M.camp.y + 200 }];
-  $('phaseName').textContent = '塌縮之谷・第二階段';
+  $('phaseName').textContent = '塌縮之谷・第二階段'; bgmOnce('purgatory', 2);   // 第二張地圖：煉獄歌單隨機兩首，播完就停
   updateHp(); burst(player.x, player.y, '#9cf0c8', 12);
 }
 function colCommPush(c) { colCommQ.push(c); }
@@ -17271,8 +17282,8 @@ function col2Tick(dt) {
   if (!C.comm2 && t >= COL2.comm2At) { C.comm2 = true; colCommPush({ unknown: true, text: COL2.comm2, dur: 6 }); }
   if (!C.sq3 && t >= COL2.sq3At) {   // 第三追擊隊：4 獨眼巨人、4 提豐、6 奎鳥、4 埃奎斯（從左邊追上來）
     C.sq3 = true; const bx = -M.hw - 900, cy = clamp(player.y, -M.hh + 400, M.hh - 300), ex = { colSquad: 3 };   // 從地圖外的西邊開進來
-    for (let i = 0; i < 4; i++) colAddEnemy(COL_KCCO.cyc2(), bx + rand(0, 200), cy - 300 + i * 200, 'kcco', { ...ex });
-    for (let i = 0; i < 4; i++) colTyphonAt(bx - 300 + rand(0, 150), cy - 450 + i * 300, COL_KCCO.typhon2(), { ...ex });
+    for (let i = 0; i < 4; i++) colAddEnemy(COL_KCCO.cyc(), bx + rand(0, 200), cy - 300 + i * 200, 'kcco', { ...ex });
+    for (let i = 0; i < 4; i++) colTyphonAt(bx - 300 + rand(0, 150), cy - 450 + i * 300, COL_KCCO.typhon(), { ...ex });
     for (let i = 0; i < 6; i++) colBossAt('quail', { ...BOSSES.quail, hp: BOSSES.quail.hp * 2, lockRange: BOSSES.quail.lockRange * 2 }, bx - 150 + rand(0, 250), cy - 500 + i * 200, { ...ex, fac: 'kcco' });
     for (let i = 0; i < 4; i++) colAddEnemy(scaleStats(AEQUES, { hp: 5, lock: 1.5 }), bx - 100 + rand(0, 250), cy - 300 + i * 200, 'kcco', { ...ex });
     floatText(player.x, player.y - 90, '正規軍第三追擊隊出現！', '#ff8f83');
@@ -17383,8 +17394,8 @@ function collapseIntroStart() {
   const U = (kind, sprite, dx, dy, faceLeft, die, by) => ({ kind, sprite, x: S.x + dx, y: S.y + dy, faceLeft, die, by, phase: Math.random() * 3, atkT: 9, vx: 0, vy: 0, rot: 0, alpha: 1, dead: false });
   const units = [
     U('hydra', 'hydra', -250, -70, false), U('hydra', 'hydra', -300, 80, false), U('typhon', 'typhon', -200, 175, false),
-    U('sv', 'aegis', 150, -90, true, 2.0, 0), U('sv', 'striker', 215, 0, true, 2.9, 1), U('sv', 'dragoon', 170, 110, true, 4.7, 0),
-    U('sv', 'aegis', 270, 170, true, 3.95, 'laser'), U('sv', 'striker', 300, -60, true, 5.6, 1), U('sv', 'dragoon', 330, 70, true, null)];
+    U('sv', 'guard', 150, -90, true, 2.0, 0), U('sv', 'striker', 215, 0, true, 2.9, 1), U('sv', 'dragoon', 170, 110, true, 4.7, 0),
+    U('sv', 'guard', 270, 170, true, 3.95, 'laser'), U('sv', 'striker', 300, -60, true, 5.6, 1), U('sv', 'dragoon', 330, 70, true, null)];
   const shells = [];   // 九頭蛇的砲擊：命中時間、目標、哪一台九頭蛇
   for (const u of units) if (u.die != null && u.by !== 'laser') shells.push({ t: u.die - 0.65, hit: u.die, tgt: u, from: units[u.by] });
   for (const [t, dx, dy, i] of [[0.6, 250, -20, 0], [1.3, 300, 160, 1], [3.4, 360, 30, 0], [4.2, 240, -110, 1], [5.1, 380, 150, 0], [6.3, 280, 30, 1]]) shells.push({ t, hit: t + 0.65, tx: S.x + dx, ty: S.y + dy, from: units[i] });
@@ -17434,7 +17445,7 @@ function cineTick(dt) {
     C.sfxCan = (C.sfxCan ?? 0.4) - dt; if (C.sfxCan <= 0) { C.sfxCan = 0.7 + Math.random() * 0.9; if (AC && !muted) playShot(Math.random() < 0.5 ? 'CAN' : 'MCN', 0.45, 'cine:can', 0.2); }
   }
   // 鐵血單位還擊：痛擊者、龍騎兵朝正規軍掃射
-  if (t < 6.8) { C.nextBul -= dt; if (C.nextBul <= 0) { C.nextBul = 0.05; const sh = C.units.filter((u) => u.kind === 'sv' && !u.dead && u.sprite !== 'aegis'), mil = C.units.filter((u) => u.kind !== 'sv' && !u.dead); if (sh.length && mil.length) { const a = sh[Math.floor(Math.random() * sh.length)], b = mil[Math.floor(Math.random() * mil.length)]; a.atkT = 0; C.bul.push({ x0: a.x - 30, y0: a.y, x1: b.x + (Math.random() - 0.5) * 70, y1: b.y + (Math.random() - 0.5) * 40, t0: t }); } } }
+  if (t < 6.8) { C.nextBul -= dt; if (C.nextBul <= 0) { C.nextBul = 0.05; const sh = C.units.filter((u) => u.kind === 'sv' && !u.dead && u.sprite !== 'guard'), mil = C.units.filter((u) => u.kind !== 'sv' && !u.dead); if (sh.length && mil.length) { const a = sh[Math.floor(Math.random() * sh.length)], b = mil[Math.floor(Math.random() * mil.length)]; a.atkT = 0; C.bul.push({ x0: a.x - 30, y0: a.y, x1: b.x + (Math.random() - 0.5) * 70, y1: b.y + (Math.random() - 0.5) * 40, t0: t }); } } }
   C.bul = C.bul.filter((b) => t - b.t0 < 0.4);
   if (t >= CINE.blast && !C.boomed.has('big')) {   // 大爆炸：碎片噴飛
     C.boomed.add('big'); cineBoom(1.0, 3.5, 260); cineBoom(0.6, 1.2, 2400); shake = 26;
