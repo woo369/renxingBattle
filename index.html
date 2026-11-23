@@ -16028,7 +16028,7 @@ function update(dt) {
     } finally {
       if (nightProxy) { player = P0; clones = C0; nightProxy = null; }
       if (eO.fac) { for (let k = nbF; k < bullets.length; k++) if (bullets[k].team === 'e' && !bullets[k].fac) bullets[k].fac = eO.fac;   // 塌縮之谷：子彈記下陣營，打得到別的陣營的敵人
-        if (eO.colRetreat && colLine && colLine.landed && eO.x > colLine.x - 480) eO.x = colLine.x - 480; }   // 第二階段：被砲擊線擋在西邊的正規軍過不來
+        if (eO.colRetreat && colLine && colLine.landed && eO.x > colLine.x - 700) eO.x = colLine.x - 700; }   // 第二階段：被砲擊線擋在西邊的正規軍過不來
     }
   }
   tickTyphonBeams(dt);
@@ -16878,6 +16878,8 @@ function drawColTimer() {   // 左上角（小地圖下方）顯示經過時間
 const COL_HOLD_X = -520, COL_ARTY = { start: 5, on: 10, off: 10, every: 0.7, r: 300, spread: 480, dmg: 22, warn: [1.8, 2.6] };   // r：爆炸範圍；spread：落點離隊員的隨機距離
 const COL_KCCO = {
   cyc: () => scaleStats(CYCLOPS, { hp: 10, speed: 2 }), hydra: () => scaleStats(HYDRA, { hp: 10, speed: 2.5, lock: 2 }), cent: () => scaleStats(CENTAUR, { hp: 10, speed: 2 }),
+  cyc2: () => scaleStats(CYCLOPS, { hp: 10, speed: 1.4 }), hydra2: () => scaleStats(HYDRA, { hp: 10, speed: 1.5, lock: 2 }),   // 第二、三追擊隊：血量同第一隊，速度放慢（之前從邊緣衝進畫面像瞬移）
+  typhon2: () => ({ ...BOSSES.typhon, speed: 190, lockRange: 400, laser: { ...BOSSES.typhon.laser, range: 1500, charge: 1 } }),
   typhon: () => ({ ...BOSSES.typhon, speed: 250, lockRange: 400, laser: { ...BOSSES.typhon.laser, range: 1500, charge: 1 } }),   // 開到 400 內才開火（太遠蓄力常被打斷）
 };
 let colArty = [], colPursuit = false, colGod = false, opening = null;
@@ -16947,7 +16949,7 @@ function colEnemyTarget(e) {
   e.sentryIdle = false;
   if (e.colRetreat && colLine) {   // 往砲擊線的西邊撤退
     const P = e.cwp || (e.cwp = { r: 14, hp: 1, maxHp: 1, invT: 99, fake: true, effects: [], def: cfg, vx: 0, vy: 0, clone: true });
-    const gx = colLine.x - 1300; P.x = Math.min(e.x - 400, gx); P.y = e.y; if (e.x < gx + 60) { P.x = e.x; e.sentryIdle = true; }
+    const gx = colLine.x - 1500; P.x = Math.min(e.x - 400, gx); P.y = e.y; if (e.x < gx + 60) { P.x = e.x; e.sentryIdle = true; }
     e.navX = P.x; e.navY = P.y; e.ctg = null; return P;
   }
   if (e.colGoal) {   // 撤離中的鐵血：往目的地走，不戀戰
@@ -16955,7 +16957,11 @@ function colEnemyTarget(e) {
     const d = Math.hypot(e.colGoal.x - e.x, e.colGoal.y - e.y) || 1, lr0 = (e.boss ? e.B.lockRange : e.T.lockRange) || 300; P.x = e.x + (e.colGoal.x - e.x) / d * (lr0 + 120); P.y = e.y + (e.colGoal.y - e.y) / d * (lr0 + 120);
     e.navX = e.colGoal.x; e.navY = e.colGoal.y; e.ctg = null; return P;
   }
-  const lr = (e.boss ? e.B.lockRange : e.T.lockRange) || 300, home = e.sentry, R = home ? 650 : Infinity;
+  if (e.colBase && MAPGEN.base) {   // 鐵血基地：有人被打（掉血）就全基地警戒，衝出來反擊
+    if (e._hp0 != null && e.hp < e._hp0) MAPGEN.base.alertT = gameTime + 10; e._hp0 = e.hp;
+  }
+  const alert = e.colBase && MAPGEN.base && gameTime < (MAPGEN.base.alertT || 0);
+  const lr = (e.boss ? e.B.lockRange : e.T.lockRange) || 300, home = alert && !(e.B && e.B.building) ? null : e.sentry, R = home ? 650 : Infinity;
   { const LS = liveNpcs().filter((n) => n.lastStand); let bl = null, bdl = lr + 500; for (const n of LS) { const d = Math.hypot(n.x - e.x, n.y - e.y); if (d < bdl) { bdl = d; bl = n; } } if (bl) { e.ctg = bl; e.ctT = gameTime + 0.6; e.navX = bl.x; e.navY = bl.y; return colAim(e, bl); } }   // 殿後的倖存人形：敵人優先打他們
   if (e.colSquad === 3) { let bs = null, bds = lr * 1.5; for (const o of enemies) { if (o.fac !== 'sv' || o.hp <= 0) continue; const d = Math.hypot(o.x - e.x, o.y - e.y); if (d < bds) { bds = d; bs = o; } } if (bs) { e.ctg = bs; e.ctT = gameTime + 0.6; e.navX = bs.x; e.navY = bs.y; return colAim(e, bs); } }   // 第三追擊隊：遇到鐵血先打鐵血
   if (e.ctg && gameTime < (e.ctT || 0) && (e.ctg === player ? player.hp > 0 && !inCave(player) : e.ctg.hp > 0 && !e.ctg.dead)) return colAim(e, e.ctg);
@@ -17026,7 +17032,7 @@ function colWarTick(dt) {
   if (colGod) { player.invT = Math.max(player.invT || 0, 0.15); }   // 測試用無敵
 }
 /* ── 第二階段：中場的砲擊線 → 未知通訊 → 南方第二追擊隊＋右側的鐵血殘部；進安全屋 1.5 秒後播爆炸動畫；動畫後擊敗受損的提豐 ── */
-const COL_S2 = { trigX: -800, lineX: -1500, gap: 290, lineR: 260, lineJit: 320, comm: '還活著的人形，前往東北方安全屋避難，盡快', commDur: 6.5, poison: [30, 10] };
+const COL_S2 = { trigX: -500, lineX: -1200, gap: 290, lineR: 260, lineJit: 560, comm: '還活著的人形，前往東北方安全屋避難，盡快', commDur: 6.5, poison: [30, 10] };
 let colBossMusic = false, colStage = 1, colLine = null, colSmoke = [], colPoisonT = 0, colCaveT = 0, colWinT = 0;
 function colStageTick(dt) {
   const HW = MAPGEN.hw, HH = MAPGEN.hh;
@@ -17044,8 +17050,8 @@ function colStageTick(dt) {
     if (colLine.commT > 0 && (MAPGEN.npcs || []).some((n) => n.joined) && (colLine.commT -= dt) <= 0) colComm = { t0: gameTime, unknown: true, text: COL_S2.comm, dur: COL_S2.commDur };
     if (colLine.commT <= 0 && !colComm) {   // （神秘通訊要等玩家至少接觸到一名倖存人形才會播放）   // 通訊斷開：砲擊繼續（範圍 100）；南方渡河的第二追擊隊；右側中部的鐵血殘部
       colStage = 3; colT = Math.max(colT, COL_ARTY.start);
-      for (let i = 0; i < 4; i++) colTyphonAt(clamp(player.x - 600 + i * 400 + rand(-80, 80), -HW + 300, HW - 300), HH - 70, COL_KCCO.typhon(), { colSquad: 2 });
-      for (let i = 0; i < 8; i++) colAddEnemy(COL_KCCO.hydra(), clamp(player.x - 800 + i * 220 + rand(-60, 60), -HW + 300, HW - 300), HH - 60 - rand(0, 40), 'kcco', { colKind: 'hydra2', colSquad: 2 });
+      for (let i = 0; i < 4; i++) colTyphonAt(clamp(player.x - 1500 + i * 1000 + rand(-120, 120), -HW + 300, HW - 300), HH + 650 + rand(0, 200), COL_KCCO.typhon2(), { colSquad: 2 });   // 從地圖外的南方開進來（畫面外），再渡河
+      for (let i = 0; i < 8; i++) colAddEnemy(COL_KCCO.hydra2(), clamp(player.x - 1600 + i * 450 + rand(-80, 80), -HW + 300, HW - 300), HH + 550 + rand(0, 200), 'kcco', { colKind: 'hydra2', colSquad: 2 });
       const pool = [WASP, RIPPER, STRIKER, DRAGOON, RIPPER, STRIKER];
       for (const [gxk, gy] of [[0.42, -560], [0.42, 0], [0.42, 560], [0.6, -320], [0.6, 520], [0.84, -180], [0.84, 560]]) { const gx = HW * gxk + rand(-250, 250);   /* 鐵血殘部：中右 3 隊＋更右方 4 隊 */ for (let i = 0; i < 6; i++) { const x0 = gx + (i % 3) * 80 + rand(-30, 30), y0 = gy + Math.floor(i / 3) * 90 + rand(-30, 30); colAddEnemy(pool[i % pool.length], x0, y0, 'sv', { sentry: { x: x0, y: y0 }, colLegion: true }); } }
       floatText(player.x, player.y - 90, '南方出現新的追擊部隊！', '#ff8f83');
@@ -17122,11 +17128,11 @@ const COL2 = { cx: 200, cy: 30, sq3At: 15, comm1At: 1.5, comm2At: 10, evacAt: 18
   comm1: '格里芬單位注意，請往東前往羅馬尼亞跟指揮官會合', comm2: '軍方已經重新發動攻勢，我只能幫你們拖延這些時間，保重',
   stand: '這邊交給我們，你們先走', elites: ['agent', 'witch', 'elk', 'moth'] };
 let col2 = null, colSpare = [], col2Elite = null, colTrans = null, colEscaped = null, colCommQ = [];
-const COL2_SV = () => [WASP, RIPPER, STRIKER, DRAGOON, AEGIS];
+const COL2_SV = () => [WASP, RIPPER, STRIKER, DRAGOON, GUARD];   // 聖盾（不是聖盾GA）
 // 第二張地圖要用的素材：在爆炸動畫播放時先下載
 function col2Packs() {
   col2Elite = col2Elite || COL2.elites[Math.floor(Math.random() * COL2.elites.length)];
-  const T = [SCORP, ...COL2_SV(), CYCLOPS, COMPOUND_EYE, HIND, AEQUES, HYDRA], out = new Set();
+  const T = [SCORP, ...COL2_SV(), CYCLOPS, CENTAUR, HIND, AEQUES, HYDRA], out = new Set();
   for (const t of T) { const p = packOf(t.assets) || t.sprite; if (p && ASSETS[p]) out.add(p); }
   for (const id of ['jupiter', 'quail', 'typhon', col2Elite]) { const p = packOf(BOSSES[id].assets); if (p) out.add(p); }
   for (const id of colSpare) if (ASSETS[id]) out.add(id);
@@ -17143,12 +17149,12 @@ function genCollapseMap2() {
   // 上緣山腳（山谷段）；平原段只留遠方的矮丘
   for (let x = -HW - 300; x < X34 + 200;) { const rx = rr(450, 820), ry = rx * rr(0.6, 0.95); hills.push({ x: x + rx * 0.5, y: -HH + rr(-0.35, 0.4) * ry, rx, ry, seed: rnd() * 1e6 | 0, peaks: rnd() < 0.4 ? 2 : 1 }); x += rx * rr(0.8, 1.2); }
   // 山谷出口：一道往下延伸的山脈把山谷和平原隔開，只在地圖下方留出谷口
-  const gapY = HH - 680;
+  const gapY = HH - 1150;   // 谷口加寬
   for (let y = -HH - 200; y < gapY - 300;) { const ry = rr(420, 560), rx = ry * rr(0.9, 1.25); hills.push({ x: X34 + rr(-160, 160), y: y + ry * 0.5, rx, ry, seed: rnd() * 1e6 | 0, peaks: 1, ridge: true }); y += ry * 0.85; }
   // 地圖右緣：高山
   for (let y = -HH - 200; y < HH + 300; y += 520) hills.push({ x: HW + 330, y, rx: 560, ry: 460, seed: rnd() * 1e6 | 0, peaks: 1 });
   const inHill = (x, y, m) => hills.some((H) => ((x - H.x) / (H.rx + m)) ** 2 + ((y - H.y) / (H.ry + m)) ** 2 < 1);
-  const start = { x: -HW + 420, y: HH * 0.15 };
+  const start = { x: -HW + 1100, y: HH * 0.15 };
   const base = { x: -HW * 0.38, y: -HH + 620, w: 1500, h: 520 };   // 鐵血基地（上方山腳前）
   for (const H of hills) if (!H.ridge && Math.abs(H.x - base.x) < base.w / 2 + H.rx) H.y = Math.min(H.y, base.y - base.h / 2 - H.ry * 0.85);
   const town = { x: HW - 1500, y: -HH + 760 }, camp = { x: HW * 0.22, y: -HH + 640 };
@@ -17247,7 +17253,9 @@ function colEnterMap2() {
   for (const [T, dx, dy] of garrison) colLegion(T, B.x + dx, B.y + dy, 'sv', () => ({ colBase: true, sentry: null }));
   for (const e of enemies) if (e.colBase && !e.boss) e.sentry = { x: e.x, y: e.y };
   // 碉堡區：零散的鐵血
-  for (const b of M.boxes) { const n = 1 + Math.floor(Math.random() * 3); for (let i = 0; i < n; i++) { const T = col2RandSv(), a = Math.random() * 6.28, x0 = b.x + Math.cos(a) * 170, y0 = b.y + Math.sin(a) * 110; colAddEnemy(T, x0, y0, 'sv', { sentry: { x: x0, y: y0 } }); } }
+  for (const [gx, gy] of [[-M.hw * 0.62, M.hh * 0.45], [-M.hw * 0.05, M.hh * 0.55]]) colLegion(col2RandSv(), gx, gy, 'sv', () => ({}));   // 下半部再兩個鐵血兵團
+  for (const e of enemies) if (!e.colBase && !e.sentry && e.fac === 'sv') e.sentry = { x: e.x, y: e.y };
+  for (const b of M.boxes) { const n = 2 + Math.floor(Math.random() * 3); for (let i = 0; i < n; i++) { const T = col2RandSv(), a = Math.random() * 6.28, x0 = b.x + Math.cos(a) * 170, y0 = b.y + Math.sin(a) * 110; colAddEnemy(T, x0, y0, 'sv', { sentry: { x: x0, y: y0 } }); } }
   // 補給營地：醫療箱、生化服
   medkits.push({ x: M.camp.x - 60, y: M.camp.y + 110, ph: 0 }, { x: M.camp.x + 60, y: M.camp.y + 120, ph: 1 });
   M.hazkits = [{ x: M.camp.x - 20, y: M.camp.y + 190 }, { x: M.camp.x + 110, y: M.camp.y + 200 }];
@@ -17262,11 +17270,11 @@ function col2Tick(dt) {
   if (!C.comm1 && t >= COL2.comm1At) { C.comm1 = true; colCommPush({ id: colSpare[0], text: COL2.comm1, dur: 6.5, broken: true }); }
   if (!C.comm2 && t >= COL2.comm2At) { C.comm2 = true; colCommPush({ unknown: true, text: COL2.comm2, dur: 6 }); }
   if (!C.sq3 && t >= COL2.sq3At) {   // 第三追擊隊：4 獨眼巨人、4 提豐、6 奎鳥、4 埃奎斯（從左邊追上來）
-    C.sq3 = true; const bx = -M.hw + 200, cy = clamp(player.y, -M.hh + 400, M.hh - 300), ex = { colSquad: 3 };
-    for (let i = 0; i < 4; i++) colAddEnemy(COL_KCCO.cyc(), bx + rand(0, 200), cy - 300 + i * 200, 'kcco', { ...ex });
-    for (let i = 0; i < 4; i++) colTyphonAt(bx - 100 + rand(0, 150), cy - 450 + i * 300, COL_KCCO.typhon(), { ...ex });
-    for (let i = 0; i < 6; i++) colBossAt('quail', { ...BOSSES.quail, hp: BOSSES.quail.hp * 2, lockRange: BOSSES.quail.lockRange * 2 }, bx + rand(50, 300), cy - 500 + i * 200, { ...ex, fac: 'kcco' });
-    for (let i = 0; i < 4; i++) colAddEnemy(scaleStats(AEQUES, { hp: 5, lock: 1.5 }), bx + rand(100, 300), cy - 300 + i * 200, 'kcco', { ...ex });
+    C.sq3 = true; const bx = -M.hw - 900, cy = clamp(player.y, -M.hh + 400, M.hh - 300), ex = { colSquad: 3 };   // 從地圖外的西邊開進來
+    for (let i = 0; i < 4; i++) colAddEnemy(COL_KCCO.cyc2(), bx + rand(0, 200), cy - 300 + i * 200, 'kcco', { ...ex });
+    for (let i = 0; i < 4; i++) colTyphonAt(bx - 300 + rand(0, 150), cy - 450 + i * 300, COL_KCCO.typhon2(), { ...ex });
+    for (let i = 0; i < 6; i++) colBossAt('quail', { ...BOSSES.quail, hp: BOSSES.quail.hp * 2, lockRange: BOSSES.quail.lockRange * 2 }, bx - 150 + rand(0, 250), cy - 500 + i * 200, { ...ex, fac: 'kcco' });
+    for (let i = 0; i < 4; i++) colAddEnemy(scaleStats(AEQUES, { hp: 5, lock: 1.5 }), bx - 100 + rand(0, 250), cy - 300 + i * 200, 'kcco', { ...ex });
     floatText(player.x, player.y - 90, '正規軍第三追擊隊出現！', '#ff8f83');
   }
   if (!C.evac && t >= COL2.evacAt) {   // 鐵血基地往東南撤離，基地裡再跑出 2 個隨機兵團＋2 個蠍甲獸兵團
@@ -17276,10 +17284,10 @@ function col2Tick(dt) {
     floatText(player.x, player.y - 90, '鐵血基地開始往東南撤離', '#ffd27a');
   }
   if (!C.sq4 && player.x > M.x34 - 1200 && player.y > M.gapY - 450) {   // 出谷口前：第四追擊隊從地圖下方殺出
-    C.sq4 = true; const ex = { colSquad: 4 }, y0 = M.hh - 60;
-    for (let i = 0; i < 10; i++) colAddEnemy(scaleStats(HIND, { hp: 3, lock: 2 }), player.x - 900 + i * 200 + rand(-40, 40), y0, 'kcco', { ...ex });
-    for (let i = 0; i < 6; i++) colAddEnemy(scaleStats(COMPOUND_EYE, { hp: 10, speed: 2 }), player.x - 700 + i * 280, y0 - 10, 'kcco', { ...ex });
-    for (let i = 0; i < 8; i++) colAddEnemy(COL_KCCO.hydra(), player.x - 800 + i * 230, y0 - 20, 'kcco', { ...ex });
+    C.sq4 = true; const ex = { colSquad: 4 }, y0 = M.hh + 450;   // 從地圖外的下方殺上來
+    for (let i = 0; i < 6; i++) colAddEnemy(scaleStats(HIND, { hp: 3, lock: 2 }), player.x - 800 + i * 320 + rand(-40, 40), y0, 'kcco', { ...ex });
+    for (let i = 0; i < 4; i++) colAddEnemy(COL_KCCO.cent(), player.x - 600 + i * 400, y0 + 60, 'kcco', { ...ex });   // 肯陶羅斯（倍率同第一隊）
+    for (let i = 0; i < 8; i++) colAddEnemy(COL_KCCO.hydra(), player.x - 900 + i * 260, y0 + 120, 'kcco', { ...ex });
     floatText(player.x, player.y - 90, '正規軍第四追擊隊從下方殺出！', '#ff8f83');
     const st = liveNpcs().filter((n) => n.joined && !n.rescuer);
     if (st.length) {   // 還活著的倖存人形留下來殿後
