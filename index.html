@@ -3402,6 +3402,7 @@ function mapSolidAt(x, y, r, bullet) {
   if (isDef()) for (const o of DEF.walls) if (!(bullet && (o.kind === 'fence' || o.kind === 'prop' || o.kind === 'cover'))) if (o.h ? Math.abs(x - o.x) < o.w / 2 + r && Math.abs(y - o.y) < o.h / 2 + r : (x - o.x) ** 2 + (y - o.y) ** 2 < (o.r + r) ** 2) return o;   // 滅星行動：基地的後牆、半圓圍欄、沙包（擋人也擋子彈）
   if (MAPGEN.hills) for (const H of MAPGEN.hills) { const dx = (x - H.x) / (H.rx + r), dy = (y - H.y) / (H.ry + r); if (dx * dx + dy * dy < 1) return H; }   // 塌縮之谷：山腳擋人也擋子彈
   for (const o of MAPGEN.near(x, y)) {
+    if (o.kind === 'npc' && bullet) continue;   // 倖存人形：擋人不擋子彈
     if (o.kind === 'log') { if (bullet) continue; const ux = Math.cos(o.ang), uy = Math.sin(o.ang), t = clamp((x - o.x) * ux + (y - o.y) * uy, -o.len / 2, o.len / 2); if (Math.hypot(x - o.x - ux * t, y - o.y - uy * t) < o.th + r) return o; continue; }   // 倒下的樹：擋人，子彈從上面飛過
     if (o.kind === 'forest' || (bullet && (o.kind === 'lake' || o.kind === 'river' || o.kind === 'lowrock' || o.kind === 'lowwall' || o.kind === 'rubble' || o.kind === 'bush'))) continue;   // 子彈可以飛過湖、河、半磚掩體   // 子彈可以飛過湖和河
     if (bullet && o.kind === 'tent') continue;   // 帳篷是布：擋人不擋子彈
@@ -3459,7 +3460,7 @@ const MAPCOL = { road: '#4b5a52', snowroad: '#b6c6d1', street: '#2c2f32', creek:
 function drawBigMapGround(x0, x1, y0, y1) {
   const vis = (x, y, r) => !(x + r < x0 || x - r > x1 || y + r < y0 || y - r > y1);
   if (MAPGEN.theme === 'valley') drawValleyMountains();
-  if (MAPGEN.ground) { for (const d of MAPGEN.blobs) { if (!vis(d.x, d.y, d.r)) continue; const q = proj(d.x, d.y); ground(q, d.x, d.y); ctx.fillStyle = MAPCOL[d.kind]; ctx.beginPath(); ctx.arc(d.x, d.y, d.r, 0, Math.PI * 2); ctx.fill(); } drawGroundItems(MAPGEN.ground, x0, x1, y0, y1); if (MAPGEN.hills) drawValleyHills(x0, x1); return; }   // 雪地、戰亂城市、塌縮之谷
+  if (MAPGEN.ground) { for (const d of MAPGEN.blobs) { if (!vis(d.x, d.y, d.r)) continue; const q = proj(d.x, d.y); ground(q, d.x, d.y); ctx.fillStyle = MAPCOL[d.kind]; ctx.beginPath(); ctx.arc(d.x, d.y, d.r, 0, Math.PI * 2); ctx.fill(); } drawGroundItems(MAPGEN.ground, x0, x1, y0, y1); if (MAPGEN.theme === 'valley') drawValleyBounds(); if (MAPGEN.hills) drawValleyHills(x0, x1); return; }   // 雪地、戰亂城市、塌縮之谷
   for (const d of MAPGEN.blobs) { if (!vis(d.x, d.y, d.r)) continue; const q = proj(d.x, d.y); ground(q, d.x, d.y); ctx.fillStyle = MAPCOL[d.kind]; ctx.beginPath(); ctx.arc(d.x, d.y, d.r, 0, Math.PI * 2); ctx.fill(); }
   for (const f of MAPGEN.forests) { if (!vis(f.x, f.y, f.r)) continue; const q = proj(f.x, f.y); ground(q, f.x, f.y); ctx.fillStyle = '#1a4038'; ctx.beginPath(); ctx.arc(f.x, f.y, f.r, 0, Math.PI * 2); ctx.fill(); }
   for (const o of MAPGEN.solids) {
@@ -3502,7 +3503,7 @@ function drawBigMapGround(x0, x1, y0, y1) {
   poly(-HX, -HY, HX, HY, null, 'rgba(255,214,120,0.7)', 3);
 }
 // 立體物件（跟角色一起依前後排序）：樹、平房、佔領點旗桿
-const ACTOR_KIND = { tree: 't', house: 'h', rock: 'r', igloo: 'i', tower: 'T', log: 'L', tent: 'k', crate: 'k', drum: 'k', rwall: 'w', lowwall: 'w', rubble: 'w', bush: 'w', console: 'w' };   // 半磚（lowrock）跟全磚畫成同一塊岩石
+const ACTOR_KIND = { tree: 't', house: 'h', rock: 'r', igloo: 'i', tower: 'T', log: 'L', npc: 'N', safehouse: 'X', tent: 'k', crate: 'k', drum: 'k', rwall: 'w', lowwall: 'w', rubble: 'w', bush: 'w', console: 'w' };   // 半磚（lowrock）跟全磚畫成同一塊岩石
 function mapActors() {
   if (!bigMap() && !isNight() && !isTrain()) return [];
   const vb = viewBounds(), x0 = cam.x - vb.hw - 300, x1 = cam.x + vb.hw + 300, y0 = cam.y + vb.t - 300, y1 = cam.y + vb.b + 400, out = [];
@@ -3583,7 +3584,7 @@ function drawCamp(o) {
     ctx.fillStyle = '#e8d27a'; ctx.fillRect(x + 20, y + 12, 22, 6);
   }
 }
-const HOUSECOL = [['#c9b48e', '#8f4a3a'], ['#b8bcc0', '#4f6f86'], ['#d2c3a2', '#6f5a45'], ['#a9a08e', '#7d3f3f']];
+const HOUSECOL = [['#c9b48e', '#8f4a3a'], ['#b8bcc0', '#4f6f86'], ['#d2c3a2', '#6f5a45'], ['#a9a08e', '#7d3f3f'], ['#5f6650', '#3b4133']];   // 最後一組：軍火倉庫（軍綠）
 function drawHouse(o) {
   const by = o.y + o.h / 2, q = proj(o.x, by), [wall, roof] = HOUSECOL[o.col], wallH = 90, depth = 46 + o.h * 0.12;
   ground(q, o.x, by); ctx.fillStyle = 'rgba(5,15,20,0.45)'; ctx.fillRect(o.x - o.w / 2 + 14, by - 6, o.w, 26);
@@ -3597,10 +3598,52 @@ function drawHouse(o) {
   // 屋頂（往後退的斜面）
   ctx.fillStyle = roof; ctx.beginPath(); ctx.moveTo(L - 12, top + 4); ctx.lineTo(R + 12, top + 4); ctx.lineTo(R - 6, top - depth); ctx.lineTo(L + 6, top - depth); ctx.closePath(); ctx.fill();
   ctx.fillStyle = 'rgba(255,255,255,0.12)'; ctx.fillRect(L - 12, top, o.w + 24, 5);
+  if (o.depot) {   // 軍火倉庫：大的捲門＋黃黑警示條
+    ctx.fillStyle = '#2f342a'; ctx.fillRect(o.x - 60, by - 70, 120, 70); ctx.fillStyle = 'rgba(255,255,255,0.08)'; for (let y = by - 66; y < by; y += 8) ctx.fillRect(o.x - 58, y, 116, 2);
+    for (let i = 0; i < 8; i++) { ctx.fillStyle = i % 2 ? '#1c1c1c' : '#d8b23a'; ctx.fillRect(o.x - 64 + i * 16, by - 78, 16, 8); }
+    ctx.fillStyle = '#d8d2b8'; ctx.fillRect(L + 22, top + 26, 34, 6); ctx.fillRect(R - 56, top + 26, 34, 6);
+  }
   if (o.shop) {   // 戰亂城市的商店：褪色的招牌、破掉的櫥窗
     ctx.fillStyle = ['#8a3b33', '#2f5e7a', '#7a6a2f', '#3f6b45'][o.col]; ctx.fillRect(L + 10, top + 6, o.w - 20, 14);
     ctx.fillStyle = 'rgba(20,20,20,0.75)'; ctx.fillRect(L + 18, by - 46, Math.min(48, o.w * 0.25), 30); ctx.fillRect(R - 18 - Math.min(48, o.w * 0.25), by - 46, Math.min(48, o.w * 0.25), 30);
   }
+}
+// 倖存人形（暫代圖）：之後換成各自的動畫。現在先畫一個灰色的小人，輕輕呼吸起伏
+function drawSurvivor(o) {
+  const q = proj(o.x, o.y); ground(q, o.x, o.y); ctx.fillStyle = 'rgba(5,15,10,0.4)'; ctx.beginPath(); ctx.ellipse(o.x, o.y, 16, 7, 0, 0, Math.PI * 2); ctx.fill();
+  upright(q, o.x, o.y); const b = Math.sin(gameTime * 2 + o.ph) * 1.2, f = o.faceLeft ? -1 : 1;
+  ctx.fillStyle = '#4b5560'; ctx.fillRect(o.x - 6, o.y - 14, 4, 14); ctx.fillRect(o.x + 2, o.y - 14, 4, 14);
+  ctx.fillStyle = '#7d8a96'; ctx.beginPath(); ctx.moveTo(o.x - 10, o.y - 12); ctx.lineTo(o.x + 10, o.y - 12); ctx.lineTo(o.x + 8, o.y - 36 + b); ctx.lineTo(o.x - 8, o.y - 36 + b); ctx.closePath(); ctx.fill();
+  ctx.fillStyle = '#c9ced4'; ctx.beginPath(); ctx.arc(o.x + f * 1, o.y - 45 + b, 9, 0, Math.PI * 2); ctx.fill();
+  ctx.fillStyle = '#5d6772'; ctx.beginPath(); ctx.arc(o.x - f * 1, o.y - 48 + b, 9.5, Math.PI * 1.05, Math.PI * 1.95); ctx.fill();
+  ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+}
+// 安全屋：嵌在山腳裡的地堡。主體是黑色混凝土，中間一道防爆門，上面覆土；左右兩側各有一座可以上下樓的出入口（往上通到覆土頂、往下通到地下層）
+function drawSafehouse(o) {
+  const by = o.y + o.h / 2, q = proj(o.x, by), L = o.x - o.w / 2 + 70, R = o.x + o.w / 2 - 70, top = by - 105;
+  ground(q, o.x, by); ctx.fillStyle = 'rgba(5,10,8,0.5)'; ctx.fillRect(o.x - o.w / 2, by - 4, o.w, 24);
+  for (const sx of [-1, 1]) {   // 往下的樓梯口：地上一個方形開口，看得到往下的階梯
+    const cx = o.x + sx * (o.w / 2 - 35); ctx.fillStyle = '#1a1c1d'; ctx.fillRect(cx - 30, by + 4, 60, 46);
+    ctx.fillStyle = '#3a3d3f'; for (let i = 0; i < 5; i++) ctx.fillRect(cx - 28, by + 8 + i * 8, 56, 3);
+    ctx.strokeStyle = '#8a8f92'; ctx.lineWidth = 3; ctx.strokeRect(cx - 30, by + 4, 60, 46);
+  }
+  upright(q, o.x, by);
+  ctx.fillStyle = '#56603f'; ctx.beginPath(); ctx.moveTo(o.x - o.w / 2 - 40, top + 12); ctx.quadraticCurveTo(o.x, top - 110, o.x + o.w / 2 + 40, top + 12); ctx.closePath(); ctx.fill();   // 覆土
+  ctx.fillStyle = '#121314'; ctx.fillRect(L, top, R - L, 105);   // 黑色主體
+  ctx.fillStyle = '#1e2022'; ctx.fillRect(L - 8, top - 10, R - L + 16, 14);   // 屋簷
+  ctx.fillStyle = '#26292b'; for (let i = 0; i < 3; i++) ctx.fillRect(L + 10, top + 14 + i * 30, R - L - 20, 3);   // 混凝土分縫
+  ctx.fillStyle = 'rgba(255,190,90,0.55)'; for (const wx of [L + 22, R - 70]) ctx.fillRect(wx, top + 24, 48, 6);   // 射擊口透出的微光
+  ctx.fillStyle = '#2b2e30'; ctx.fillRect(o.x - 40, by - 80, 80, 80);   // 防爆門
+  for (let i = 0; i < 6; i++) { ctx.fillStyle = i % 2 ? '#151515' : '#c9a13a'; ctx.fillRect(o.x - 48 + i * 16, by - 90, 16, 8); }
+  ctx.strokeStyle = '#4a4e51'; ctx.lineWidth = 3; ctx.strokeRect(o.x - 40, by - 80, 80, 80); ctx.beginPath(); ctx.moveTo(o.x, by - 80); ctx.lineTo(o.x, by); ctx.stroke();
+  for (const sx of [-1, 1]) {   // 兩側出入口：混凝土樓梯間，往上的階梯靠著主體爬到覆土頂
+    const ex = sx < 0 ? L : R, ox = ex + sx * 70;
+    ctx.fillStyle = '#4c5053'; ctx.beginPath(); ctx.moveTo(ex, by); ctx.lineTo(ox, by); ctx.lineTo(ox, by - 30); ctx.lineTo(ex, top - 6); ctx.closePath(); ctx.fill();
+    ctx.fillStyle = '#6b7073'; for (let i = 0; i < 7; i++) { const t = i / 7, x = ox + (ex - ox) * t, y = by - 30 - (by - 30 - top) * t; ctx.fillRect(Math.min(x, x - sx * 10), y - 3, 10, 4); }
+    ctx.strokeStyle = '#9aa0a3'; ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(ox, by - 58); ctx.lineTo(ex, top - 34); ctx.stroke();   // 扶手
+    ctx.fillStyle = '#0c0d0e'; ctx.fillRect(sx < 0 ? ex + 6 : ex - 36, by - 54, 30, 54);   // 側門
+  }
+  ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
 }
 // 倒下的樹：斷掉的樹幹（貼地的圓柱）＋一端翻起來的樹根、幾根殘枝
 function drawLog(o) {
@@ -3637,7 +3680,7 @@ function drawValleyMountains() {
     for (let n = 0; n < pk.length; n++) { const [x, y] = pk[n]; ctx.lineTo(x, y); if (n < pk.length - 1) { const [x2, y2] = pk[n + 1], mx = (x + x2) / 2, my = Math.max(y, y2) + (base - Math.max(y, y2)) * (0.25 + 0.3 * hash(n + i0, lay, 3)); ctx.lineTo(mx, my); } }
     ctx.lineTo(pk[pk.length - 1][0] + step, base + 4); ctx.closePath(); ctx.fill();
     if (snow) { ctx.fillStyle = snow; for (const [x, y] of pk) { const h = (base - y), sw = h * 0.28; if (h < hgt * k * 0.7) continue; ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(x + sw * 0.9, y + h * 0.22); ctx.lineTo(x + sw * 0.3, y + h * 0.16); ctx.lineTo(x - sw * 0.1, y + h * 0.26); ctx.lineTo(x - sw * 0.6, y + h * 0.18); ctx.closePath(); ctx.fill(); } }
-    else { ctx.fillStyle = lay === 2 ? '#2b3e34' : '#1d2e23'; const ts = (lay === 2 ? 9 : 14) * k; for (let x = -((off * 1.0) % (ts * 1.6)); x < W; x += ts * 1.6) { let y = base; for (let n = 0; n < pk.length - 1; n++) if (x >= pk[n][0] && x < pk[n + 1][0]) { const t = (x - pk[n][0]) / (pk[n + 1][0] - pk[n][0]); y = pk[n][1] + (pk[n + 1][1] - pk[n][1]) * t; } ctx.beginPath(); ctx.moveTo(x - ts, y + ts * 2.2); ctx.lineTo(x, y - ts * 1.2); ctx.lineTo(x + ts, y + ts * 2.2); ctx.fill(); } }   // 近山稜線上的針葉林
+    else if (false) { ctx.fillStyle = lay === 2 ? '#2b3e34' : '#1d2e23'; const ts = (lay === 2 ? 9 : 14) * k; for (let x = -((off * 1.0) % (ts * 1.6)); x < W; x += ts * 1.6) { let y = base; for (let n = 0; n < pk.length - 1; n++) if (x >= pk[n][0] && x < pk[n + 1][0]) { const t = (x - pk[n][0]) / (pk[n + 1][0] - pk[n][0]); y = pk[n][1] + (pk[n + 1][1] - pk[n][1]) * t; } ctx.beginPath(); ctx.moveTo(x - ts, y + ts * 2.2); ctx.lineTo(x, y - ts * 1.2); ctx.lineTo(x + ts, y + ts * 2.2); ctx.fill(); } }   // 近山稜線上的針葉林
     ctx.fillStyle = 'rgba(169,182,180,' + (0.28 - lay * 0.07) + ')'; ctx.fillRect(0, base - hgt * k, W, hgt * k + 4);   // 空氣透視的霧
   }
 }
@@ -3662,9 +3705,20 @@ function drawValleyPeak(H) {
   for (let x = H.x - w, i = 0; x <= H.x + w; x += 40, i++) ctx.lineTo(x, sl + (i % 2 ? 30 : -10) + hash(i, 11, sd) * 40);
   ctx.lineTo(H.x + w, by - ht - 50); ctx.lineTo(H.x - w, by - ht - 50); ctx.closePath(); ctx.fill();
   ctx.fillStyle = 'rgba(70,80,90,0.35)'; ctx.beginPath(); ctx.moveTo(sx, by - ht); ctx.lineTo(foot, by); ctx.lineTo(H.x + w, by); ctx.lineTo(H.x + w, by - ht - 50); ctx.closePath(); ctx.fill();   // 雪的背光面
-  const tl = by - ht * 0.13; ctx.fillStyle = '#2c3d2e'; ctx.fillRect(H.x - w, tl + 30, w * 2, by - tl);   // 山腳的針葉林帶
-  for (let x = H.x - w, i = 0; x <= H.x + w; x += 34, i++) { const y = tl + 40 + hash(i, 12, sd) * 50, s = 26 + hash(i, 13, sd) * 16; ctx.fillStyle = i % 3 ? '#2c3d2e' : '#33473a'; ctx.beginPath(); ctx.moveTo(x - s * 0.6, y + s); ctx.lineTo(x, y - s * 1.3); ctx.lineTo(x + s * 0.6, y + s); ctx.fill(); }
+  const tl = by - ht * 0.16, gg = ctx.createLinearGradient(0, by + H.ry * 0.17, 0, tl); gg.addColorStop(0, '#3b4a33'); gg.addColorStop(0.5, 'rgba(70,80,60,0.6)'); gg.addColorStop(1, 'rgba(90,92,78,0)');
+  ctx.fillStyle = gg; ctx.fillRect(H.x - w, tl, w * 2, by + H.ry * 0.17 - tl);   // 山腳：從地面的草色漸漸過渡到岩壁
   ctx.restore();
+}
+// 塌縮之谷的地圖邊界：左、右、下三邊外面壓暗，沿邊畫一條發光的邊線（上緣被山腳擋住）
+function drawValleyBounds() {
+  const hw = MAPGEN.hw, hh = MAPGEN.hh, P = (pts) => { ctx.beginPath(); pts.forEach(([x, y], i) => { const q = proj(x, y); i ? ctx.lineTo(q.x, q.y) : ctx.moveTo(q.x, q.y); }); };
+  const line = (ax, ay, bx, by, n = 40) => { const o = []; for (let i = 0; i <= n; i++) o.push([ax + (bx - ax) * i / n, ay + (by - ay) * i / n]); return o; };
+  ctx.setTransform(DPR, 0, 0, DPR, 0, 0); ctx.fillStyle = 'rgba(3,8,6,0.72)';
+  const far = 1500, yb = hh + far;
+  for (const reg of [[...line(-hw, -hh, -hw, hh), ...line(-hw, hh, -hw, yb, 8), ...line(-hw - far, yb, -hw - far, -hh, 8)], [...line(hw, -hh, hw, hh), ...line(hw, hh, hw, yb, 8), ...line(hw + far, yb, hw + far, -hh, 8)], [...line(-hw, hh, hw, hh, 80), ...line(hw, yb, -hw, yb, 8)]]) { P(reg); ctx.closePath(); ctx.fill(); }
+  ctx.strokeStyle = 'rgba(255,214,140,0.85)'; ctx.lineWidth = 3; ctx.setLineDash([18, 10]); ctx.shadowColor = 'rgba(255,190,90,0.9)'; ctx.shadowBlur = 10;
+  P([...line(-hw, -hh, -hw, hh), ...line(-hw, hh, hw, hh, 120), ...line(hw, hh, hw, -hh), ...line(hw, -hh, -hw, -hh, 120)]); ctx.stroke();
+  ctx.setLineDash([]); ctx.shadowBlur = 0;
 }
 // 塌縮之谷的山腳：跟滅星行動的丘陵同一種畫法（等高線往上疊）
 function drawValleyHills(x0, x1) {
@@ -4013,9 +4067,19 @@ function genCollapseMap1() {
   const CX = 140, CY = 26, HW = CX * 110 / 2, HH = CY * 110 / 2, solids = [], trees = [], blobs = [], ground = [], hills = [];
   // 山腳：沿著上緣一座接一座，伸進地圖 10%～60%
   for (let x = -HW - 300; x < HW + 300;) { const rx = rr(450, 820), ry = rx * rr(0.6, 0.95); hills.push({ x: x + rx * 0.5, y: -HH + rr(-0.35, 0.45) * ry, rx, ry, seed: rnd() * 1e6 | 0, peaks: rnd() < 0.4 ? 2 : 1 }); x += rx * rr(0.8, 1.25); }
+  for (const H of hills) if (Math.abs(H.x) < H.rx + 700) H.y = Math.min(H.y, -1060 - H.ry);   // 地圖中間讓出空間給上方的營地
+  // 安全屋：右側一座山腳，地堡嵌在山腳前緣
+  const SH = hills.reduce((a, H) => Math.abs(H.x - (HW - 1100)) < Math.abs(a.x - (HW - 1100)) ? H : a); Object.assign(SH, { x: HW - 1100, rx: 720, ry: 560, y: -HH + 0.05 * 560 });
+  for (const H of hills) if (H !== SH && Math.abs(H.x - SH.x) < SH.rx + H.rx * 0.7) H.y = Math.min(H.y, SH.y + SH.ry * 0.45 - H.ry);   // 旁邊的山腳往後退，不要蓋住安全屋
+  const safe = { x: SH.x, y: SH.y + SH.ry * 0.97 };
   const inHill = (x, y, m) => hills.some((H) => ((x - H.x) / (H.rx + m)) ** 2 + ((y - H.y) / (H.ry + m)) ** 2 < 1);
-  const start = { x: -HW + 450, y: HH * 0.35 }, cineAt = { x: start.x + 2700, y: HH * 0.05 };   // cineAt：開場動畫的交戰空地
-  const okXY = (x, y, m) => Math.abs(x) < HW - 80 - m && y < HH - 80 - m && y > -HH + 60 + m && !inHill(x, y, m + 30) && Math.hypot(x - start.x, y - start.y) > 380 + m && Math.hypot((x - cineAt.x) * 0.75, (y - cineAt.y) * 1.1) > 300 + m;
+  const start = { x: -HW + 450, y: HH * 0.35 }, cineAt = { x: start.x + 2700, y: HH * 0.05 };   // cineAt：開場動畫的交戰空地（第一顆炸彈）
+  // 五顆坍塌液炸彈的落點：第一顆在交戰空地，最後一顆靠近安全屋但沒有直接波及；地圖中間的倖存者據點都在爆心外
+  const blasts = [{ x: cineAt.x + 30, y: cineAt.y + 30 }, { x: -2500, y: -250 }, { x: 2300, y: 600 }, { x: 4400, y: -150 }, { x: safe.x - 1250, y: safe.y + 850 }];
+  // 地圖中間的三個據點：上方營地、中間軍火倉庫、下方碉堡，各有 4 名倖存人形
+  const sites = [{ kind: 'camp', x: 0, y: -720 }, { kind: 'depot', x: 0, y: 0 }, { kind: 'bunker', x: 0, y: 760 }];
+  const okXY = (x, y, m) => Math.abs(x) < HW - 80 - m && y < HH - 80 - m && y > -HH + 60 + m && !inHill(x, y, m + 30) && Math.hypot(x - start.x, y - start.y) > 380 + m && Math.hypot((x - cineAt.x) * 0.75, (y - cineAt.y) * 1.1) > 300 + m
+    && sites.every((c) => Math.hypot((x - c.x) * 0.8, y - c.y) > 330 + m) && Math.hypot((x - safe.x) * 0.7, y - safe.y) > 360 + m && blasts.every((b) => Math.hypot(x - b.x, (y - b.y) * 1.2) > 300 + m);
   // 河谷底：一條淺淺的溪（只是地面顏色）
   for (let x = -HW; x <= HW; x += 70) blobs.push({ x, y: HH - 260 + Math.sin(x / 900) * 120, r: 110, kind: 'creek' });
   // 巨砲彈坑：有大有小，常常幾個擠在一起
@@ -4064,8 +4128,34 @@ function genCollapseMap1() {
     if (!okXY(x, y, len / 2) || hitSolid(x, y, len / 2 + 10) || trees.some((tr) => Math.hypot(tr.x - x, tr.y - y) < len / 2 + 30)) continue;
     solids.push({ kind: 'log', x, y, len, ang, th: rr(11, 15), r: len / 2, s: rnd() }); i++;
   }
+  // ── 三個據點
+  const npcs = [], npc = (site, dx, dy, f) => npcs.push({ kind: 'npc', id: 's' + (npcs.length + 1), site, x: site.x + dx, y: site.y + dy, r: 15, faceLeft: f, ph: rnd() * 6 });
+  for (const c of sites) {
+    if (c.kind === 'camp') {   // 營地：完好的帳篷、物資箱、沙包
+      solids.push({ kind: 'tent', x: c.x - 190, y: c.y - 70, w: 200, h: 140, col: 0 }, { kind: 'tent', x: c.x + 170, y: c.y - 90, w: 200, h: 140, col: 1 });
+      solids.push({ kind: 'crate', x: c.x - 20, y: c.y - 120, r: 36, n: 2, s: 0.3 }, { kind: 'drum', x: c.x + 40, y: c.y - 130, r: 22, n: 2, s: 0.6 }, { kind: 'crate', x: c.x + 300, y: c.y + 40, r: 36, n: 1, s: 0.8 });
+      solids.push({ kind: 'lowwall', x: c.x - 120, y: c.y + 150, w: 120, h: 20, hgt: 22 }, { kind: 'lowwall', x: c.x + 130, y: c.y + 150, w: 120, h: 20, hgt: 22 });
+      ground.push({ kind: 'campfire', x: c.x, y: c.y + 40, r: 26 });
+      npc(c, -70, 20, false); npc(c, 70, 30, true); npc(c, -30, 95, false); npc(c, 40, 100, true);
+    } else if (c.kind === 'depot') {   // 軍火倉庫：倉庫建築＋堆起來的彈藥箱、油桶
+      solids.push({ kind: 'house', x: c.x, y: c.y - 90, w: 320, h: 150, col: 4, depot: true });
+      for (const [dx, dy, n] of [[-230, -40, 3], [-250, 50, 2], [230, -30, 3], [260, 60, 2], [-140, 170, 1]]) solids.push({ kind: 'crate', x: c.x + dx, y: c.y + dy, r: 36, n, s: (dx + 300) / 600 });
+      solids.push({ kind: 'drum', x: c.x + 160, y: c.y + 170, r: 22, n: 3, s: 0.2 }, { kind: 'drum', x: c.x - 300, y: c.y + 150, r: 22, n: 2, s: 0.7 });
+      npc(c, -110, 60, false); npc(c, -30, 80, false); npc(c, 50, 70, true); npc(c, 130, 50, true);
+    } else {   // 碉堡：完整的混凝土圍牆（北面留入口）＋外圍沙包
+      const w = 300, h = 200, T = 26;
+      solids.push({ kind: 'rwall', x: c.x - w / 2 + 50, y: c.y - h / 2, w: 100, h: T, hgt: 62 }, { kind: 'rwall', x: c.x + w / 2 - 50, y: c.y - h / 2, w: 100, h: T, hgt: 62 });
+      solids.push({ kind: 'rwall', x: c.x - w / 2, y: c.y, w: T, h: h + T, hgt: 62 }, { kind: 'rwall', x: c.x + w / 2, y: c.y, w: T, h: h + T, hgt: 62 }, { kind: 'rwall', x: c.x, y: c.y + h / 2, w: w + T, h: T, hgt: 62 });
+      ground.push({ kind: 'rect', x0: c.x - w / 2, y0: c.y - h / 2, x1: c.x + w / 2, y1: c.y + h / 2, fill: '#4f514c' });
+      solids.push({ kind: 'lowwall', x: c.x - 250, y: c.y - 160, w: 110, h: 20, hgt: 22 }, { kind: 'lowwall', x: c.x + 250, y: c.y - 160, w: 110, h: 20, hgt: 22 }, { kind: 'crate', x: c.x - 280, y: c.y + 30, r: 36, n: 2, s: 0.4 });
+      npc(c, -70, -30, false); npc(c, 60, -40, true); npc(c, -60, 50, false); npc(c, 70, 45, true);
+    }
+  }
+  solids.push(...npcs);
+  solids.push({ kind: 'safehouse', x: safe.x, y: safe.y, w: 470, h: 150 });
+  for (const b of blasts) ground.push({ kind: 'blast', x: b.x, y: b.y, r: 430, s: rnd() });   // 爆炸後才會出現的焦土大坑
   const M = finishVsMap({ hw: HW, hh: HH, cellsX: CX, cellsY: CY, label: '塌縮之谷・第一階段　140 × 26 格', theme: 'valley', bases: [{ team: 'blue', x: start.x, y: start.y, x0: start.x - 200, x1: start.x + 200, y0: start.y - 160, y1: start.y + 160 }], blobs, solids, trees, ground });
-  M.hills = hills; M.cine = cineAt; return M;
+  M.hills = hills; M.cine = cineAt; M.blasts = blasts; M.safe = safe; M.npcs = npcs; M.sites = sites; return M;
 }
 function genVersusMap(kind) {
   if (kind === 'snow') return genSnowMap();
@@ -7901,6 +7991,17 @@ function drawGroundItems(list, x0, x1, y0, y1) {
     if (g.x + g.r < x0 || g.x - g.r > x1 || g.y + g.r < y0 || g.y - g.r > y1) continue;
     ground(proj(g.x, g.y), g.x, g.y);
     if (g.kind === 'blob') { ctx.fillStyle = g.fill; ctx.beginPath(); ctx.ellipse(g.x, g.y, g.r, g.r * 0.8, 0, 0, Math.PI * 2); ctx.fill(); }
+    else if (g.kind === 'blast') {   // 坍塌液炸彈的焦土大坑：爆炸動畫之後才出現，坑底泛著淡淡的紫藍色
+      if (!MAPGEN.fog) continue;
+      const gr = ctx.createRadialGradient(g.x, g.y, 0, g.x, g.y, g.r * 1.25); gr.addColorStop(0, 'rgba(18,14,22,0.95)'); gr.addColorStop(0.55, 'rgba(34,26,24,0.85)'); gr.addColorStop(0.8, 'rgba(60,46,34,0.6)'); gr.addColorStop(1, 'rgba(60,46,34,0)');
+      ctx.fillStyle = gr; ctx.beginPath(); ctx.ellipse(g.x, g.y, g.r * 1.25, g.r * 1.05, 0, 0, Math.PI * 2); ctx.fill();
+      const pg = ctx.createRadialGradient(g.x, g.y, 0, g.x, g.y, g.r * 0.5); pg.addColorStop(0, 'rgba(120,110,255,' + (0.1 + 0.04 * Math.sin(gameTime * 1.5 + g.s * 9)) + ')'); pg.addColorStop(1, 'rgba(120,110,255,0)'); ctx.fillStyle = pg; ctx.beginPath(); ctx.ellipse(g.x, g.y, g.r * 0.5, g.r * 0.4, 0, 0, Math.PI * 2); ctx.fill();
+    }
+    else if (g.kind === 'campfire') {   // 營火：石圈＋跳動的火光
+      ctx.fillStyle = 'rgba(255,150,60,' + (0.18 + 0.06 * Math.sin(gameTime * 9)) + ')'; ctx.beginPath(); ctx.arc(g.x, g.y, g.r * 3, 0, Math.PI * 2); ctx.fill();
+      ctx.fillStyle = '#6d6a62'; for (let i = 0; i < 8; i++) { const a = i / 8 * 6.28; ctx.beginPath(); ctx.arc(g.x + Math.cos(a) * g.r, g.y + Math.sin(a) * g.r * 0.8, 6, 0, Math.PI * 2); ctx.fill(); }
+      ctx.fillStyle = '#ffb347'; ctx.beginPath(); ctx.arc(g.x, g.y, g.r * (0.5 + 0.1 * Math.sin(gameTime * 13)), 0, Math.PI * 2); ctx.fill(); ctx.fillStyle = '#fff1b0'; ctx.beginPath(); ctx.arc(g.x, g.y, g.r * 0.25, 0, Math.PI * 2); ctx.fill();
+    }
     else if (g.kind === 'crater') {   // 巨砲彈坑：翻起的土圈＋焦黑的坑底
       const sd = g.s * 1e6 | 0; ctx.fillStyle = 'rgba(92,72,48,0.9)'; ctx.beginPath(); ctx.ellipse(g.x, g.y, g.r * 1.18, g.r * 0.95, 0, 0, Math.PI * 2); ctx.fill();
       ctx.fillStyle = 'rgba(40,30,22,0.95)'; ctx.beginPath(); ctx.ellipse(g.x, g.y + g.r * 0.05, g.r * 0.92, g.r * 0.72, 0, 0, Math.PI * 2); ctx.fill();
@@ -15712,6 +15813,8 @@ function draw(t) {
     if (k === 'h') { drawHouse(it); continue; }
     if (k === 'i') { drawIgloo(it); continue; }
     if (k === 'L') { drawLog(it); continue; }
+    if (k === 'N') { drawSurvivor(it); continue; }
+    if (k === 'X') { drawSafehouse(it); continue; }
     if (k === 'T') { drawTower(it); continue; }
     if (k === 'r') { drawRock(it); continue; }
     if (k === 'k') { drawCamp(it); continue; }
@@ -15960,7 +16063,7 @@ function draw(t) {
    → 紫藍色的迷霧一陣陣充滿山谷 → 鏡頭回到玩家，之後整張地圖都是迷霧。點畫面或按任意鍵跳過
    播動畫的同時在背景下載之後要用的素材（COLLAPSE_PRELOAD，之後的迷霧素材、第二段地圖的敵人放這裡） */
 const COLLAPSE_PRELOAD = [];
-const CINE = { blast: 8.2, zoomOut: [9.4, 13.4], fog: [14.5, 21.5], back: [21.5, 24], end: 24.4 };
+const CINE = { blast: 8.2, zoomOut: [9.4, 12.4], pan: [12.4, 19.4], fog: [17.5, 23.5], back: [23.5, 27], end: 27.4 };   // pan：拉遠後沿著山谷往右移，其餘四顆炸彈在鏡頭經過前陸續爆炸，最後停在安全屋附近
 let cine = null;
 function collapseIntroStart() {
   for (const pid of COLLAPSE_PRELOAD) ensurePack(pid).catch(() => {});
@@ -15973,7 +16076,8 @@ function collapseIntroStart() {
   const shells = [];   // 九頭蛇的砲擊：命中時間、目標、哪一台九頭蛇
   for (const u of units) if (u.die != null && u.by !== 'laser') shells.push({ t: u.die - 0.65, hit: u.die, tgt: u, from: units[u.by] });
   for (const [t, dx, dy, i] of [[0.6, 250, -20, 0], [1.3, 300, 160, 1], [3.4, 360, 30, 0], [4.2, 240, -110, 1], [5.1, 380, 150, 0], [6.3, 280, 30, 1]]) shells.push({ t, hit: t + 0.65, tx: S.x + dx, ty: S.y + dy, from: units[i] });
-  cine = { t: 0, S, G, units, shells, fx: [], bul: [], debris: [], z0: zoom, nextBul: 0, boomed: new Set(), skip: false };
+  const B = MAPGEN.blasts, x0 = B[0].x, x1 = B[B.length - 1].x, bt = B.map((b, i) => i ? CINE.pan[0] + (b.x - x0) / (x1 - x0) * (CINE.pan[1] - CINE.pan[0]) - 1.4 : CINE.blast);
+  cine = { t: 0, S, G, B, bt, boomedB: new Set([0]), units, shells, fx: [], bul: [], debris: [], z0: zoom, nextBul: 0, boomed: new Set(), skip: false };
   cam = { x: S.x, y: S.y + 60 }; zoom = cine.z0 * 1.25;
   hud.hidden = true; touchui.hidden = true; $('miniSlot').style.visibility = 'hidden'; chunks.clear(); stream();
 }
@@ -16017,9 +16121,12 @@ function cineTick(dt) {
   shake = Math.max(0, shake - dt * (t > CINE.blast ? 9 : 20));
   // 鏡頭
   const S = C.S, zo = cineEase((t - CINE.zoomOut[0]) / (CINE.zoomOut[1] - CINE.zoomOut[0])), bk = cineEase((t - CINE.back[0]) / (CINE.back[1] - CINE.back[0]));
-  const cx = S.x - 20 + Math.min(t, 8) * 6 + zo * 50, cy = S.y + 60 + zo * 900;   // 拉遠時鏡頭往南退，爆心落在畫面下方，蘑菇雲和後面的高山都看得到
+  const pn = cineEase((t - CINE.pan[0]) / (CINE.pan[1] - CINE.pan[0])), endX = MAPGEN.safe.x - 450;
+  const cx = (S.x - 20 + Math.min(t, 8) * 6 + zo * 50) * (1 - pn) + endX * pn, cy = (S.y + 60 + zo * 900) * (1 - pn) + (C.B[C.B.length - 1].y + 1150) * pn;   // 拉遠時鏡頭往南退，爆心落在畫面下方，蘑菇雲和後面的高山都看得到
   cam.x = cx + (player.x - cx) * bk; cam.y = cy + (player.y - cy) * bk;
-  zoom = C.z0 * (1.25 - zo * 1.03) * (1 - bk) + C.z0 * bk;
+  zoom = C.z0 * (1.25 - zo * 1.03 - Math.sin(pn * Math.PI) * 0.06 + pn * 0.07) * (1 - bk) + C.z0 * bk;   // 移動途中再拉遠一點，停在安全屋時拉近
+  for (let i = 1; i < C.B.length; i++) if (t >= C.bt[i] && !C.boomedB.has(i)) { C.boomedB.add(i); cineBoom(0.75, 3, 220); shake = Math.max(shake, 12); }   // 其餘四顆炸彈
+  stream();
   if (t >= CINE.end) { cine = null; zoom = C.z0; MAPGEN.fog = true; shake = 0; hud.hidden = false; touchui.hidden = false; $('miniSlot').style.visibility = ''; last = performance.now(); chunks.clear(); stream(); }
 }
 function drawCineUnit(u) {
@@ -16039,8 +16146,8 @@ function drawCineUnit(u) {
   }
   ctx.restore(); ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
 }
-function drawMushroom(C, u) {   // 蘑菇雲：u＝爆炸後經過的秒數。火球往上升、柱子、往外翻捲的雲帽；顏色從黃白 → 橘紅 → 暗紅 → 灰褐的煙
-  const G = C.G, q = proj(G.x, G.y), fade = clamp(1 - (u - 6.5) / 4.5, 0, 1); if (fade <= 0) return;
+function drawMushroom(G, u) {   // 蘑菇雲：u＝爆炸後經過的秒數。火球往上升、柱子、往外翻捲的雲帽；顏色從黃白 → 橘紅 → 暗紅 → 灰褐的煙
+  const q = proj(G.x, G.y), fade = clamp(1 - (u - 6.5) / 4.5, 0, 1); if (fade <= 0) return;
   const rise = 1 - Math.exp(-u * 0.55), h = 120 + 950 * rise, R = 170 + 430 * (1 - Math.exp(-u * 0.5)) + Math.max(0, u - 6.5) * 70, heat = Math.exp(-u * 0.11);
   const col = (k, a) => { const T = clamp(heat * 0.95 - k * 0.4, 0, 1); const c = T > 0.66 ? [255, 235 - (1 - T) * 150, 170 - (1 - T) * 300] : T > 0.33 ? [255, 120 + (T - 0.33) * 200, 40] : [70 + T * 360, 45 + T * 200, 38 + T * 20]; return 'rgba(' + c.map((v) => clamp(Math.round(v), 0, 255)).join(',') + ',' + a * fade + ')'; };
   upright(q, G.x, G.y);
@@ -16064,19 +16171,20 @@ function fogPuff() {
   gr.addColorStop(0, 'rgba(128,120,255,0.9)'); gr.addColorStop(0.45, 'rgba(110,105,235,0.5)'); gr.addColorStop(1, 'rgba(90,90,220,0)'); g.fillStyle = gr; g.fillRect(0, 0, 256, 256);
   return (fogPuffImg = c);
 }
-function drawCollapseFog(k, cx, cy, R) {
+function drawCollapseFog(k, centers, R) {
+  const dist = (x, y) => centers ? Math.min(...centers.map((c) => Math.hypot(x - c.x, (y - c.y) * 1.3))) : 0;
   const vb = viewBounds(), cell = zoom < 0.4 ? 900 : 380, x0 = cam.x - vb.hw - cell, x1 = cam.x + vb.hw + cell, y0 = Math.max(-MAPGEN.hh - 300, cam.y + vb.t - cell), y1 = cam.y + vb.b + cell, im = fogPuff(), T = gameTime;
   for (let gy = Math.floor(y0 / cell); gy * cell < y1; gy++) for (let gx = Math.floor(x0 / cell); gx * cell < x1; gx++) {
     const h1 = hash(gx, gy, 41), h2 = hash(gx, gy, 42), x = gx * cell + h1 * cell + Math.sin(T * 0.13 + h2 * 6) * 90 + T * 14 % cell, y = gy * cell + h2 * cell + Math.cos(T * 0.11 + h1 * 6) * 50;
     let a = (0.07 + 0.22 * Math.max(0, Math.sin(T * 0.35 + h1 * 9))) * k * (zoom < 0.6 ? 1.8 : 1);   // 一陣一陣：濃淡慢慢起伏
-    if (R != null) { const d = Math.hypot(x - cx, (y - cy) * 1.3); if (d > R) continue; a *= clamp((R - d) / 900, 0, 1); }
+    if (R != null) { const d = dist(x, y); if (d > R) continue; a *= clamp((R - d) / 900, 0, 1); }
     const q = proj(x, y); if (!onScreen(q, cell * 1.6 * q.k)) continue; const r = cell * (1.0 + 0.5 * h2) * q.k;
     ctx.globalAlpha = a; ctx.drawImage(im, q.x - r, q.y - r * 0.62, r * 2, r * 1.24);
   }
   ctx.globalAlpha = 1; ctx.save(); ctx.globalCompositeOperation = 'lighter';   // 微弱螢光的污染粒子
   for (let gy = Math.floor(y0 / cell); gy * cell < y1; gy++) for (let gx = Math.floor(x0 / cell); gx * cell < x1; gx++) for (let i = 0; i < 3; i++) {
     const h1 = hash(gx * 3 + i, gy, 51), h2 = hash(gx * 3 + i, gy, 52), x = gx * cell + h1 * cell + Math.sin(T * 0.3 + h2 * 7) * 40, y = gy * cell + h2 * cell, z = 20 + 60 * hash(gx, gy * 3 + i, 53) + Math.sin(T * 0.5 + h1 * 5) * 15;
-    if (R != null && Math.hypot(x - cx, (y - cy) * 1.3) > R) continue;
+    if (R != null && dist(x, y) > R) continue;
     const q = proj(x, y), sy = q.y - z * q.k, a = (0.35 + 0.35 * Math.sin(T * 2 + h1 * 20)) * k, r = Math.min(4, (2 + 2 * h2) * q.k * (zoom < 0.4 ? 3 : 1));
     ctx.fillStyle = 'rgba(150,170,255,' + a * 0.35 + ')'; ctx.beginPath(); ctx.arc(q.x, sy, r * 3, 0, Math.PI * 2); ctx.fill();
     ctx.fillStyle = 'rgba(200,215,255,' + a + ')'; ctx.beginPath(); ctx.arc(q.x, sy, r, 0, Math.PI * 2); ctx.fill();
@@ -16088,7 +16196,7 @@ function drawCine() {
   const C = cine, t = C.t, G = C.G;
   ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
   // 爆炸後被炸焦的地面
-  if (t > CINE.blast) { const q = proj(G.x, G.y); ground(q, G.x, G.y); const r = 520 * cineEase((t - CINE.blast) / 0.6); const g = ctx.createRadialGradient(G.x, G.y, 0, G.x, G.y, r); g.addColorStop(0, 'rgba(20,14,10,0.95)'); g.addColorStop(0.7, 'rgba(40,28,18,0.8)'); g.addColorStop(1, 'rgba(40,28,18,0)'); ctx.fillStyle = g; ctx.beginPath(); ctx.arc(G.x, G.y, r, 0, Math.PI * 2); ctx.fill(); ctx.setTransform(DPR, 0, 0, DPR, 0, 0); }
+  for (let i = 0; i < C.B.length; i++) { const b = C.B[i]; if (t <= C.bt[i]) continue; const q = proj(b.x, b.y); ground(q, b.x, b.y); const r = 520 * cineEase((t - C.bt[i]) / 0.6), G = b; const g = ctx.createRadialGradient(G.x, G.y, 0, G.x, G.y, r); g.addColorStop(0, 'rgba(20,14,10,0.95)'); g.addColorStop(0.7, 'rgba(40,28,18,0.8)'); g.addColorStop(1, 'rgba(40,28,18,0)'); ctx.fillStyle = g; ctx.beginPath(); ctx.arc(G.x, G.y, r, 0, Math.PI * 2); ctx.fill(); ctx.setTransform(DPR, 0, 0, DPR, 0, 0); }
   for (const f of C.fx) if (f.kind === 'wreck') { const q = proj(f.x, f.y); ground(q, f.x, f.y); ctx.fillStyle = 'rgba(15,12,10,0.7)'; ctx.beginPath(); ctx.ellipse(f.x, f.y, 40, 22, 0, 0, Math.PI * 2); ctx.fill(); ctx.setTransform(DPR, 0, 0, DPR, 0, 0); }
   // 綠光：地面裂開、從縫裡透出綠色的光
   if (t > 6.2 && t < CINE.blast + 0.4) {
@@ -16127,12 +16235,20 @@ function drawCine() {
   // 碎片
   for (const d of C.debris) { if (t - d.t0 > 3) continue; const p = cineScr(d.x, d.y, d.h); ctx.fillStyle = d.c; ctx.fillRect(p.x - d.s * p.k / 2, p.y - d.s * p.k / 2, d.s * p.k, d.s * p.k); }
   // 衝擊波（地面上擴散的圈）
-  if (t > CINE.blast && t < CINE.blast + 1.6) { const u = (t - CINE.blast) / 1.6, q = proj(G.x, G.y); ground(q, G.x, G.y); ctx.strokeStyle = 'rgba(255,240,220,' + (1 - u) * 0.8 + ')'; ctx.lineWidth = 60 * (1 - u) + 6; ctx.beginPath(); ctx.arc(G.x, G.y, 100 + 2400 * cineEase(u), 0, Math.PI * 2); ctx.stroke(); ctx.setTransform(DPR, 0, 0, DPR, 0, 0); }
-  if (t > CINE.blast) drawMushroom(C, t - CINE.blast);
+  for (let i = 0; i < C.B.length; i++) { const G = C.B[i], t0 = C.bt[i]; if (!(t > t0 && t < t0 + 1.6)) continue; const u = (t - t0) / 1.6, q = proj(G.x, G.y); ground(q, G.x, G.y); ctx.strokeStyle = 'rgba(255,240,220,' + (1 - u) * 0.8 + ')'; ctx.lineWidth = 60 * (1 - u) + 6; ctx.beginPath(); ctx.arc(G.x, G.y, 100 + 2400 * cineEase(u), 0, Math.PI * 2); ctx.stroke(); ctx.setTransform(DPR, 0, 0, DPR, 0, 0); }
+  for (let i = 0; i < C.B.length; i++) if (t > C.bt[i]) drawMushroom(C.B[i], t - C.bt[i]);
+  ctx.save(); ctx.globalCompositeOperation = 'lighter';   // 其餘四顆：爆炸瞬間地面的強光
+  for (let i = 1; i < C.B.length; i++) { const u = (t - C.bt[i]) / 1.2; if (u < 0 || u > 1) continue; const p = cineScr(C.B[i].x, C.B[i].y, 120), r = 1100 * p.k * (0.4 + u * 0.6), g = ctx.createRadialGradient(p.x, p.y, 0, p.x, p.y, r); g.addColorStop(0, 'rgba(255,250,220,' + (1 - u) + ')'); g.addColorStop(0.3, 'rgba(255,170,80,' + 0.7 * (1 - u) + ')'); g.addColorStop(1, 'rgba(255,90,30,0)'); ctx.fillStyle = g; ctx.beginPath(); ctx.arc(p.x, p.y, r, 0, Math.PI * 2); ctx.fill(); }
+  ctx.restore();
   // 迷霧從爆心往外擴散，之後滿山谷
-  if (t > CINE.fog[0]) { const u = (t - CINE.fog[0]) / (CINE.fog[1] - CINE.fog[0]); drawCollapseFog(Math.min(1, u * 1.6), G.x, G.y, u >= 1 ? null : 400 + 16000 * u * u); }
+  if (t > CINE.fog[0]) { const u = (t - CINE.fog[0]) / (CINE.fog[1] - CINE.fog[0]); drawCollapseFog(Math.min(1, u * 1.6), C.B, u >= 1 ? null : 400 + 9000 * u * u); }
+  // 標出安全屋的位置
+  { const a = clamp((t - CINE.pan[1] + 0.8) / 0.8, 0, 1) * clamp((CINE.back[0] + 0.5 - t) / 0.8, 0, 1); if (a > 0) { const sf = MAPGEN.safe, p = cineScr(sf.x, sf.y + 75, 110);
+    ctx.globalAlpha = a; ctx.strokeStyle = '#f2e6c8'; ctx.lineWidth = 1.5; ctx.beginPath(); ctx.moveTo(p.x, p.y); ctx.lineTo(p.x, p.y - 34); ctx.stroke(); ctx.fillStyle = '#f2e6c8'; ctx.beginPath(); ctx.arc(p.x, p.y, 3, 0, Math.PI * 2); ctx.fill();
+    ctx.font = '700 14px sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'bottom'; ctx.fillText('安全屋', p.x, p.y - 38); ctx.globalAlpha = 1; } }
   // 白光
   if (t > CINE.blast - 0.05 && t < CINE.blast + 1.4) { const u = (t - CINE.blast) / 1.4; ctx.fillStyle = 'rgba(255,250,235,' + (u < 0.08 ? 1 : 1 - (u - 0.08) / 0.92) + ')'; ctx.fillRect(0, 0, W, H); }
+  for (let i = 1; i < C.B.length; i++) { const u = (t - C.bt[i]) / 0.5; if (u > 0 && u < 1) { ctx.fillStyle = 'rgba(255,245,225,' + 0.35 * (1 - u) + ')'; ctx.fillRect(0, 0, W, H); } }
   // 開頭淡入、結尾
   if (t < 1.2) { ctx.fillStyle = 'rgba(0,0,0,' + (1 - t / 1.2) + ')'; ctx.fillRect(0, 0, W, H); }
   // 上下黑邊＋字幕
