@@ -8804,7 +8804,7 @@ const VEH = {
     trackEnd: [30, 208],                                                                // 履帶末端（揚起沙塵、泥石、雪粒的位置）
     ammo: [{ id: 'm829', name: 'M829GF', full: '長桿硬芯穿甲彈 M829GF', icon: 'ammo_m829', dmg: 500, ap: 100, speed: 2200, sabotT: 0.05, range: 700 }],   // 傷害 500、穿甲值 100（只打直接命中的目標）；速度約一般子彈的 4 倍；發射 0.05 秒彈托脫落
     hp: 1000, armor: 100,
-    mg: { name: '車頂機槍', piv: [278, 36], muzzle: [333, 33.5], dmg: 30, mag: 40, rate: 7.2, reload: 8, range: 600, speed: 720, elev: 30, dep: 10, recoil: 3, jitter: 0.035 },   // 副武器：每發 30、40 發、每秒 7.2 發、填裝 8 秒
+    mg: { name: '車頂機槍', piv: [256, 33], muzzle: [333, 33.5], dmg: 30, mag: 40, rate: 7.2, reload: 8, range: 600, speed: 720, elev: 30, dep: 10, recoil: 3, jitter: 0.035 },   // 副武器：每發 30、40 發、每秒 7.2 發、填裝 8 秒
     equipSlots: 1 },   // 坦克最多額外攜帶 1 個裝備（技能鍵使用）     // 人形：跟平常站著一樣大（用待機圖量出人物高度），露出頭頂往下 60%
 };
 let trainVeh = null;
@@ -8850,7 +8850,7 @@ function vehDestroy(V) {
 function vehHud(V) {
   const T = V.T, am = T.ammo[V.ammo || 0];
   if (!V._hud) { V._hud = true; $('ammoLabel').innerHTML = '<img src="' + ASSETS.ui[am.icon] + '" alt="" style="width:16px;height:16px;vertical-align:-3px;margin-right:4px;border-radius:3px">主砲　' + am.name; }
-  const M = T.mg; $('ammoNum').textContent = (V.reload > 0 ? '填裝 ' + V.reload.toFixed(1) + 's' : '就緒') + '｜機槍 ' + (V.mgReload > 0 ? '填裝 ' + V.mgReload.toFixed(1) + 's' : (V.mgAmmo ?? M.mag) + '/' + M.mag);
+  $('ammoNum').textContent = V.reload > 0 ? '填裝中 ' + V.reload.toFixed(1) + ' 秒' : '就緒';   // 只顯示主砲（機槍不顯示）
   $('ammoNum').style.color = V.reload > 0 ? 'var(--danger)' : '';
   $('reloadBar').style.width = V.reload > 0 ? (100 * (1 - V.reload / T.reload)) + '%' : '0';
 }
@@ -8917,7 +8917,8 @@ const vehMgHeld = () => vehMgHold.mouse || vehMgHold.key || vehMgHold.touch;
 function vehMgPoint(V) {   // 機槍槍口：畫面上的位置（子彈跟一般子彈一樣，高度算進 y）
   const T = V.T, M = T.mg, hs = V.faceLeft ? -1 : 1, c = Math.cos(V.mgEl || 0), sn = Math.sin(V.mgEl || 0);
   const lx = M.muzzle[0] - M.piv[0], ly = M.muzzle[1] - M.piv[1], px = M.piv[0] + lx * c - ly * sn, py = M.piv[1] + lx * sn + ly * c;
-  return { x: V.x + T.sc * (hs * (T.piv[0] - T.ax) + V.tsx * (px - T.piv[0])), y: V.y + T.sc * (py - T.ay) };
+  const ox = T.sc * (hs * (T.piv[0] - T.ax) + V.tsx * (px - T.piv[0])), oy = T.sc * (py - T.ay), q = proj(V.x, V.y);
+  return unproj(q.x - shx + ox * q.k, q.y - shy + oy * q.k);   // 坦克是「直立」畫的：先算出槍口在畫面上的位置，再換回地面座標（子彈就從畫面上的槍口射出）
 }
 function vehMgTick(V, dt) {
   const M = V.T.mg;
@@ -8933,8 +8934,8 @@ function vehMgTick(V, dt) {
   const A = Math.atan2(aim.y - p.y, aim.x - p.x) + rand(-M.jitter, M.jitter);
   bullets.push({ x: p.x, y: p.y, vx: Math.cos(A) * M.speed, vy: Math.sin(A) * M.speed, age: 0, life, maxLife: life, r: VEH_MG_DEF.weapon.radius, team: 'p', def: VEH_MG_DEF, src: V, dist: 0, purple: false, buff: 1, res: 1, crit: 0.05, apv: 0, flat: 0, cdm: 0, pdmg: M.dmg });
   V.mgAmmo--; V.mgCool = 1 / M.rate; V.mgRecoil = 1; sfx.shot('rifle', 'MG');
-  vehFx.push({ kind: 'flash', gx: p.x + Math.cos(A) * 4, gy: p.y + 30, h: 30, r: 6, life: 0.05, max: 0.05 });
-  if (Math.random() < 0.5) vehFx.push({ kind: 'smoke', gx: p.x, gy: p.y + 30, h: 30, vx: Math.cos(A) * rand(40, 90), vy: Math.sin(A) * rand(40, 90), vh: rand(6, 16), r: 2.5, gr: 10, life: 0.5, max: 0.5, drag: 3 });
+  vehFx.push({ kind: 'flash', gx: p.x + Math.cos(A) * 3, gy: p.y + Math.sin(A) * 3, h: 0, r: 6, life: 0.05, max: 0.05 });   // 跟子彈同一套座標（高度已經算進 y）：火花就在槍口
+  if (Math.random() < 0.5) vehFx.push({ kind: 'smoke', gx: p.x, gy: p.y, h: 0, vx: Math.cos(A) * rand(40, 90), vy: Math.sin(A) * rand(40, 90), vh: rand(6, 16), r: 2.5, gr: 10, life: 0.5, max: 0.5, drag: 3, noFloor: true });
   if (V.mgAmmo <= 0) { V.mgReload = M.reload; floatText(V.x, V.y - 80, '機槍填裝中', '#ffd27a'); }
 }
 function vehEquip() {   // 技能鍵：使用坦克攜帶的裝備（最多 1 個）
@@ -16504,7 +16505,7 @@ function update(dt) {
   player.moving = len > 0.08;
   let spd = player.ride ? player.ride.speed * player.ride.thr * speedMul(player) : (cfg.speed + effSum(player, 'spdFlat')) * speedMul(player) * (player.huntAim > 0 ? 0 : 1);   // 搭乘載具：用載具的速度   // 連鎖狂獵瞄準中不能移動   // 減速效果會降低移動速度；spdFlat＝裝備的移速 +固定值
   if (!Number.isFinite(player.mgSpd)) player.mgSpd = 1;   // 保險：機槍移動倍率壞掉時復原
-  if (mgOn(player)) {
+  if (mgOn(player) && !player.ride) {   // 搭乘載具：不套用機槍人形的「停下／趴下才能開火」（坦克可以邊開邊打）
     mgUpdate(dt, player.moving, (mouseDown || fireHeld || keys.has('Space') || keys.has('KeyJ')));
     spd *= player.mgSpd;
     if (player.mgSpd <= 0.02 && player.dodgeT <= 0) player.moving = false;   // 停下／趴著：不移動
@@ -16627,7 +16628,8 @@ function update(dt) {
   // 鎖定目標：範圍內最近的敵人
   let target = null, best = Infinity;
   const VR = visionR();   // 夜戰：看不到的敵人不能鎖定
-  for (const e of enemies) { const d = Math.hypot(e.x - player.x, e.y - player.y); if (d <= cfg.lockRange && d < best && teamSees(e)) { best = d; target = e; } }
+  const LR0 = player.ride ? player.ride.T.range : cfg.lockRange;   // 搭乘載具：自動瞄準用主砲射程
+  for (const e of enemies) { const d = Math.hypot(e.x - player.x, e.y - player.y); if (d <= LR0 && d < best && teamSees(e)) { best = d; target = e; } }
   const wantsFire = (mouseDown || fireHeld || keys.has('Space') || keys.has('KeyJ')) && player.dodgeT <= 0 && !vsDead() && !(player.airT > 0) && !defPilot && !(player.castT > 0) && !(player.huntAim > 0) && !(cfg.proto && player.pb && player.pb.busy);
   player.wantsFire = wantsFire;   // 分身（不同人形）跟著開火用
 
@@ -17611,7 +17613,7 @@ function draw(t) {
       g.addColorStop(0, 'rgba(255,60,60,0)'); g.addColorStop(1, 'rgba(255,60,60,' + (hurtT / 0.35 * 0.45) + ')');
       ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
     }
-    if (manualAim() && fireHeld && state === 'play' && !vsDead()) {
+    if (manualAim() && fireHeld && state === 'play' && !vsDead() && !player.ride) {   // 搭乘載具：用坦克自己的主砲瞄準線
       // 手機手動瞄準：從槍口沿著子彈的方向畫一條虛線到射程盡頭（就是實際的彈道）；操作九頭蛇時從九頭蛇的炮口畫
       const pc = defPilot && clones.includes(defPilot) ? defPilot : null;
       const mz = pc ? spriteMuzzle(pc) : muzzleWorld(player), A = pc ? pc.aim : player.angle, R = pc ? pc.T.lockRange : bulletRange(cfg);
