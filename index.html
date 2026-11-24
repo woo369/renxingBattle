@@ -4207,7 +4207,7 @@ function caveTick(dt) {
   // 山洞裡的醫療櫃：靠近按功能鍵（B）補滿全部人的生命（含倖存人形）
   const near = (img) => inCave(player) && MAPGEN.solids.find((o) => o.kind === 'cprop' && o.img === img && Math.hypot(player.x - o.x, player.y - o.y) < 100);
   const med = near('medcab'), suit = !med && near('hazlocker');
-  caveMedNear = med ? 'med' : suit ? 'suit' : null; $('boardBtn').hidden = !caveMedNear; if (caveMedNear) $('boardBtn').firstChild.textContent = med ? '醫療櫃' : '生化服';
+  caveMedNear = med ? 'med' : suit ? 'suit' : null; $('boardBtn').hidden = !caveMedNear; if (caveMedNear) { $('boardBtn').firstChild.textContent = med ? '醫療櫃' : '生化服'; boardKey('B'); }
   if (inCave(player) && !caveHintShown && colStage >= 4 && !cine) { caveHintShown = true; colHint = { t0: gameTime, next: '外頭好像有被爆炸波及的提豐坦克，趁這個機會趕緊拿下吧', text: '安全屋裡有醫療櫃（治療全員）和生化服衣櫃（穿上後有 50 點護盾、不會被坍塌污染扣血），靠近後按 B' }; }
   const door = { x: S.x, y: S.y + 75 };   // 安全屋大門（地堡正面中間）
   if (!inCave(player) && Math.abs(player.x - door.x) < 42 && player.y < door.y + 34 && player.y > door.y - 20) caveTrans = { t: 0, dest: { x: C.x, y: C.y + C.ry * 0.62 } };
@@ -8792,6 +8792,7 @@ const TRAIN = {
 TRAIN.biomes.forEach((b, i) => { const r = Math.floor(i / TRAIN.perRow), c = i % TRAIN.perRow; b.x0 = TRAIN.arena.x0 + c * TRAIN.cell.w; b.x1 = b.x0 + TRAIN.cell.w; b.y0 = TRAIN.biomeTop + r * (TRAIN.cell.h + TRAIN.cell.gapY); b.y1 = b.y0 + TRAIN.cell.h; });
 TRAIN.bounds = { x0: TRAIN.arena.x0, x1: TRAIN.arena.x1, y0: TRAIN.arena.y0, y1: Math.max(...TRAIN.biomes.map((b) => b.y1)) + 80 };
 const isTrain = () => !!(phase && phase.train);
+function boardKey(k) { const sm = $('boardBtn').querySelector('small'); if (sm && sm.textContent !== k) sm.textContent = k; }   // 互動按鈕上的按鍵提示（訓練場的坦克會改成 T，其他地方都要設回 B）
 /* ═════ 載具（訓練場）：艾布蘭主戰坦克 ═════
    車庫門口按 T 召喚 → 靠近坦克按 T 上車 → 再按 T 下車（手機：上下車按鈕）。搭乘時不能開火、放技能、閃避。
    圖層（由下到上）：碰撞圈後半 → 履帶／負重輪（不動，輪子、主動輪轉動、履帶紋路捲動）→ 車體 → 砲塔組（人形立繪 → 砲管 → 砲塔）→ 碰撞圈前半
@@ -9409,7 +9410,7 @@ function trainTick(dt) {
   let near = null; for (const c of TRAIN.consoles) if (Math.hypot(player.x - c.x, player.y - (c.y + 30)) < TRAIN.useR) near = c;
   vehTick(dt); vehShotsTick(dt); const va = vehAction();   // 載具：召喚／搭乘／下車
   $('boardBtn').hidden = !near && !va; if (va) $('boardBtn').firstChild.textContent = va.label; else if (near) $('boardBtn').firstChild.textContent = near.name + '操作台';
-  { const sm = $('boardBtn').querySelector('small'); if (sm) sm.textContent = va && va.id !== 'summon' ? 'T' : 'B'; }   // 電腦版的按鍵提示
+  boardKey(va && va.id !== 'summon' ? 'T' : 'B');   // 電腦版的按鍵提示
   if (!near && !$('trainPanel').hidden) $('trainPanel').hidden = true;
   if (!$('trainPanel').hidden) renderTrainPanel();
 }
@@ -9984,7 +9985,7 @@ function defTick(dt) {
   } else $('specBanner').hidden = true;
   // 佈告欄／復活台：靠近才可以打開
   const nb = !player.defDown && Math.hypot(player.x - DEF.board.x, player.y - DEF.board.y) < DEF.useR, nr = !player.defDown && Math.hypot(player.x - DEF.rev.x, player.y - DEF.rev.y) < DEF.useR, nn = !player.defDown && !defPilot && Math.hypot(player.x - DEF.net.x, player.y - DEF.net.y) < DEF.useR, nm = !player.defDown && !defPilot && Math.hypot(player.x - DEF.modem.x, player.y - DEF.modem.y) < DEF.useR + DEF.modem.r;
-  $('boardBtn').hidden = !(nb || nr || nn || nm); if (nb || nr || nn || nm) $('boardBtn').firstChild.textContent = nb ? '佈告欄' : nn ? '網路控制室' : nm ? '數據機（複製人形）' : '復活台';
+  $('boardBtn').hidden = !(nb || nr || nn || nm); if (nb || nr || nn || nm) { $('boardBtn').firstChild.textContent = nb ? '佈告欄' : nn ? '網路控制室' : nm ? '數據機（複製人形）' : '復活台'; boardKey('B'); }
   if (!nb) $('defBoard').hidden = true; if (!nr) $('defRev').hidden = true; if (!nn) $('defNet').hidden = true; if (!nm) $('defClone').hidden = true;
   if (!$('defClone').hidden) renderDefClone();
   if (!$('defNet').hidden) renderDefNet();
@@ -13747,7 +13748,7 @@ function tickTyphonBeams(dt) {
     if (segDist(player.x, player.y, M.x, M.y, E.x, E.y) < L.width / 2 + player.r && !vsDead()) { damage(L.dmg); burst(player.x, player.y, '#7ff6ff', 4); }
     for (const c of clones.slice()) if (segDist(c.x, c.y, M.x, M.y, E.x, E.y) < L.width / 2 + c.r) { damageClone(c, L.dmg); burst(c.x, c.y, '#7ff6ff', 3); }
     for (const a of pAnts) if (a.hp > 0 && segDist(a.x, a.y, M.x, M.y, E.x, E.y) < L.width / 2 + a.r) { a.hp -= L.dmg; burst(a.x, a.y, '#7ff6ff', 3); }   // 協議同歸召喚的兵蟻
-    if (e.fac) { for (const o of enemies) if (o !== e && o.fac && o.fac !== e.fac && o.hp > 0 && segDist(o.x, o.y, M.x, M.y, E.x, E.y) < L.width / 2 + o.r) hitEnemy(o, L.dmg, '#7ff6ff', true);   // 塌縮之谷：光束也打鐵血
+    if (e.fac) { for (const o of enemies) if (o !== e && o.fac && o.fac !== e.fac && o.hp > 0 && segDist(o.x, o.y, M.x, M.y, E.x, E.y) < L.width / 2 + o.r) { hitEnemy(o, L.dmg, '#7ff6ff', true); if (o.hp <= 0 && enemies.includes(o)) killEnemy(o); }   // 塌縮之谷：光束也打鐵血（打到 0 就擊殺）
       for (const n of liveNpcs()) if (segDist(n.x, n.y, M.x, M.y, E.x, E.y) < L.width / 2 + n.r) npcHurt(n, L.dmg, Math.cos(e.beam) * 500); }
   }
 }
@@ -16638,7 +16639,7 @@ function update(dt) {
   posCoverTick(); snowTradeTick(); mstTick(dt);
   smokeTick(dt);   // 迷霧煙盒
   bulwarkTick();   // 反擊者壁壘：金盾撐過 3 秒就給增益
-  if (phase && phase.collapse) { npcTick(dt); caveTick(dt); colTimerTick(dt); colWarTick(dt); colDownTick(dt); colLateTick(dt); colSpecTick(); colExitTick(dt); col2Tick(dt); }   // 塌縮之谷的倖存人形、安全屋山洞的進出
+  if (phase && phase.collapse) { npcTick(dt); caveTick(dt); colTimerTick(dt); colWarTick(dt); colDownTick(dt); colLateTick(dt); colSpecTick(); colExitTick(dt); col2Tick(dt); colKillSweep(); }   // 塌縮之谷的倖存人形、安全屋山洞的進出
   if (trainNpcFoes.size) trainNpcCheck();
   moonTick(dt);    // 月海盈輝
   m6Sync();        // M6 ASW 的模式
@@ -17881,7 +17882,7 @@ function colAim(e, u) {   // 目標是玩家或 AI 隊友就直接回傳；是�
   P.x = u.x; P.y = u.y; P.ctrl = false; return P;
 }
 function colFacHit(b) {   // 陣營子彈打到別的陣營的敵人
-  for (const o of enemies) { if (!o.fac || o.fac === b.fac || o.hp <= 0 || Math.hypot(b.x - o.x, b.y - o.y) >= b.r + o.r) continue; hitEnemy(o, b.dmg ?? ENEMY.bulletDmg, '#ffb070', true); return true; }
+  for (const o of enemies) { if (!o.fac || o.fac === b.fac || o.hp <= 0 || Math.hypot(b.x - o.x, b.y - o.y) >= b.r + o.r) continue; hitEnemy(o, b.dmg ?? ENEMY.bulletDmg, '#ffb070', true); if (o.hp <= 0 && enemies.includes(o)) killEnemy(o); return true; }
   return false;
 }
 function colAddEnemy(T, x, y, fac, extra) {
@@ -17905,6 +17906,8 @@ function colPursuitSpawn(kind, n) {
     else colAddEnemy(COL_KCCO[kind](), x, y, 'kcco', { colKind: kind });
   }
 }
+// 塌縮之谷：被陣營火力（提豐光束、正規軍子彈）、砲擊、污染打到 0 的敵人補上擊殺。每一幀都跑（爆炸動畫之後、第二張地圖也要）
+function colKillSweep() { if (opening || cine) return; for (const e of enemies.slice()) if (e.hp <= 0 && !e.escaped && enemies.includes(e)) killEnemy(e); }
 function colWarTick(dt) {
   if (opening || cine || colBombed) return;
   const t = colT, A = COL_ARTY;
@@ -17916,7 +17919,7 @@ function colWarTick(dt) {
   // 追擊部隊
   if (!colPursuit && t >= 5) { colPursuit = true; colPursuitSpawn('cyc', 6); colPursuitSpawn('hydra', 4); colPursuitSpawn('cent', 4); colPursuitSpawn('typhon', 1); floatText(player.x, player.y - 80, '正規軍追上來了！', '#ff8f83'); }
   colStageTick(dt);
-  for (const e of enemies.slice()) if (e.hp <= 0 && !e.escaped && enemies.includes(e)) killEnemy(e);   // 被陣營火力、光束、砲擊、污染打到 0 的敵人：補上擊殺（之前會卡在 0 血不死）
+  /* 擊殺補漏移到 colKillSweep（這個函式在爆炸動畫之後就不跑了） */ void 0;   // 被陣營火力、光束、砲擊、污染打到 0 的敵人：補上擊殺（之前會卡在 0 血不死）
   if (colPursuit && colStage === 1) {
     colArty.reinT = (colArty.reinT || 0) - dt;
     if (colArty.reinT <= 0) { colArty.reinT = 1;
