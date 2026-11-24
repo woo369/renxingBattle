@@ -8508,6 +8508,7 @@ function updateAmmo() {
   $('ammoNum').style.color = player.ammo === 0 ? 'var(--danger)' : '';
 }
 function updateHp() {
+  if (player && player.ride) { const V = player.ride; $('hpNum').textContent = V.T.name + ' ' + Math.max(0, Math.ceil(V.hp)) + ' / ' + V.maxHp; $('hpFill').style.width = Math.max(0, V.hp / V.maxHp * 100) + '%'; $('shieldNum').textContent = ''; return; }   // 搭乘載具：生命條顯示坦克的血量
   if (defPilot) { $('hpNum').textContent = '九頭蛇 ' + Math.ceil(defPilot.hp) + ' / ' + defPilot.maxHp; $('hpFill').style.width = (defPilot.hp / defPilot.maxHp * 100) + '%'; $('shieldNum').textContent = ''; $('goldNum').textContent = ''; for (const id of ['shieldFill', 'shieldFill2', 'goldFill']) $(id).style.width = '0%'; return; }
   $('hpNum').textContent = Math.min(Math.ceil(player.hp), Math.round(player.maxHp)) + ' / ' + Math.round(player.maxHp);   // 強化後的數值四捨五入顯示
   $('hpFill').style.width = (player.hp / player.maxHp * 100) + '%';
@@ -8801,7 +8802,8 @@ const VEH = {
     hatch: [212, 50], doll: 1, cut: 0.6,
     range: 700, reload: 5, muzzle: [474, 98], recoil: 14,                              // 主砲：射程 700、填裝 5 秒；砲口（圖片座標）、後座距離
     trackEnd: [30, 208],                                                                // 履帶末端（揚起沙塵、泥石、雪粒的位置）
-    ammo: [{ id: 'm829', name: 'M829GF', full: '長桿硬芯穿甲彈 M829GF', icon: 'ammo_m829', dmg: 600, ap: 200, speed: 3300, sabotT: 0.2, range: 700 }] },   // 傷害、穿甲值先暫定；速度約一般子彈的 6 倍   // 人形：跟平常站著一樣大（用待機圖量出人物高度），露出頭頂往下 60%
+    ammo: [{ id: 'm829', name: 'M829GF', full: '長桿硬芯穿甲彈 M829GF', icon: 'ammo_m829', dmg: 100, ap: 100, speed: 2200, sabotT: 0.05, range: 700 }],   // 傷害 100、穿甲值 100（只打直接命中的目標）；速度約一般子彈的 4 倍；發射 0.05 秒彈托脫落
+    hp: 1000, armor: 100 },     // 人形：跟平常站著一樣大（用待機圖量出人物高度），露出頭頂往下 60%
 };
 let trainVeh = null;
 const vehDoor = () => ({ x: VEH.garage.x, y: VEH.garage.y + VEH.garage.h / 2 + 40 });
@@ -8817,14 +8819,27 @@ function vehUse(only) {   // only：'summon'（B）／'ride'（T）；不給＝�
   if (only === 'summon' && a.id !== 'summon') return false;
   if (only === 'ride' && a.id === 'summon') return false;
   if (a.id === 'summon') {
-    const d = vehDoor(), T = VEH.abrams;
-    trainVeh = { kind: 'abrams', T, x: d.x, y: d.y + 60, r: T.r, rx: T.rx, ry: T.ry, speed: T.speed, faceLeft: false, moving: false, shake: 0, rider: null, thr: 0, dir: 0, dist: 0, tsx: 1, el: 0 };
+    const d = vehDoor(), T = VEH.abrams, hp0 = trainVeh ? trainVeh.hp : T.hp;   // 召回：保留原本的血量
+    trainVeh = { kind: 'abrams', T, x: d.x, y: d.y + 60, r: T.r, rx: T.rx, ry: T.ry, speed: T.speed, faceLeft: false, moving: false, shake: 0, rider: null, thr: 0, dir: 0, dist: 0, tsx: 1, el: 0, hp: hp0, maxHp: T.hp };
     burst(trainVeh.x, trainVeh.y, '#ffd76a', 18); floatText(trainVeh.x, trainVeh.y - 90, T.name, '#ffd76a');
   } else if (a.id === 'board') {
-    const V = trainVeh; player.ride = V; V.rider = player; player.r0 = player.r; player.r = V.r; player.x = V.x; player.y = V.y; player.prone = 0; V.thr = 0;
+    const V = trainVeh; player.ride = V; V.rider = player; player.r0 = player.r; player.r = V.r; player.x = V.x; player.y = V.y; player.prone = 0; V.thr = 0; updateHp();
     floatText(V.x, V.y - 90, '搭乘：' + V.T.name, '#9fe6a0');
   } else if (a.id === 'exit') vehExit();
   return true;
+}
+function vehDamage(V, amt, pierce, pen = 0) {
+  const T = V.T, av = Math.max(0, T.armor - pen), blocked = !pierce && av > 0 && Math.random() < (amt <= av ? ENEMY_BLOCK.low : ENEMY_BLOCK.high);   // 護甲：跟敵方裝甲單位同一套規則
+  const real = blocked ? Math.max(1, amt - av) : amt; lastBlk = blocked;
+  if (blocked) floatText(V.x + rand(-20, 20), V.y - 70, '格擋', '#cfd8dc');
+  V.hp -= real; V.hitT = 2; updateHp();
+  if (V.hp <= 0) vehDestroy(V);
+}
+function vehDestroy(V) {
+  const x = V.x, y = V.y; if (V.rider === player) vehExit();
+  blasts.push({ x, y, r: 150, life: 0.5, max: 0.5, level: 3 }); burst(x, y, '#ffb347', 30); burst(x, y, '#ff6b3d', 22); shake = Math.max(shake, 12); sfx.boom();
+  for (let i = 0; i < 18; i++) { const a = rand(0, Math.PI * 2), sp = rand(40, 200); vehFx.push({ kind: 'smoke', gx: x + rand(-40, 40), gy: y + rand(-15, 15), h: rand(5, 40), vx: Math.cos(a) * sp, vy: Math.sin(a) * sp * 0.5, vh: rand(20, 60), r: rand(10, 18), gr: rand(20, 40), life: rand(1.6, 2.6), max: 2.6, drag: 2, col: '60,58,56' }); }
+  floatText(x, y - 100, V.T.name + '被擊毀', '#ff8f83'); trainVeh = null;
 }
 function vehHud(V) {
   const T = V.T, am = T.ammo[V.ammo || 0];
@@ -8836,7 +8851,7 @@ function vehHud(V) {
 function vehExit() {
   const V = player.ride; if (!V) return;
   const r0 = player.r0 || 20; player.ride = null; V.rider = null; player.r = r0; V.thr = 0;
-  V._hud = false; $('ammoLabel').textContent = cfg.weapon.name + '彈藥'; $('reloadBar').style.width = '0'; updateAmmo();   // 下車：彈藥欄換回人形的
+  V._hud = false; $('ammoLabel').textContent = cfg.weapon.name + '彈藥'; $('reloadBar').style.width = '0'; updateAmmo(); updateHp();   // 下車：彈藥欄、生命條換回人形的
   for (const [ox, oy] of [[0, 72], [0, -72], [-120, 0], [120, 0], [-90, 62], [90, 62], [-90, -62], [90, -62]]) {
     if (!mapSolidAt(V.x + ox, V.y + oy, r0 + 2)) { player.x = V.x + ox; player.y = V.y + oy; break; }
   }
@@ -8988,6 +9003,8 @@ function drawVehShots() {
     ctx.save(); ctx.translate(q.x, y); ctx.rotate(a);
     const tg = ctx.createLinearGradient(-90 * q.k, 0, 0, 0); tg.addColorStop(0, 'rgba(255,170,80,0)'); tg.addColorStop(1, 'rgba(255,230,170,0.85)');   // 曳光
     ctx.strokeStyle = tg; ctx.lineWidth = 2.2 * q.k; ctx.lineCap = 'round'; ctx.beginPath(); ctx.moveTo(-90 * q.k, 0); ctx.lineTo(-L * 0.9, 0); ctx.stroke();
+    ctx.save(); ctx.shadowColor = 'rgba(140,255,170,0.95)'; ctx.shadowBlur = 9 * q.k; ctx.strokeStyle = 'rgba(190,255,200,0.9)'; ctx.lineWidth = 3.4 * q.k; ctx.lineCap = 'round';   // 彈芯的螢光邊框：讓砲彈看得清楚
+    ctx.beginPath(); ctx.moveTo(-L * 0.97, 0); ctx.lineTo(-L * 0.03, 0); ctx.stroke(); ctx.restore();
     if (DT) ctx.drawImage(DT, -L, -W * 1.6, L, W * 3.2);
     if (S.sabot) {   // 包住彈芯的兩片彈托（黑色），在彈芯前半段
       ctx.fillStyle = '#18191c'; ctx.strokeStyle = '#5a5e66'; ctx.lineWidth = 0.6 * q.k;
@@ -9058,6 +9075,9 @@ function drawVehicle(V) {
   ctx.drawImage(TU, 0, 0);
   ctx.restore(); ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
   vehRing(V, true);
+  if (V.hp < V.maxHp) { const qb = proj(V.x, V.y); upright(qb, V.x, V.y); const w = 70, yb = -228 * T.sc - 8;   // 坦克的血條（受傷後顯示）
+    ctx.fillStyle = 'rgba(0,0,0,0.55)'; ctx.fillRect(V.x - w / 2 - 1, V.y + yb - 1, w + 2, 6); ctx.fillStyle = '#d23b3b'; ctx.fillRect(V.x - w / 2, V.y + yb, w, 4); ctx.fillStyle = '#4fd36a'; ctx.fillRect(V.x - w / 2, V.y + yb, w * Math.max(0, V.hp) / V.maxHp, 4);
+    ctx.setTransform(DPR, 0, 0, DPR, 0, 0); }
 }
 function drawGarage(o) {
   const by = o.y + o.h / 2, q = proj(o.x, by);
@@ -12334,6 +12354,7 @@ function damage(amount, pierce, armorPen = 0) {
   lastBlk = false; const shotHit = hitDirA != null;
   if (player.invT > 0) return;   // 閃避無敵中
   amount *= atkMulNow;   // 攻擊被削弱的敵人（埃癸斯之盾）在自己的回合直接造成的傷害
+  if (player.ride) { vehDamage(player.ride, amount, pierce, armorPen); return; }   // 搭乘載具：傷害打在坦克上
   amount = vulnCrit(player, amount);   // 易傷：有機率被暴擊
   amount = hazAbsorb(player, amount); if (amount <= 0) { updateHp(); return; } updateHp();   // 塌縮之谷：生化服的護盾最先吸收
   amount = absorbSakura(player, amount); if (amount <= 0) { updateHp(); return; }   // 櫻花護盾：比金盾更先吸收
