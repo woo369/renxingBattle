@@ -8950,9 +8950,19 @@ function vehMuzzle(V) {   // 砲口：地面位置＋離地高度（世界座標
   const lx = T.muzzle[0] - T.bp[0], ly = T.muzzle[1] - T.bp[1], px = T.bp[0] + lx * c - ly * sn, py = T.bp[1] + lx * sn + ly * c;
   return { x: V.x + T.sc * (hs * (T.piv[0] - T.ax) + V.tsx * (px - T.piv[0])), y: V.y, h: -T.sc * (py - T.ay) };
 }
+/* 主砲的瞄準方向：砲彈在砲口的高度 h 飛，畫面上的彈道＝瞄準線。
+   讓瞄準線（＝實際彈道）剛好通過準星：地面上的彈道要往後偏 h / squash（手機自動瞄準：通過鎖定目標的身體中間） */
+const vehBodyH = (e) => (e.boss ? e.r * 1.7 : e.r * 2.2);
+function vehAimA(V, m) {
+  const sq = VIEW3D.squash; let p = null, z = 0;
+  if (!isTouch() && mouse.seen) p = mouseWorld();
+  else if (lockedTarget && lockedTarget.hp > 0 && enemies.includes(lockedTarget)) { p = lockedTarget; z = vehBodyH(lockedTarget) / 2; }
+  if (!p) return player.angle;
+  return Math.atan2(p.y + (m.h - z) / sq - m.y, p.x - m.x);
+}
 function vehFire() {
   const V = player.ride, T = V.T; if (!V || V.reload > 0 || Math.abs(V.tsx) < 0.95) return false;
-  const am = T.ammo[V.ammo || 0], A = player.angle, m = vehMuzzle(V);
+  const am = T.ammo[V.ammo || 0], m = vehMuzzle(V), A = vehAimA(V, m);
   vehShots.push({ am, gx: m.x, gy: m.y, h: m.h, dx: Math.cos(A), dy: Math.sin(A), t: 0, d: 0, sabot: true, prox: !!am.fuze && V.fuze === 'prox' });
   V.reload = T.reload; V.recoil = 1; V.jolt = 1; shake = Math.max(shake, 7); sfx.boom();
   vehFx.push({ kind: 'flash', gx: m.x + Math.cos(A) * 10, gy: m.y + Math.sin(A) * 10, h: m.h, r: 16, life: 0.09, max: 0.09 });
@@ -8997,11 +9007,12 @@ function vehShotsTick(dt) {
     // 近炸引信：敵人進到 proxR 以內就爆炸
     let hitE = null, hitD = Infinity;
     for (let k = 0; k <= step && hitE == null; k += 6) {
-      const gx = S.gx + S.dx * k, gy = S.gy + S.dy * k, sy = gy - S.h;
+      const gx = S.gx + S.dx * k, gy = S.gy + S.dy * k;
       for (const e of enemies) {
         if (!e || e.hp <= 0 || e.escaped || e.npcAlly) continue;
-        const H = e.boss ? e.r * 1.7 : e.r * 2.2, pr = S.prox ? am.proxR : 0;
-        if (Math.hypot(gx - e.x, gy - e.y) < e.r + 6 + pr || (Math.abs(gx - e.x) < e.r * 0.95 + pr && sy > e.y - H - pr && sy < e.y + 6 + pr)) { hitE = e; hitD = k; break; }
+        // 用畫面上的位置判斷：砲彈（高度 h）相對於目標腳下的高度 v，落在目標身體範圍內就算打到（畫面上看到的彈道＝實際命中）
+        const H = vehBodyH(e), pr = S.prox ? am.proxR : 0, v = (gy - e.y) * VIEW3D.squash - S.h;
+        if (Math.abs(gx - e.x) < e.r * 0.95 + pr && v > -H - pr && v < 8 + pr) { hitE = e; hitD = k; break; }
       }
     }
     let wallD = Infinity; for (let s = 8; s <= Math.min(step, hitD); s += 8) if (mapSolidAt(S.gx + S.dx * s, S.gy + S.dy * s, 2, true)) { wallD = s; break; }
@@ -9048,7 +9059,7 @@ function vehToggleFuze() {   // R：切換引信（只有破甲彈有）
 }
 function drawVehAim() {   // 主砲的瞄準線：砲口的高度沿著瞄準方向畫到射程；填裝中變淡、翻面時不畫
   const V = player && player.ride; if (!V || state !== 'play' || Math.abs(V.tsx) < 0.95) return;
-  const m = vehMuzzle(V), A = player.angle, R = V.T.ammo[V.ammo || 0].range, ready = !(V.reload > 0);
+  const m = vehMuzzle(V), A = vehAimA(V, m), R = V.T.ammo[V.ammo || 0].range, ready = !(V.reload > 0);   // 跟實際彈道同一個方向
   ctx.save(); ctx.setLineDash([10, 7]); ctx.lineDashOffset = -gameTime * 40; ctx.lineWidth = ready ? 2 : 1.4; ctx.strokeStyle = ready ? 'rgba(255,110,70,0.8)' : 'rgba(210,210,210,0.35)';
   ctx.beginPath();
   for (let i = 0; i <= 24; i++) { const t = R * i / 24, q = proj(m.x + Math.cos(A) * t, m.y + Math.sin(A) * t), y = q.y - m.h * q.k; i ? ctx.lineTo(q.x, y) : ctx.moveTo(q.x, y); }
