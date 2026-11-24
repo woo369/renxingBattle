@@ -8799,13 +8799,13 @@ const isTrain = () => !!(phase && phase.train);
 const VEH = {
   garage: { x: 1230, y: -170, w: 300, h: 150 },
   abrams: { name: '艾布蘭主戰坦克', sc: 0.42, ax: 215, ay: 214, r: 32, rx: 70, ry: 24, shadow: [95, 26], speed: 300, accel: 3, coast: 1.5, brake: 1,
-    piv: [205, 95], bp: [344, 98], elev: 18, dep: 9, depRear: 3, flip: 0.4,          // 砲塔翻面中心、砲管耳軸；仰角 18°、俯角 9°（砲塔朝車尾 3°）；翻面 0.4 秒
+    piv: [205, 95], bp: [344, 98], elev: 45, dep: 45, depRear: 20, flip: 0.4,          // 砲塔翻面中心、砲管耳軸；仰角 45°、俯角 45°（砲塔朝車尾 20°；斜視角下要轉這麼多才跟瞄準線平行）；翻面 0.4 秒
     wheels: { x0: 76, dx: 38, n: 7, y: 192, r: 15, skirt: 188 }, sprocket: [44.5, 165.5, 24], track: [66, 340, 207, 214],
     hatch: [212, 50], doll: 1, cut: 0.6,
     range: 700, reload: 5, muzzle: [474, 98], recoil: 14,                              // 主砲：射程 700、填裝 5 秒；砲口（圖片座標）、後座距離
     trackEnd: [30, 208],                                                                // 履帶末端（揚起沙塵、泥石、雪粒的位置）
     ammo: [{ id: 'm829', name: 'M829GF', full: '長桿硬芯穿甲彈 M829GF', icon: 'ammo_m829', sprite: 'veh_dart', len: 28, dmg: 500, ap: 100, speed: 2200, sabotT: 0.05, range: 700 },
-      { id: 'm830', name: 'M830GF', full: '多用途破甲彈 M830GF', icon: 'ammo_m830', sprite: 'veh_heat', len: 30, dmg: 850, ap: 25, blast: 100, speed: 1760, sabotT: 0.05, range: 700, fuze: true, proxR: 70 }],   // 多用途破甲彈：撞到目標爆炸，範圍 100、傷害 850、穿甲值 25；約一般子彈 3.2 倍速；引信：碰撞／近炸（R 切換）   // 傷害 500、穿甲值 100（只打直接命中的目標）；速度約一般子彈的 4 倍；發射 0.05 秒彈托脫落
+      { id: 'm830', name: 'M830GF', full: '多用途破甲彈 M830GF', icon: 'ammo_m830', sprite: 'veh_heat', len: 30, dmg: 850, ap: 25, blast: 100, speed: 1760, sabotT: 0.05, range: 700, fuze: true, proxR: 35 }],   // 多用途破甲彈：撞到目標爆炸，範圍 100、傷害 850、穿甲值 25；約一般子彈 3.2 倍速；引信：碰撞／近炸（R 切換；近炸距離 35）   // 傷害 500、穿甲值 100（只打直接命中的目標）；速度約一般子彈的 4 倍；發射 0.05 秒彈托脫落
     hp: 1000, armor: 100,
     mg: { name: '車頂機槍', piv: [256, 33], muzzle: [333, 33.5], dmg: 30, mag: 40, rate: 7.2, reload: 8, range: 600, speed: 720, elev: 30, dep: 10, recoil: 3, jitter: 0.035 },   // 副武器：每發 30、40 發、每秒 7.2 發、填裝 8 秒
     equipSlots: 1 },   // 坦克最多額外攜帶 1 個裝備（技能鍵使用）     // 人形：跟平常站著一樣大（用待機圖量出人物高度），露出頭頂往下 60%
@@ -8900,10 +8900,14 @@ function vehTick(dt) {
   // 砲塔：朝瞄準的那一邊（正左／正右）；換邊時寬度從 1 → 0 → −1
   const hs = V.faceLeft ? -1 : 1, A = ride ? player.angle : (hs > 0 ? 0 : Math.PI), tf = Math.cos(A) >= 0 ? 1 : -1;
   V.tsx = tf > V.tsx ? Math.min(tf, V.tsx + 2 * dt / T.flip) : Math.max(tf, V.tsx - 2 * dt / T.flip);
-  const face = V.tsx >= 0 ? 1 : -1, la = face > 0 ? Math.atan2(Math.sin(A), Math.cos(A)) : Math.atan2(Math.sin(A), -Math.cos(A));
+  // 砲管的角度＝瞄準線在畫面上的角度（地面方向的 y 要乘 squash），砲管才會跟瞄準線平行
+  const face = V.tsx >= 0 ? 1 : -1, Ag = ride ? vehAimA(V, vehMuzzle(V)) : A, sa = Math.atan2(Math.sin(Ag) * VIEW3D.squash, Math.cos(Ag));
+  const la = face > 0 ? sa : Math.atan2(Math.sin(sa), -Math.cos(sa));
   const want = ride ? clamp(la, -T.elev * DEG, (face !== hs ? T.depRear : T.dep) * DEG) : 0;   // 砲塔朝車尾：俯角變小，仰角不變
   V.el += (want - V.el) * (1 - Math.exp(-dt * 10));
-  { const M = T.mg, wm = ride ? clamp(la, -M.elev * DEG, M.dep * DEG) : 0; V.mgEl = (V.mgEl || 0) + (wm - (V.mgEl || 0)) * (1 - Math.exp(-dt * 16)); }   // 車頂機槍：轉得比主砲快
+  { const M = T.mg; let ml = 0;   // 車頂機槍：跟它的子彈在畫面上的方向平行（子彈的 y 已經含高度，畫面角度＝atan2(dy·squash, dx)）
+    if (ride) { const p = vehMgPoint(V), am = vehMgAim(V, p), sm = Math.atan2((am.y - p.y) * VIEW3D.squash, am.x - p.x); ml = face > 0 ? sm : Math.atan2(Math.sin(sm), -Math.cos(sm)); }
+    const wm = ride ? clamp(ml, -M.elev * DEG, M.dep * DEG) : 0; V.mgEl = (V.mgEl || 0) + (wm - (V.mgEl || 0)) * (1 - Math.exp(-dt * 16)); }
   if (ride) vehMgTick(V, dt);
   V.shake += ((ride ? V.thr : 0) - V.shake) * (1 - Math.exp(-dt * 6));   // 速度越快震得越大
   V.reload = Math.max(0, (V.reload || 0) - dt); V.recoil = Math.max(0, (V.recoil || 0) - dt / 0.7); V.jolt = Math.max(0, (V.jolt || 0) - dt / 0.35);
@@ -8923,6 +8927,13 @@ function vehMgPoint(V) {   // 機槍槍口：畫面上的位置（子彈跟一�
   const ox = T.sc * (hs * (T.piv[0] - T.ax) + V.tsx * (px - T.piv[0])), oy = T.sc * (py - T.ay), q = proj(V.x, V.y);
   return unproj(q.x - shx + ox * q.k, q.y - shy + oy * q.k);   // 坦克是「直立」畫的：先算出槍口在畫面上的位置，再換回地面座標（子彈就從畫面上的槍口射出）
 }
+// 機槍的瞄準點：機槍在車頂很高，要從槍口瞄向目標（不然子彈會從敵人頭上飛過去）
+function vehMgAim(V, p) {
+  const M = V.T.mg; let aim = null;
+  if (!isTouch() && mouse.seen) { const mw = mouseWorld(); let bd = 1e9; for (const e of enemies) { if (!e || e.hp <= 0) continue; const d = Math.hypot(e.x - mw.x, e.y - mw.y); if (d < e.r + 50 && d < bd) { bd = d; aim = e; } } if (!aim) aim = mw; }
+  else { let bd = 0.35; for (const e of enemies) { if (!e || e.hp <= 0) continue; const d = Math.hypot(e.x - V.x, e.y - V.y); if (d > M.range) continue; let df = Math.atan2(e.y - V.y, e.x - V.x) - player.angle; df = Math.abs(Math.atan2(Math.sin(df), Math.cos(df))); if (df < bd) { bd = df; aim = e; } } if (!aim) aim = { x: V.x + Math.cos(player.angle) * M.range, y: V.y + Math.sin(player.angle) * M.range }; }
+  return aim;
+}
 function vehMgTick(V, dt) {
   const M = V.T.mg;
   if (V.mgAmmo == null) V.mgAmmo = M.mag;
@@ -8930,11 +8941,7 @@ function vehMgTick(V, dt) {
   if (V.mgReload > 0) { V.mgReload -= dt; if (V.mgReload <= 0) { V.mgReload = 0; V.mgAmmo = M.mag; sfx.reload(); } return; }
   if (!vehMgHeld() || V.rider !== player || V.mgCool > 0 || Math.abs(V.tsx) < 0.95) return;
   const p = vehMgPoint(V), life = M.range / M.speed;
-  // 瞄準點：機槍在車頂很高，要從槍口瞄向目標（不然子彈會從敵人頭上飛過去）
-  let aim = null;
-  if (!isTouch() && mouse.seen) { const mw = mouseWorld(); let bd = 1e9; for (const e of enemies) { if (!e || e.hp <= 0) continue; const d = Math.hypot(e.x - mw.x, e.y - mw.y); if (d < e.r + 50 && d < bd) { bd = d; aim = e; } } if (!aim) aim = mw; }
-  else { let bd = 0.35; for (const e of enemies) { if (!e || e.hp <= 0) continue; const d = Math.hypot(e.x - V.x, e.y - V.y); if (d > M.range) continue; let df = Math.atan2(e.y - V.y, e.x - V.x) - player.angle; df = Math.abs(Math.atan2(Math.sin(df), Math.cos(df))); if (df < bd) { bd = df; aim = e; } } if (!aim) aim = { x: V.x + Math.cos(player.angle) * M.range, y: V.y + Math.sin(player.angle) * M.range }; }
-  const A = Math.atan2(aim.y - p.y, aim.x - p.x) + rand(-M.jitter, M.jitter);
+  const aim = vehMgAim(V, p), A = Math.atan2(aim.y - p.y, aim.x - p.x) + rand(-M.jitter, M.jitter);
   bullets.push({ x: p.x, y: p.y, vx: Math.cos(A) * M.speed, vy: Math.sin(A) * M.speed, age: 0, life, maxLife: life, r: VEH_MG_DEF.weapon.radius, team: 'p', def: VEH_MG_DEF, src: V, dist: 0, purple: false, buff: 1, res: 1, crit: 0.05, apv: 0, flat: 0, cdm: 0, pdmg: M.dmg });
   V.mgAmmo--; V.mgCool = 1 / M.rate; V.mgRecoil = 1; sfx.shot('rifle', 'MG');
   vehFx.push({ kind: 'flash', gx: p.x + Math.cos(A) * 3, gy: p.y + Math.sin(A) * 3, h: 0, r: 6, life: 0.05, max: 0.05 });   // 跟子彈同一套座標（高度已經算進 y）：火花就在槍口
@@ -8957,6 +8964,11 @@ function vehAimA(V, m) {
   const sq = VIEW3D.squash; let p = null, z = 0;
   if (!isTouch() && mouse.seen) p = mouseWorld();
   else if (lockedTarget && lockedTarget.hp > 0 && enemies.includes(lockedTarget)) { p = lockedTarget; z = vehBodyH(lockedTarget) / 2; }
+  else {   // 沒有準星也沒有鎖定（手機手動拖曳）：瞄準方向附近、射程內最近的敵人身體中間
+    let bd = 1e9; const R = V.T.ammo[V.ammo || 0].range;
+    for (const e of enemies) { if (!e || e.hp <= 0 || e.escaped || e.npcAlly) continue; const d = Math.hypot(e.x - V.x, e.y - V.y); if (d > R) continue; let df = Math.atan2(e.y - V.y, e.x - V.x) - player.angle; df = Math.abs(Math.atan2(Math.sin(df), Math.cos(df))); if (df < 0.35 && d < bd) { bd = d; p = e; } }
+    if (p) z = vehBodyH(p) / 2;
+  }
   if (!p) return player.angle;
   return Math.atan2(p.y + (m.h - z) / sq - m.y, p.x - m.x);
 }
@@ -9019,7 +9031,8 @@ function vehShotsTick(dt) {
     const rest = T_RANGE(S) ;
     const go = Math.min(step, hitD, wallD, rest);
     S.gx += S.dx * go; S.gy += S.dy * go; S.d += go;
-    if (am.blast && ((hitE && hitD <= go + 1e-6) || wallD <= go + 1e-6)) vehBlast(S.gx, S.gy, am);   // 破甲彈：撞到（或近炸引信靠近）就爆炸
+    if (am.blast && hitE && hitD <= go + 1e-6) vehBlast(S.gx, hitE.y, am);   // 破甲彈：撞到（或近炸引信靠近）就爆炸；爆炸點放在觸發的敵人那個深度（砲彈在畫面上的位置）
+    else if (am.blast && wallD <= go + 1e-6) vehBlast(S.gx, S.gy, am);
     else if (hitE && hitD <= go + 1e-6) {
       hitEnemy.apv = am.ap; const dmg = hitEnemy(hitE, am.dmg, '#ffd27a', false, 0); hitEnemy.apv = 0;
       burst(hitE.x, hitE.y, '#ffd27a', 16); burst(hitE.x, hitE.y, '#fff3c4', 8); if (hitE.hp <= 0) killEnemy(hitE);
