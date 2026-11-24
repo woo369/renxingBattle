@@ -6774,7 +6774,6 @@ const BOSSES = {
     rank: 'boss',                // 四階：全部都是 Boss 等級（沒有一般／精英之分，不加入菁英對決）
     tier: 4,
     ai: 'typhon',
-    tank: true,                  // 坦克：正面／側面／背部護甲（TANK_ARMOR）
     weapon: '電磁激光主砲、反重力裝置',
     desc: '正規軍的重型主戰坦克，靠反重力裝置浮空移動，非常笨重。開到定點後會把車體降到地面，蓄力後發射長達 700 的青藍色電磁激光束，並且一邊緩慢偏移一邊追著目標掃射。',
     specialDesc: '電磁激光主砲：到達鎖敵距離後停下，車體降到地面（2.6 秒）再蓄力 2 秒，接著發射持續 5 秒的激光束（從砲管到 700 外），光束會帶著偏移慢慢追向目標；待在光束裡每 0.2 秒受到 10 點傷害。發射後冷卻 8 秒，目標還在範圍內就原地等待，跑出範圍外會把車體抬升（1.4 秒）再移動追擊；目標鑽進射擊死角（150 內太近打不到，或冷卻中跑到車頭前方的射角外，不管多遠）時，會抬升車體、車頭朝著目標往後移動 200 再降下開砲。',
@@ -6907,7 +6906,6 @@ const BOSSES = {
     rank: 'elite',
     tier: 3,                     // 精英等級：三階
     ai: 'quail',                 // 使用奎鳥專用的行為
-    tank: true,                  // 懸浮坦克：正面／側面／背部護甲（TANK_ARMOR）
     weapon: '主砲、干擾煙霧彈',
     desc: '正規軍的懸浮主戰坦克，靠反重力裝置貼地滑行，裝甲厚重。主砲每發都會爆炸，連續打完四發才要長時間重新裝填。',
     specialDesc: '干擾煙霧彈：長裝填開始 2 秒後，朝瞄準的位置投出煙霧彈，形成半徑 200 的煙霧。待在煙霧裡的人形移動速度 −30%、命中 −30%，離開後效果再維持 3 秒。',
@@ -11721,7 +11719,7 @@ function fieldMagicReload(u, D) {
   if (u === player) { updateAmmo(); floatText(u.x, u.y - 60, '強化子彈 +' + sk.bonus, '#ffb74d'); }
 }
 /* ───── LTLX7000：異類相斥 ───── */
-/* 坦克的護甲（敵我共用）：看攻擊從哪個方向打來（相對車頭）
+/* 人形駕駛的坦克護甲（玩家、之後 AI 開的坦克都適用；提豐、奎鳥這類敵方坦克不套用）：看攻擊從哪個方向打來（相對車頭）
    正面 ±60°：90% 格擋、護甲值 +20%；背部 ±45°：30% 格擋、護甲值 −40%；其餘是側面：60% 格擋、護甲值不變。不知道方向時當側面 */
 const TANK_ARMOR = { front: { name: '正面', arc: 60, p: 0.9, k: 1.2 }, back: { name: '背部', arc: 45, p: 0.3, k: 0.6 }, side: { name: '側面', p: 0.6, k: 1 } };
 function tankZone(faceAng, dirA) {
@@ -12551,7 +12549,7 @@ function hitEnemy0(e, dmg, color, small, atkCrit) {
   if (crit) dmg *= 2 + (hitEnemy.cdm || 0);   // 暴擊傷害 ×2（＋裝備的暴擊傷害加成）
   // 敵人護甲：格擋機率見 ENEMY_BLOCK
   const ar0 = Math.max(0, ((e.boss ? e.B.armor : e.T.armor) || 0) - pn), blk = e.fighter ? e.def.armor : null;   // 獵物標記：每層護甲 −1（最低 0）   // 對戰的人形：用自己的格擋機率
-  const tz = (e.B && e.B.tank) || (e.T && e.T.tank) ? tankZone(e.faceLeft ? Math.PI : 0, hitEnemy.dirA) : null;   // 坦克：依中彈方向決定格擋機率、護甲倍率
+  const tz = e.ride ? tankZone(e.ride.faceLeft ? Math.PI : 0, hitEnemy.dirA) : null;   // 人形駕駛的載具（之後的坦克對戰、AI 開坦克）：依中彈方向決定格擋機率、護甲倍率；提豐、奎鳥等敵方坦克用一般的護甲規則
   const apv = hitEnemy.apv || 0, ar = Math.max(0, ((ar0 || 0) + (e.fighter ? effSum(e, 'armorFlat') : 0)) * (e.fighter ? armorMul(e) : 1) * (tz ? tz.k : 1) - apv);   // 穿甲值：先抵銷目標的護甲
   if (hitEnemy.special) dmg += Math.max(0, apv - (ar0 || 0)) * hitEnemy.special;   // MG4 特殊彈藥：溢出的穿甲值 × 50% 轉成額外傷害
   lastBlk = false;
