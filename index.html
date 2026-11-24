@@ -569,7 +569,43 @@ body.touch #testPanel{max-height:38vh}   /* 手機：不要擋到左下的移動
       <button id="resumeBtn" class="btn primary" type="button">繼續</button>
       <button id="quitBtn" class="btn" type="button">回主選單</button>
     </div>
-    <div class="row" style="margin-top:10px"><button id="defHelpBtn" class="btn" type="button" hidden>作戰說明</button></div>
+    <div class="row" style="margin-top:10px"><button id="defHelpBtn" class="btn" type="button" hidden>作戰說明</button><button id="colHelpBtn" class="btn" type="button" hidden>作戰說明</button></div>
+  </div>
+</div>
+<div id="colHelp" class="overlay" hidden>
+  <div class="sheet def-help" style="max-width:580px;max-height:86vh;overflow-y:auto">
+    <h2>作戰說明・塌縮之谷</h2>
+    <h4>任務目標</h4>
+    <ul><li>撐過正規軍的背叛，帶著倖存的人形往東撤離，最後抵達東方的工業小鎮，完成「成功撤離」。</li><li>你和 3 名 AI 隊友組成四人小隊。全隊同時倒下才算失敗。</li></ul>
+    <h4>第一段：森林河谷（220 × 26 格）</h4>
+    <ul>
+      <li>開場後第 5 秒，正規軍的第一追擊隊從後方追來，並對隊伍砲擊：地上出現紅圈就是落點，盡快離開。</li>
+      <li>沿路有倖存的格里芬人形，走近就會加入隊伍跟著你撤退。</li>
+      <li>隊伍裡有倖存者之後，會收到一段斷斷續續的通訊，指示前往東北方的安全屋。</li>
+      <li>往東推進越過地圖中段後，後方會落下一整排砲擊封鎖線，把正規軍擋在西邊。接著第二追擊隊從南方地圖外出現，附近也有鐵血工造的兵團在交戰。</li>
+      <li>5:00 時坍塌液炸彈引爆，範圍內的所有單位都會被抹除。提早進入安全屋（地圖東側的山洞）可以躲過爆炸。</li>
+    </ul>
+    <h4>安全屋與迷霧</h4>
+    <ul>
+      <li>爆炸後整個山谷充滿坍塌污染，待在外面每 30 秒扣 10 生命。</li>
+      <li>山洞裡有醫療櫃（治療全員）和生化服衣櫃（50 點護盾，可以擋住坍塌污染）。靠近後按 B 使用；手機版會出現按鈕。</li>
+      <li>洞外有一台被爆炸波及的提豐坦克。擊破它之後，第一張地圖右下角的出口會打開。</li>
+    </ul>
+    <h4>第二段：鐵血山谷</h4>
+    <ul>
+      <li>山谷裡有鐵血工造的基地（兩門木星砲、精英、強化兵團）。只要不攻擊基地，它們不會主動出擊；3:00 時基地會往東南方撤離。</li>
+      <li>迷霧和坍塌污染只在地圖左半邊。路上有碉堡、營地物資和醫療箱，醫療箱可以補滿全隊生命。</li>
+      <li>第三追擊隊會在 15 秒時從西邊地圖外追來；接近山谷出口時，第四追擊隊從上方出現。</li>
+      <li>部分倖存人形會留下來殿後，替隊伍爭取時間。</li>
+      <li>穿過出口後抵達有工廠和鐵圍欄的工業小鎮，進入大門即完成撤離。</li>
+    </ul>
+    <h4>小提示</h4>
+    <ul>
+      <li>倒下的人形 10 秒後會在隊伍旁復活；你倒下時鏡頭會跟著還活著的隊友。</li>
+      <li>正規軍的提豐會先攻擊附近的鐵血工造。讓兩邊互相消耗，比正面硬拚更安全。</li>
+      <li>追擊隊的步兵單位離隊伍很遠時會加速，靠近之後就回到原本的速度。</li>
+    </ul>
+    <div class="row" style="margin-top:14px"><button id="colHelpClose" class="btn primary" type="button">關閉</button></div>
   </div>
 </div>
 <div id="defIntro" hidden><canvas id="introCv"></canvas><div id="introCap"></div><div id="introWait">載入中…</div><div class="load-tip" id="introTip" hidden></div><button id="introSkip" type="button">跳過 ▶</button></div>
@@ -2649,7 +2685,7 @@ const LEVELS = [
   { id: 'versus', name: '雲圖對戰', open: true, desc: '（開發中）5 打 5 的團隊對戰，所有人形的生命都是原本的 3 倍，60×30 格的長條地圖，藍隊、紅隊的大本營在左右兩側。擊倒敵方人形本體得 1 分，先到 30 分獲勝；初始零件 10，地圖中間會出現零件和醫療包，擊倒敵人可拿走對方 50% 的零件。可以加入普通或精銳 AI，倒下 5 秒後重生。大本營有會無限重生的守衛，會攻擊太靠近的敵人。' },
   { id: 'test', name: '測試模式', open: true, desc: '不會自動出怪，可以自選召喚任何敵人或精英，零件無限。' },
   { id: 'defense', name: '滅星行動', open: true, desc: '鐵血工造在羅馬尼亞的多布羅加高地建立了一座木星砲。由於海拔的差異，他們能夠輕易地透過木星砲封鎖多瑙河下游一帶，掐住格里芬的補給線。\n玩家和四名人形一起組隊，來到座落於多布羅加的高功率網路基地站，使用遠端連線到報廢在山區的正規軍營站，並操控軍方機甲九頭蛇，摧毀木星砲。\n由於行動被鐵血工造偵察，他們也調動大量的兵力來防守並奪取網路基地站，玩家需要保衛住基地站並為其充電，使其能夠連線上遠處的九頭蛇。需要在鐵血工造的大軍抵達前搶先摧毀木星砲，否則將迎來全滅的下場。' },
-  { id: 'collapse', name: '塌縮之谷', open: true, desc: '（開發中）滅星行動之後，格里芬與正規軍聯手剿滅鐵血工造，卻在東喀爾巴阡的山麓河谷遭到正規軍背叛。毀滅性的砲火落在格里芬的陣線上，大量人形永久死亡。\n目前只有第一階段的地圖：左右很長的森林河谷，上方是山谷的山腳，地上滿是巨砲彈坑、倒下的樹木和被摧毀的碉堡與營地。劇情、敵人與後續路段之後陸續加入。' },
+  { id: 'collapse', name: '塌縮之谷', open: true, desc: '經過與新蘇聯正規軍的聯絡，我們達成了一致剿滅鐵血工造的共識，在東喀爾巴阡的山麓河谷展開與鐵血的決戰。我們派出了所有的主力與正規軍協同追戰，但就在此時，異變突生……' },
   { id: 'locked1', name: '尚未解鎖', open: false, desc: '敬請期待' },
 ];
 let selectedLevel = 'training';
@@ -10498,8 +10534,8 @@ function nextPhase() {
   floatText(player.x, player.y - 64, phase.name + ' 開始！', '#f9cf70'); shake = Math.max(shake, 5);
   for (let i = 0; i < phase.initial; i++) addEnemy();
 }
-function pauseGame() { if (state === 'play') { $('zoomRange').value = userZoom; $('pauseBgm').value = bgmMul; $('pauseSfx').value = sfxVol; $('defHelpBtn').hidden = !isDef(); setState('pause'); } }
-function resumeGame() { $('defHelp').hidden = true; if (state === 'pause') { setState('play'); last = performance.now(); } }
+function pauseGame() { if (state === 'play') { $('zoomRange').value = userZoom; $('pauseBgm').value = bgmMul; $('pauseSfx').value = sfxVol; $('defHelpBtn').hidden = !isDef(); $('colHelpBtn').hidden = !(phase && phase.collapse); setState('pause'); } }
+function resumeGame() { $('defHelp').hidden = true; $('colHelp').hidden = true; if (state === 'pause') { setState('play'); last = performance.now(); } }
 
 /* ───────── 輸入 ───────── */
 window.addEventListener('keydown', (e) => {
@@ -10646,6 +10682,8 @@ $('menuBtn').addEventListener('click', backToMenu);
 $('resumeBtn').addEventListener('click', resumeGame);
 $('defHelpBtn').addEventListener('click', () => { $('defHelp').hidden = false; });   // 滅星行動：暫停選單的作戰說明
 $('defHelpClose').addEventListener('click', () => { $('defHelp').hidden = true; });
+$('colHelpBtn').addEventListener('click', () => { $('colHelp').hidden = false; });   // 塌縮之谷：暫停選單的作戰說明
+$('colHelpClose').addEventListener('click', () => { $('colHelp').hidden = true; });
 $('quitBtn').addEventListener('click', backToMenu);
 $('pauseBtn').addEventListener('click', pauseGame);
 $('zoomRange').addEventListener('input', (e) => setZoom(Number(e.target.value)));
