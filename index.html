@@ -6774,6 +6774,7 @@ const BOSSES = {
     rank: 'boss',                // 四階：全部都是 Boss 等級（沒有一般／精英之分，不加入菁英對決）
     tier: 4,
     ai: 'typhon',
+    tank: true,                  // 坦克：正面／側面／背部護甲（TANK_ARMOR）
     weapon: '電磁激光主砲、反重力裝置',
     desc: '正規軍的重型主戰坦克，靠反重力裝置浮空移動，非常笨重。開到定點後會把車體降到地面，蓄力後發射長達 700 的青藍色電磁激光束，並且一邊緩慢偏移一邊追著目標掃射。',
     specialDesc: '電磁激光主砲：到達鎖敵距離後停下，車體降到地面（2.6 秒）再蓄力 2 秒，接著發射持續 5 秒的激光束（從砲管到 700 外），光束會帶著偏移慢慢追向目標；待在光束裡每 0.2 秒受到 10 點傷害。發射後冷卻 8 秒，目標還在範圍內就原地等待，跑出範圍外會把車體抬升（1.4 秒）再移動追擊；目標鑽進射擊死角（150 內太近打不到，或冷卻中跑到車頭前方的射角外，不管多遠）時，會抬升車體、車頭朝著目標往後移動 200 再降下開砲。',
@@ -6906,6 +6907,7 @@ const BOSSES = {
     rank: 'elite',
     tier: 3,                     // 精英等級：三階
     ai: 'quail',                 // 使用奎鳥專用的行為
+    tank: true,                  // 懸浮坦克：正面／側面／背部護甲（TANK_ARMOR）
     weapon: '主砲、干擾煙霧彈',
     desc: '正規軍的懸浮主戰坦克，靠反重力裝置貼地滑行，裝甲厚重。主砲每發都會爆炸，連續打完四發才要長時間重新裝填。',
     specialDesc: '干擾煙霧彈：長裝填開始 2 秒後，朝瞄準的位置投出煙霧彈，形成半徑 200 的煙霧。待在煙霧裡的人形移動速度 −30%、命中 −30%，離開後效果再維持 3 秒。',
@@ -8824,14 +8826,17 @@ function vehUse(only) {   // only：'summon'（B）／'ride'（T）；不給＝�
     burst(trainVeh.x, trainVeh.y, '#ffd76a', 18); floatText(trainVeh.x, trainVeh.y - 90, T.name, '#ffd76a');
   } else if (a.id === 'board') {
     const V = trainVeh; player.ride = V; V.rider = player; player.r0 = player.r; player.r = V.r; player.x = V.x; player.y = V.y; player.prone = 0; V.thr = 0; updateHp();
+    player.stowed = clones.filter((c) => !c.nightAlly); clones = clones.filter((c) => c.nightAlly);   // 擴編人形：收進車裡（不畫、打不到、不行動），下車再放出來
     floatText(V.x, V.y - 90, '搭乘：' + V.T.name, '#9fe6a0');
   } else if (a.id === 'exit') vehExit();
   return true;
 }
 function vehDamage(V, amt, pierce, pen = 0) {
-  const T = V.T, av = Math.max(0, T.armor - pen), blocked = !pierce && av > 0 && Math.random() < (amt <= av ? ENEMY_BLOCK.low : ENEMY_BLOCK.high);   // 護甲：跟敵方裝甲單位同一套規則
+  let dirA = hitDirA; hitDirA = null;
+  if (dirA == null) { let best = 1e9; for (const e of enemies) { if (!e || e.hp <= 0) continue; const d = Math.hypot(e.x - V.x, e.y - V.y); if (d < best) { best = d; dirA = Math.atan2(e.y - V.y, e.x - V.x); } } if (best > 1500) dirA = null; }   // 沒有方向：用最近的敵人
+  const T = V.T, tz = tankZone(V.faceLeft ? Math.PI : 0, dirA), av = Math.max(0, T.armor * tz.k - pen), blocked = !pierce && av > 0 && Math.random() < tz.p;   // 坦克護甲：正面／側面／背部
   const real = blocked ? Math.max(1, amt - av) : amt; lastBlk = blocked;
-  if (blocked) floatText(V.x + rand(-20, 20), V.y - 70, '格擋', '#cfd8dc');
+  if (blocked) floatText(V.x + rand(-20, 20), V.y - 70, tz.name + '格擋', '#cfd8dc');
   V.hp -= real; V.hitT = 2; updateHp();
   if (V.hp <= 0) vehDestroy(V);
 }
@@ -8851,6 +8856,11 @@ function vehHud(V) {
 function vehExit() {
   const V = player.ride; if (!V) return;
   const r0 = player.r0 || 20; player.ride = null; V.rider = null; player.r = r0; V.thr = 0;
+  if (player.stowed && player.stowed.length) {   // 擴編人形：在下車的位置附近重新出現
+    player.stowed.forEach((c, i) => { const a = i / player.stowed.length * Math.PI * 2 + 0.4; let x = player.x + Math.cos(a) * 46, y = player.y + Math.sin(a) * 30; if (mapSolidAt(x, y, c.r || 16)) { x = player.x; y = player.y; } c.x = x; c.y = y; burst(x, y, '#8cd2ff', 6); });
+    clones.push(...player.stowed);
+  }
+  player.stowed = null;
   V._hud = false; $('ammoLabel').textContent = cfg.weapon.name + '彈藥'; $('reloadBar').style.width = '0'; updateAmmo(); updateHp();   // 下車：彈藥欄、生命條換回人形的
   for (const [ox, oy] of [[0, 72], [0, -72], [-120, 0], [120, 0], [-90, 62], [90, 62], [-90, -62], [90, -62]]) {
     if (!mapSolidAt(V.x + ox, V.y + oy, r0 + 2)) { player.x = V.x + ox; player.y = V.y + oy; break; }
@@ -8973,7 +8983,19 @@ function vehShotsTick(dt) {
   }
 }
 const T_RANGE = (S) => Math.max(0, S.am.range - S.d);
+function drawVehAim() {   // 主砲的瞄準線：砲口的高度沿著瞄準方向畫到射程；填裝中變淡、翻面時不畫
+  const V = player && player.ride; if (!V || state !== 'play' || Math.abs(V.tsx) < 0.95) return;
+  const m = vehMuzzle(V), A = player.angle, R = V.T.ammo[V.ammo || 0].range, ready = !(V.reload > 0);
+  ctx.save(); ctx.setLineDash([10, 7]); ctx.lineDashOffset = -gameTime * 40; ctx.lineWidth = ready ? 2 : 1.4; ctx.strokeStyle = ready ? 'rgba(255,110,70,0.8)' : 'rgba(210,210,210,0.35)';
+  ctx.beginPath();
+  for (let i = 0; i <= 24; i++) { const t = R * i / 24, q = proj(m.x + Math.cos(A) * t, m.y + Math.sin(A) * t), y = q.y - m.h * q.k; i ? ctx.lineTo(q.x, y) : ctx.moveTo(q.x, y); }
+  ctx.stroke(); ctx.setLineDash([]);
+  const qe = proj(m.x + Math.cos(A) * R, m.y + Math.sin(A) * R), ye = qe.y - m.h * qe.k;   // 射程盡頭的小十字
+  ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(qe.x - 6, ye); ctx.lineTo(qe.x + 6, ye); ctx.moveTo(qe.x, ye - 6); ctx.lineTo(qe.x, ye + 6); ctx.stroke();
+  ctx.restore();
+}
 function drawVehShots() {
+  drawVehAim();
   if (!vehShots.length && !vehFx.length) return;
   const DT = vehImg('veh_dart');
   for (const f of vehFx) {
@@ -11699,6 +11721,14 @@ function fieldMagicReload(u, D) {
   if (u === player) { updateAmmo(); floatText(u.x, u.y - 60, '強化子彈 +' + sk.bonus, '#ffb74d'); }
 }
 /* ───── LTLX7000：異類相斥 ───── */
+/* 坦克的護甲（敵我共用）：看攻擊從哪個方向打來（相對車頭）
+   正面 ±60°：90% 格擋、護甲值 +20%；背部 ±45°：30% 格擋、護甲值 −40%；其餘是側面：60% 格擋、護甲值不變。不知道方向時當側面 */
+const TANK_ARMOR = { front: { name: '正面', arc: 60, p: 0.9, k: 1.2 }, back: { name: '背部', arc: 45, p: 0.3, k: 0.6 }, side: { name: '側面', p: 0.6, k: 1 } };
+function tankZone(faceAng, dirA) {
+  if (dirA == null) return TANK_ARMOR.side;
+  const d = Math.abs(Math.atan2(Math.sin(dirA - faceAng), Math.cos(dirA - faceAng))) / DEG;   // 攻擊來的方向跟車頭差幾度
+  return d <= TANK_ARMOR.front.arc ? TANK_ARMOR.front : d >= 180 - TANK_ARMOR.back.arc ? TANK_ARMOR.back : TANK_ARMOR.side;
+}
 let hitDirA = null;   // 這一次受到的攻擊從哪個方向來（子彈：飛來的反方向）；沒有就用最近的敵人
 const angGap = (a, b) => Math.abs(Math.atan2(Math.sin(a - b), Math.cos(a - b)));
 function frontResist(u, D, dirA) {
@@ -12521,10 +12551,11 @@ function hitEnemy0(e, dmg, color, small, atkCrit) {
   if (crit) dmg *= 2 + (hitEnemy.cdm || 0);   // 暴擊傷害 ×2（＋裝備的暴擊傷害加成）
   // 敵人護甲：格擋機率見 ENEMY_BLOCK
   const ar0 = Math.max(0, ((e.boss ? e.B.armor : e.T.armor) || 0) - pn), blk = e.fighter ? e.def.armor : null;   // 獵物標記：每層護甲 −1（最低 0）   // 對戰的人形：用自己的格擋機率
-  const apv = hitEnemy.apv || 0, ar = Math.max(0, ((ar0 || 0) + (e.fighter ? effSum(e, 'armorFlat') : 0)) * (e.fighter ? armorMul(e) : 1) - apv);   // 穿甲值：先抵銷目標的護甲
+  const tz = (e.B && e.B.tank) || (e.T && e.T.tank) ? tankZone(e.faceLeft ? Math.PI : 0, hitEnemy.dirA) : null;   // 坦克：依中彈方向決定格擋機率、護甲倍率
+  const apv = hitEnemy.apv || 0, ar = Math.max(0, ((ar0 || 0) + (e.fighter ? effSum(e, 'armorFlat') : 0)) * (e.fighter ? armorMul(e) : 1) * (tz ? tz.k : 1) - apv);   // 穿甲值：先抵銷目標的護甲
   if (hitEnemy.special) dmg += Math.max(0, apv - (ar0 || 0)) * hitEnemy.special;   // MG4 特殊彈藥：溢出的穿甲值 × 50% 轉成額外傷害
   lastBlk = false;
-  if (ar && !hitEnemy.pierceArmor && (dmg <= ar ? Math.random() < (blk ? blk.blockLow : ENEMY_BLOCK.low) : Math.random() < (blk ? blk.blockHigh : ENEMY_BLOCK.high))) {   // 穿甲子彈不會被格擋
+  if (ar && !hitEnemy.pierceArmor && (tz ? Math.random() < tz.p : dmg <= ar ? Math.random() < (blk ? blk.blockLow : ENEMY_BLOCK.low) : Math.random() < (blk ? blk.blockHigh : ENEMY_BLOCK.high))) {   // 穿甲子彈不會被格擋
     dmg = Math.max(1, dmg - ar);       // 格擋：傷害 − 護甲值，最低剩 1
     lastBlk = true;
     if (!small) floatText(e.x + rand(-10, 10), e.y - 34, '格擋', '#cfd8dc');
@@ -12604,12 +12635,13 @@ function updateParts() {
   $('partsNum').textContent = phase && phase.infiniteParts ? '∞' : partCount; if ($('defParts')) $('defParts').textContent = partCount;
   const cost = isDef() ? DEF.enhCost : expandCost(isNight() ? cfg : cloneSrcDef());
   const night = isNight() || !!(cfg && cfg.proto), lv = isDef() && defState ? defState.enh : (player && player.enh) || 0;   // 協議同歸：只能強化
-  const can = state === 'play' && phase && !phase.noParts && partCount >= cost && (night ? lv < enhMax() : clones.length < CLONE.maxCount);
+  const can = state === 'play' && phase && !phase.noParts && !(player && player.ride) && partCount >= cost && (night ? lv < enhMax() : clones.length < CLONE.maxCount);
   $('expandBtn').hidden = !can;
   $('expandBtn').childNodes[0].textContent = night ? '強化 ' + (lv + 1) : '擴編';   // 夜戰：強化（顯示要升到第幾級）
   const sm = $('expandBtn').querySelector('small'); if (sm) sm.textContent = '消耗 ' + cost + ' 零件';
 }
 function expandEchelon() {
+  if (player && player.ride) return;   // 搭乘載具時不能擴編
   if (vsDead()) return;
   if (isDef()) { defEnhance(); return; }   // 滅星行動：全隊一起強化
   if (isNight() || (cfg && cfg.proto)) { nightEnhance(); return; }   // 夜戰、協議同歸：強化取代擴編
