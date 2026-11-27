@@ -4784,7 +4784,7 @@ const VS_ELITE = {
 // 所有精銳：隊友正在跟敵人交戰時會主動過去支援
 const VS_ELITE_DEFAULT = { dodgeFree: 0.3 };
 // 大本營守衛：從精英敵人裡挑（目前只有巨劍士），一場抽一次，雙方一樣；只在自己的大本營裡活動，無限重生
-const VS_GUARD_POOL = ['greatsword', 'hydra', 'typhon', 'lancer'];
+const VS_GUARD_POOL = ['greatsword', 'hydra', 'typhon', 'lancer', 'jupiter'];
 // 守衛的數值：巨劍士用 Boss 資料；九頭蛇用普通敵人的數值（原汁原味）
 const HYDRA_GUARD = { name: '九頭蛇', hydra: true, hp: HYDRA.hp * 10 /* 對戰守衛：生命 ×10 */, armor: HYDRA.armor, evade: 0, radius: HYDRA.radius, speed: HYDRA.speed, lockRange: HYDRA.lockRange * 1.8 /* 對戰守衛：鎖敵 ×1.8 */,
   shift: HYDRA.shift, aimDelay: 0.2, bulletDmg: HYDRA.bulletDmg, fireCooldown: HYDRA.fireCooldown / 4 /* 對戰守衛：射速 ×4（火力壓制） */, magazine: HYDRA.magazine * 4 /* 彈匣也 ×4：不然換彈時間會吃掉大半的火力 */, reload: HYDRA.reload,
@@ -4800,7 +4800,11 @@ const LANCER_GUARD = { name: '槍騎兵', lancer: true, hp: LANCER.hp * 10, armo
 // 巨劍士守衛：Boss 資料，鎖敵 ×1.8（子彈飛行時間跟著拉長）；用 Object.create 保留 Boss 資料上的 getter
 let GS_GUARD = null;
 const gsGuard = () => GS_GUARD || (GS_GUARD = Object.assign(Object.create(BOSSES.greatsword), { lockRange: BOSSES.greatsword.lockRange * 1.8, bulletLife: BOSSES.greatsword.lockRange * 1.8 * 1.2 / BOSSES.greatsword.bulletSpeed }));
-const vsGuardB = (id) => id === 'hydra' ? HYDRA_GUARD : id === 'lancer' ? LANCER_GUARD : id === 'greatsword' ? gsGuard() : BOSSES[id];
+// 木星砲守衛：Boss 資料，生命 ×2、高射速度 ×3（每 5 秒 → 每 1.67 秒一發）、爆炸範圍 ×2、換彈 ×4（12 秒 → 3 秒）；固定不動，沿巡邏線兩端起平均擺 4 門
+let JUP_GUARD = null;
+const jupGuard = () => { if (JUP_GUARD) return JUP_GUARD; const J = BOSSES.jupiter;
+  return (JUP_GUARD = Object.assign(Object.create(J), { hp: J.hp * 2, high: { ...J.high, every: J.high.every / 3 }, boom: { ...J.boom, r: J.boom.r * 2 }, reload: J.reload / 4, fixed: true, barY: 172 })); };
+const vsGuardB = (id) => id === 'hydra' ? HYDRA_GUARD : id === 'lancer' ? LANCER_GUARD : id === 'greatsword' ? gsGuard() : id === 'jupiter' ? jupGuard() : BOSSES[id];
 const VS_GUARD = { count: 4, respawn: 3, alert: 260 };   // 數值全照原本的精英；大本營外 260 內的敵人也會被攻擊
 let vsGuardId = 'greatsword';
 const ROLE_OF = { AR: 'dps', RF: 'dps', MG: 'dps', SG: 'front', SMG: 'front', HG: 'support' };
@@ -5121,7 +5125,7 @@ function vsBegin() {
     v.fighters.push(f);
   });
   v.fighters.forEach((f, i) => { f.uid = 'f' + i; });
-  for (const t of ['blue', 'red']) for (let i = 0; i < VS_GUARD.count; i++) v.guards.push(vsMakeGuard(t));
+  for (const t of ['blue', 'red']) for (let i = 0; i < VS_GUARD.count; i++) v.guards.push(vsMakeGuard(t, i));
   const p = vsSpawnPos(L.team, 0); player.x = p.x; player.y = p.y; cam = { x: p.x, y: p.y };
   vsSync();
   return v;
@@ -6088,12 +6092,16 @@ function vsHumanDown() {
   }
   updateParts(); vsFeed(killer, player); vsCheckWin();
 }
-function vsMakeGuard(team) {
-  const B = vsGuardB(vsGuardId), hp = B.hp, p = vsGuardPoint(team);
+function vsJupPoint(team, slot) {   // 木星砲：巡邏線（大本營最外緣）從一端到另一端平均擺 4 門（兩端各一門）
+  const L = vsPatrol(team), n = VS_GUARD.count, t = L.a0 + 20 + (L.a1 - L.a0 - 40) * (slot % n) / (n - 1);
+  return vsLinePt(L, t, (L.f0 + L.f1) / 2);
+}
+function vsMakeGuard(team, slot = 0) {
+  const B = vsGuardB(vsGuardId), hp = B.hp, p = B.fixed ? vsJupPoint(team, slot) : vsGuardPoint(team);
   return { guard: true, vsTeam: team, id: vsGuardId, B, name: B.name + '守衛', x: p.x, y: p.y, r: B.radius, hp, maxHp: hp,
     T: { hp, evade: B.evade || 0, armor: B.armor || 0, shield: B.shield || 0, shieldRegen: B.shieldRegen || 15, ai: 'guard' }, shield: B.shield || 0,
     ammo: B.magazine, reloadT: 0, cool: 0, aimT: 0, mode: 'stand', shiftT: 0, phase: Math.random() * 5, faceLeft: team === 'red', angle: 0, special: null,
-    dead: false, respawnT: 0, wander: null, wanderT: rand(1, 4), target: null, touchCd: 0, magsDone: 0 };
+    dead: false, respawnT: 0, wander: null, wanderT: rand(1, 4), target: null, touchCd: 0, magsDone: 0, slot };
 }
 /* 守衛的巡邏帶：大本營最外圍、面向戰場那一側的一條長帶（寬 VS_PATROL_DEPTH）
    以前只走一條線，守衛互相推擠就卡死；現在每名守衛在帶子裡有自己的「車道」（離外緣的深度），
@@ -6113,7 +6121,7 @@ function vsGuardPoint(team) { const L = vsPatrol(team); for (let n = 0; n < 20; 
 // 守衛：巨劍士原汁原味（生命、護盾、笨重的停下／起步、停下後頓一下才開火、雙機砲、每兩輪彈匣一次榴彈齊射、碰撞傷害）
 // 只在自己的大本營裡活動：沒有敵人時閒逛；大本營內（或外圍 260 內）有敵人就追過去開火，但不會走出大本營
 function vsGuardTick(g, dt) {
-  if (g.dead) { g.respawnT -= dt; if (g.respawnT <= 0) { Object.assign(g, vsMakeGuard(g.vsTeam)); burst(g.x, g.y, VS_TEAMCOL[g.vsTeam], 16); } return; }
+  if (g.dead) { g.respawnT -= dt; if (g.respawnT <= 0) { Object.assign(g, vsMakeGuard(g.vsTeam, g.slot || 0)); burst(g.x, g.y, VS_TEAMCOL[g.vsTeam], 16); } return; }
   const B = g.B, sp = B.special, m = B.assets.meta, b = vsBase(g.vsTeam), A = VS_GUARD.alert; g.phase += dt;
   g.kvx = g.kvy = 0;
   if (g.shield <= 0 && g.shieldT > 0) { g.shieldT -= dt; if (g.shieldT <= 0) { g.shield = B.shield; floatText(g.x, g.y - 110, '護盾恢復', '#8fd0ff'); burst(g.x, g.y - 30, '#8fd0ff', 14); } }
@@ -6128,6 +6136,7 @@ function vsGuardTick(g, dt) {
   }
   g.target = tgt;
   if (B.ai === 'typhon') { vsTyphonGuard(g, dt, tgt, bd); return; }   // 提豐守衛
+  if (B.ai === 'jupiter') { vsJupiterGuard(g, dt, tgt, bd); vsGuardSyncJup(g); return; }   // 木星砲守衛
   const atk = g.atkDownT > 0 ? 1 - (g.atkDownPct || 0.5) : 1;
   if (B.lancer) { g.rkT = Math.max(0, (g.rkT ?? 1.5) - dt); if (g.reloadT > 0 && g.special) { g.reloadT -= dt; if (g.reloadT <= 0) g.ammo = B.magazine; } }
   if (g.special && B.lancer && vsLancerSpecial(g, dt, tgt, foes, atk)) return;
@@ -6275,6 +6284,47 @@ function drawLancerGuard(g) {
   pe.shot = Math.max(0, 0.08 - (gameTime - (g.lastShot ?? -9)));
   drawSpriteEnemy(pe);
 }
+// 木星砲守衛：跟滅星行動的木星砲一樣（收起 → 啟動 → 平射／高射切換），目標是大本營附近的敵方人形，砲彈走守衛的榴彈（vsShells）
+function vsJupiterGuard(g, dt, tgt, bd) {
+  const B = g.B, m = B.assets.meta, H = B.high, F = B.flat, atk = g.atkDownT > 0 ? 1 - (g.atkDownPct || 0.5) : 1; g.phase += dt; g.moving = false;
+  if (g.jMode == null) { g.jMode = 'off'; g.jAng = -1; g.ammo = B.magazine; g.jCd = 0; }
+  g.jCd = Math.max(0, g.jCd - dt);
+  if (g.reloadT > 0) { g.reloadT -= dt; if (g.reloadT <= 0) { g.reloadT = 0; g.ammo = B.magazine; } }
+  const inR = tgt && bd <= B.lockRange;
+  if (g.jMode === 'off') { if (inR) { g.jMode = 'wake'; g.jT = 0; floatText(g.x, g.y - 150, '木星砲啟動', '#ff8a7a'); } return; }
+  if (g.jMode === 'wake') { g.jT += dt; if (g.jT >= B.wake) { g.jMode = 'flat'; g.jAng = 0; } return; }
+  if (tgt) g.faceLeft = tgt.x < g.x;
+  if (g.jSwap) { const S = g.jSwap; S.t += dt; g.jAng = S.from + (S.to - S.from) * Math.min(1, S.t / B.swap); if (S.t >= B.swap) { g.jMode = S.to ? 'high' : 'flat'; g.jSwap = null; } return; }
+  if (g.jCharge) {
+    const C = g.jCharge; C.t += dt;
+    if (C.mode === 'flat') { const mz0 = spritePoint(g, m, m.muzzleF); C.ox = mz0.x; C.oy = g.y + 2; C.h = g.y - mz0.y; if (tgt && C.t < C.T - 0.2) { C.a = Math.atan2(tgt.y - C.oy, tgt.x - C.ox); C.d = Math.max(60, Math.hypot(tgt.x - C.ox, tgt.y - C.oy)); } }
+    if (C.mode === 'high' && tgt && C.t < C.T - 0.3) { C.tx = tgt.x; C.ty = tgt.y; }
+    if (C.t >= C.T) {
+      const mz = spritePoint(g, m, C.mode === 'flat' ? m.muzzleF : m.muzzleH), X = B.boom;
+      if (C.mode === 'flat') {
+        vsShells.push({ g, flat: true, sx: C.ox, sy: C.oy, x: C.ox, y: C.oy, dx: Math.cos(C.a), dy: Math.sin(C.a), v: F.speed, range: F.range, h: C.h, t: 0, r: X.r, dmg: X.dmg * atk });
+        g.ammo--; if (g.ammo <= 0) g.reloadT = B.reload; g.jCd = F.every;
+      } else {
+        vsShells.push({ g, sx: g.x, sy: g.y, h0: g.y - mz.y, hx: mz.x - g.x, tx: C.tx, ty: C.ty, t: 0, T: H.flight, r: X.r, dmg: X.dmg * atk, peak: H.peak });
+        g.jCd = H.every;
+      }
+      burst(mz.x, mz.y, '#ffb066', 22); rings.push({ x: mz.x, y: mz.y, r: 40, life: 0.3, max: 0.3, color: '#ffb066' });
+      const dd = Math.hypot(g.x - player.x, g.y - player.y); if (dd < 900) { shake = Math.max(shake, 4); sfx.boom(); }
+      g.jFire = 0; g.jCharge = null; g.lastShot = gameTime;
+    }
+    return;
+  }
+  g.jFire = (g.jFire ?? 9) + dt;
+  if (!inR) return;
+  const want = bd <= B.flatRange ? 'flat' : 'high';
+  if (want !== g.jMode) { g.jSwap = { t: 0, from: g.jAng, to: want === 'high' ? 1 : 0 }; return; }
+  if (g.jCd <= 0) {
+    if (g.jMode === 'high') g.jCharge = { mode: 'high', t: 0, T: H.charge, tx: tgt.x, ty: tgt.y };
+    else if (!(g.reloadT > 0)) g.jCharge = { mode: 'flat', t: 0, T: F.charge, a: Math.atan2(tgt.y - g.y, tgt.x - g.x) };
+  }
+}
+// 連線的客人端只收到 special（t／flat／fa）：t＝砲管角度＋1（0＝收起、1＝平射、2＝高射），flat＝蓄力中，fa＝瞄準方向
+function vsGuardSyncJup(g) { const C = g.jCharge; g.special = { t: (g.jAng ?? -1) + 1, flat: !!C, fa: C ? (C.mode === 'flat' ? C.a ?? 0 : Math.atan2((C.ty ?? g.y) - g.y, (C.tx ?? g.x) - g.x)) : 0, jup: true }; }
 const vsGuardFoes = (team) => (team === vs.myTeam ? enemies : [...(vsDead() ? [] : [player]), ...clones, ...aiAllies]).filter((u) => !u.guard);
 // 碰撞傷害：貼著巨劍士會被撞傷（跟原本的精英一樣）
 function vsGuardTouch(g, foes) {
@@ -6341,6 +6391,9 @@ function drawGuard(g) {
     ctx.strokeStyle = 'rgba(255,120,110,0.45)'; ctx.lineWidth = 1.5; ctx.beginPath(); ctx.arc(g.x, g.y, g.r, 0, Math.PI * 2); ctx.stroke();
     const moving = g.mode === 'walk' || g.mode === 'stopping' || g.mode === 'starting';
     drawHydraImg(g, hydraKey(g, g.special ? g.special.t : null, moving, gameTime - (g.lastShot ?? -9), g.reloadT > 0));
+  } else if (g.B.ai === 'jupiter') {
+    if (vs && vs.guest && g.special) { const a = g.special.t - 1; g.jAng = a; g.jMode = a < 0 ? 'off' : a >= 0.999 ? 'high' : 'flat'; }   // 客人端：每一幀從同步的砲管角度還原姿勢
+    drawJupiter(g);
   } else if (g.B.lancer) {
     const q0 = proj(g.x, g.y); ground(q0, g.x, g.y);
     ctx.strokeStyle = 'rgba(255,120,110,0.45)'; ctx.lineWidth = 1.5; ctx.beginPath(); ctx.arc(g.x, g.y, g.r, 0, Math.PI * 2); ctx.stroke();
