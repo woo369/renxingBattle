@@ -787,7 +787,7 @@ function defineCharacter(def) {
      reloadFlat 換彈秒數 ±（只影響整匣換彈，最少 0.5 秒）、dmgFlat 子彈傷害 +固定值（加在每發傷害上，再吃傷害加成）、
      critDmg 暴擊傷害 +X（暴擊倍率 ×2 → ×(2＋X)，例如 +25% → ×2.25）、
      cdr 技能冷卻 ±（−0.5＝冷卻減半，目前只有連鎖狂獵讀取；做新模式時可以接到其他技能）、
-     visFlat 夜晚視野半徑 +N（見 visionOf）
+     visPct 夜晚視野半徑 +N%（見 visionOf）
      dodgeFlat 閃避值 +N（直接加在原始閃避值上：迴避率、閃避冷卻、閃避次數全部照新的閃避值重算；見 dodgeOf）
    ═══════════════════════════════════════════════════════════════ */
 const EQUIPMENT = {
@@ -803,7 +803,7 @@ const EQUIPMENT = {
   ak12_cape: { name: '冬霜VI披風', icon: 'equip_ak12_cape', owner: 'ak12', fx: { rate: -0.1, dmgFlat: 20, critDmg: 0.35 }, desc: '射速 −10%、子彈傷害 +20、暴擊傷害 +35%' },
   ro635_flare: { name: 'MK5式信號槍', icon: 'equip_ro635_flare', owner: 'ro635', fx: { acc: 0.25 }, aura: { r: 500, acc: 0.2 }, desc: '自身命中 +25%；周圍 500 範圍內的友方人形命中 +20%' },
   ro635_charm: { name: '愛寵掛飾', icon: 'equip_ro635_charm', owner: 'ro635', fx: { dmgFlat: -2, dodgeFlat: 45 }, desc: '子彈傷害 −2、閃避值 +45' },
-  wilde_cap: { name: '黑夜警帽', icon: 'equip_wilde_cap', owner: 'wilde', fx: { dodgeFlat: 10, visFlat: 10 }, desc: '閃避值 +10、夜晚視野範圍 +10' },
+  wilde_cap: { name: '黑夜警帽', icon: 'equip_wilde_cap', owner: 'wilde', fx: { dodgeFlat: 10, visPct: 0.1 }, desc: '閃避值 +10、夜晚視野範圍 +10%' },
   wilde_bag: { name: '特種行動包', icon: 'equip_wilde_bag', owner: 'wilde', fx: { armorFlat: 5, dodgeFlat: 25 }, desc: '護甲值 +5、閃避值 +25' },
   ak15_perst: { name: 'Perst4', icon: 'equip_ak15_perst', owner: 'ak15', fx: { dmgFlat: 20, dodgeFlat: 20, critDmg: 0.2 }, desc: '子彈傷害 +20、閃避值 +20、暴擊傷害 +20%' },
   an94_kit: { name: 'AN-94現代化套件組', icon: 'equip_an94_kit', owner: 'an94', fx: { crit: 0.48, critDmg: 0.25 }, desc: '暴擊機率 +48%、暴擊傷害 +25%' },
@@ -10117,7 +10117,7 @@ const NIGHT_ENH = { max: 5, mul: 1.2 };         // 強化：子彈傷害、生�
 const NIGHT_ELITE = { chance: 0.15, cost: 10, dodgeCd: 2.5 };   // 通訊器有 15% 機率呼叫到精銳 AI 的人形，邀請時多花 10 零件
 const NIGHT = { teamMax: 3, inviteR: 150, spawnMin: 900, spawnMax: 1300, bgScale: 0.8 };   // 最多 2 名隊友；靠近支援人形 150 內可以邀請；支援人形出現在 900～1300 外
 // 每名人形各自的視野：手槍人形 500；隊伍裡有手槍人形時其他人形 450；沒有就 200
-const visionOf = (u) => ((isDef() && phase.day) || isTrain() ? 3000 : (u.def.weapon.class === 'HG' ? NIGHT_VISION.HG : nightOrder().some((c) => c.def.weapon.class === 'HG') ? NIGHT_VISION.withHG : NIGHT_VISION.other) + effSum(u, 'visFlat'));   // visFlat：裝備加的夜晚視野（黑夜警帽）
+const visionOf = (u) => ((isDef() && phase.day) || isTrain() ? 3000 : (u.def.weapon.class === 'HG' ? NIGHT_VISION.HG : nightOrder().some((c) => c.def.weapon.class === 'HG') ? NIGHT_VISION.withHG : NIGHT_VISION.other) * (1 + effSum(u, 'visPct')));   // visPct：裝備加的夜晚視野 %（黑夜警帽）
 const visionR = () => (isNight() && player ? visionOf(player) : Infinity);
 // 敵人有沒有被隊伍裡任何一名人形看到（看到的才能鎖定）
 const MECH_VISION = 900;   // 九頭蛇的夜戰視野
