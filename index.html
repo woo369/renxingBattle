@@ -10134,7 +10134,7 @@ function refreshCharHud() {
 const NIGHT_VISION = { HG: 500, other: 200, withHG: 450 };   // 視野半徑：手槍 500、其他槍種 200；隊伍裡有手槍人形時其他人形提高到 450
 const NIGHT_ENH = { max: 5, mul: 1.2 };         // 強化：子彈傷害、生命 ×1.5，最多 5 次（花費同擴編）
 const NIGHT_ELITE = { chance: 0.15, cost: 10, dodgeCd: 2.5 };   // 通訊器有 15% 機率呼叫到精銳 AI 的人形，邀請時多花 10 零件
-const NIGHT = { teamMax: 3, inviteR: 150, spawnMin: 900, spawnMax: 1300, bgScale: 0.8 };   // 最多 2 名隊友；靠近支援人形 150 內可以邀請；支援人形出現在 900～1300 外
+const NIGHT = { teamMax: 3, inviteR: 150, spawnMin: 900, spawnMax: 1300, bgScale: 0.8, hgChance: 0.35 };   // hgChance：隊伍沒有手槍人形時，通訊器叫到手槍人形的機率；最多 2 名隊友；靠近支援人形 150 內可以邀請；支援人形出現在 900～1300 外
 // 每名人形各自的視野：手槍人形 500；隊伍裡有手槍人形時其他人形 450；沒有就 200
 const visionOf = (u) => ((isDef() && phase.day) || isTrain() ? 3000 : (u.def.weapon.class === 'HG' ? NIGHT_VISION.HG : nightOrder().some((c) => c.def.weapon.class === 'HG') ? NIGHT_VISION.withHG : NIGHT_VISION.other) * (1 + effSum(u, 'visPct')));   // visPct：裝備加的夜晚視野 %（黑夜警帽）
 const visionR = () => (isNight() && player ? visionOf(player) : Infinity);
@@ -10203,7 +10203,9 @@ function nightTick(dt) {
 function nightUseComm() {
   if (state !== 'play' || nightComms <= 0 || station || nightAllies().length >= NIGHT.teamMax) return;
   const used = new Set([player.def.id, ...clones.map((c) => c.def && c.def.id)]);
-  const pool = Object.keys(CHARACTERS).filter((id) => !used.has(id)); if (!pool.length) return;
+  let pool = Object.keys(CHARACTERS).filter((id) => !used.has(id)); if (!pool.length) return;
+  const hgPool = pool.filter((id) => CHARACTERS[id].weapon.class === 'HG');   // 隊伍裡沒有手槍人形 → 35% 機率呼叫到隨機手槍人形（手槍才有大視野）
+  if (hgPool.length && ![player, ...clones].some((u) => u.def && u.def.weapon.class === 'HG') && Math.random() < NIGHT.hgChance) pool = hgPool;
   const id = pool[Math.floor(Math.random() * pool.length)], D = CHARACTERS[id];
   const a = rand(0, Math.PI * 2), d = rand(NIGHT.spawnMin, NIGHT.spawnMax), p = nightSpot(player.x + Math.cos(a) * d, player.y + Math.sin(a) * d, 60);
   nightComms--;
@@ -10622,6 +10624,13 @@ function nightSpawnLegion() {
     for (let j = 0; j < cnt; j++, k++) { const a = k / n * Math.PI * 2, p = nightSpot(c.x + Math.cos(a) * 55, c.y + Math.sin(a) * 55, T.radius || 20);
       enemies.push({ legion: L, T, x: p.x, y: p.y, r: T.radius, hp: T.hp, ammo: T.magazine, angle: 0, cool: rand(1.2, 2), touchCd: 0, def: cfg, shot: 0, moving: true, phase: rand(0, 6) }); }
   }
+}
+// 夜戰：階段末尾的精英出場時，第二階段多一個兵團、第三階段多兩個兵團
+function nightEliteLegions() {
+  if (!phase || !phase.night || isDef()) return;
+  const n = phaseIdx === 1 ? 1 : phaseIdx === 2 ? 2 : 0;
+  for (let i = 0; i < n; i++) nightSpawnLegion();
+  if (n) floatText(player.x, player.y - 86, '敵方兵團隨精英出動 ×' + n, '#ff9d7a');
 }
 function nightLegionTick(dt) {
   if (isDef() || !phase || !phase.legion || boss) return;
@@ -17623,7 +17632,7 @@ function update(dt) {
     if (left <= 0 && !bossSpawned) {
       if (phase.bossPool) {
         const bid = phaseBoss[phaseIdx] || pickBoss(phase.bossPool), pid = packOf(BOSSES[bid].assets);
-        if (packReady[pid]) spawnBoss(bid);
+        if (packReady[pid]) { spawnBoss(bid); nightEliteLegions(); }
         else { ensurePack(pid).catch(() => {}); $('phaseTime').textContent = '載入中'; }   // 素材還沒下載完：稍等再出場
       } else if (phase.prep) { if (!phaseAdvT) phaseAdvT = 1e-6; }   // 夜戰準備階段：時間到直接進下一階段
       else if (phase.defense && levelPhases()[phaseIdx + 1]) { if (!phaseAdvT) phaseAdvT = 1e-6; }   // 滅星行動：時段結束 → 進入下一時段
