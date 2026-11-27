@@ -4784,7 +4784,7 @@ const VS_ELITE = {
 // 所有精銳：隊友正在跟敵人交戰時會主動過去支援
 const VS_ELITE_DEFAULT = { dodgeFree: 0.3 };
 // 大本營守衛：從精英敵人裡挑（目前只有巨劍士），一場抽一次，雙方一樣；只在自己的大本營裡活動，無限重生
-const VS_GUARD_POOL = ['greatsword', 'hydra', 'typhon', 'lancer', 'jupiter'];
+const VS_GUARD_POOL = ['greatsword', 'hydra', 'typhon', 'lancer', 'jupiter', 'griffin'];
 // 守衛的數值：巨劍士用 Boss 資料；九頭蛇用普通敵人的數值（原汁原味）
 const HYDRA_GUARD = { name: '九頭蛇', hydra: true, hp: HYDRA.hp * 10 /* 對戰守衛：生命 ×10 */, armor: HYDRA.armor, evade: 0, radius: HYDRA.radius, speed: HYDRA.speed, lockRange: HYDRA.lockRange * 1.8 /* 對戰守衛：鎖敵 ×1.8 */,
   shift: HYDRA.shift, aimDelay: 0.2, bulletDmg: HYDRA.bulletDmg, fireCooldown: HYDRA.fireCooldown / 4 /* 對戰守衛：射速 ×4（火力壓制） */, magazine: HYDRA.magazine * 4 /* 彈匣也 ×4：不然換彈時間會吃掉大半的火力 */, reload: HYDRA.reload,
@@ -4804,7 +4804,13 @@ const gsGuard = () => GS_GUARD || (GS_GUARD = Object.assign(Object.create(BOSSES
 let JUP_GUARD = null;
 const jupGuard = () => { if (JUP_GUARD) return JUP_GUARD; const J = BOSSES.jupiter;
   return (JUP_GUARD = Object.assign(Object.create(J), { hp: J.hp * 2, high: { ...J.high, every: J.high.every / 3 }, boom: { ...J.boom, r: J.boom.r * 2 }, reload: J.reload / 4, fixed: true, barY: 172 })); };
-const vsGuardB = (id) => id === 'hydra' ? HYDRA_GUARD : id === 'lancer' ? LANCER_GUARD : id === 'greatsword' ? gsGuard() : id === 'jupiter' ? jupGuard() : BOSSES[id];
+/* 格里芬步戰協同組：每組 3 名高階 NPC（隨機），1 名駕駛艾布蘭主戰坦克、2 名在坦克旁護航；人形生命 ×10，坦克數值不變（生命 1000、護甲 100、方向護甲），
+   主砲固定發射碰撞引信的 M830GF。坦克被擊毀時駕駛跳車步行作戰；整組陣亡才一起重生。每個大本營 4 組。
+   守衛 id：'griffin'（抽中時）；組員用 'griffin:t:<npc>'（坦克）／'griffin:e:<npc>'（步行人形），連線的客人端靠 id 還原 */
+const GRIF_B = { name: '格里芬步戰協同組', griffin: true, hp: 1000, radius: 32, armor: 0, evade: 0, barY: 70, get assets() { return null; } };
+const NPC_HIGH = () => Object.keys(NPC_DEFS).filter((id) => NPC_DEFS[id].tier === 'high');
+const vsGuardB = (id) => String(id).startsWith('griffin') ? GRIF_B : id === 'hydra' ? HYDRA_GUARD : id === 'lancer' ? LANCER_GUARD : id === 'greatsword' ? gsGuard() : id === 'jupiter' ? jupGuard() : BOSSES[id];
+const vsGuardPacks = (id) => id === 'griffin' ? NPC_HIGH().map((n) => NPC_DEFS[n].sprite) : [packOf(vsGuardB(id).assets)];
 const VS_GUARD = { count: 4, respawn: 3, alert: 260 };   // 數值全照原本的精英；大本營外 260 內的敵人也會被攻擊
 let vsGuardId = 'greatsword';
 const ROLE_OF = { AR: 'dps', RF: 'dps', MG: 'dps', SG: 'front', SMG: 'front', HG: 'support' };
@@ -5125,7 +5131,7 @@ function vsBegin() {
     v.fighters.push(f);
   });
   v.fighters.forEach((f, i) => { f.uid = 'f' + i; });
-  for (const t of ['blue', 'red']) for (let i = 0; i < VS_GUARD.count; i++) v.guards.push(vsMakeGuard(t, i));
+  for (const t of ['blue', 'red']) for (let i = 0; i < VS_GUARD.count; i++) { if (vsGuardId === 'griffin') v.guards.push(...vsMakeGriffin(t, i)); else v.guards.push(vsMakeGuard(t, i)); }
   const p = vsSpawnPos(L.team, 0); player.x = p.x; player.y = p.y; cam = { x: p.x, y: p.y };
   vsSync();
   return v;
@@ -5990,7 +5996,8 @@ function vsLockStack(L) { if (L && L.def && L.def.skill && L.def.skill.id === 'l
 // 擊退（先快後慢）
 function vsKnock(u, dt) { if (!u.kvx && !u.kvy) return; moveWithCover(u, u.kvx * dt, u.kvy * dt); keepInMap(u); const k = Math.exp(-8 * dt); u.kvx *= k; u.kvy *= k; if (Math.abs(u.kvx) + Math.abs(u.kvy) < 2) u.kvx = u.kvy = 0; }
 function vsDamageFighter(f, b) {
-  if (f.guard) { vsDamageGuard(f, b.dmg || ENEMY.bulletDmg, b.pierce); return true; }
+  if (f.guard) { if ((f.role === 'e' || f.role === 'd') && !b.elec && Math.random() < (f.T.evade || 0) + jhAccEv(b)) { (b.missedC || (b.missedC = new Set())).add(f); floatText(f.x, f.y - 36, 'MISS', '#bfefff'); return false; }   // 格里芬的步行組員：NPC 的迴避
+    vsDamageGuard(f, b.dmg || ENEMY.bulletDmg, b.pierce, Math.atan2(-b.vy, -b.vx)); return true; }
   const D = f.def;
   if (!b.elec && Math.random() < evadeRate(D) + effSum(f, 'evade') + (f.isClone ? effSum(f.lead, 'evade') : 0) + jhAccEv(b)) { (b.missedC || (b.missedC = new Set())).add(f); floatText(f.x, f.y - 36, 'MISS', '#bfefff'); return false; }
   if (b.vsShot) b.dmg = vsEDmg(b, f) + hauntBonus(b, f.def.armor.value);   // MG4 特殊彈藥的溢出傷害
@@ -6121,8 +6128,9 @@ function vsGuardPoint(team) { const L = vsPatrol(team); for (let n = 0; n < 20; 
 // 守衛：巨劍士原汁原味（生命、護盾、笨重的停下／起步、停下後頓一下才開火、雙機砲、每兩輪彈匣一次榴彈齊射、碰撞傷害）
 // 只在自己的大本營裡活動：沒有敵人時閒逛；大本營內（或外圍 260 內）有敵人就追過去開火，但不會走出大本營
 function vsGuardTick(g, dt) {
+  if (g.dead && g.B.griffin) { vsGriffinRespawn(g, dt); return; }
   if (g.dead) { g.respawnT -= dt; if (g.respawnT <= 0) { Object.assign(g, vsMakeGuard(g.vsTeam, g.slot || 0)); burst(g.x, g.y, VS_TEAMCOL[g.vsTeam], 16); } return; }
-  const B = g.B, sp = B.special, m = B.assets.meta, b = vsBase(g.vsTeam), A = VS_GUARD.alert; g.phase += dt;
+  const B = g.B, sp = B.special, m = B.assets ? B.assets.meta : null, b = vsBase(g.vsTeam), A = VS_GUARD.alert; g.phase += dt;
   g.kvx = g.kvy = 0;
   if (g.shield <= 0 && g.shieldT > 0) { g.shieldT -= dt; if (g.shieldT <= 0) { g.shield = B.shield; floatText(g.x, g.y - 110, '護盾恢復', '#8fd0ff'); burst(g.x, g.y - 30, '#8fd0ff', 14); } }
   if (g.atkDownT > 0) g.atkDownT = Math.max(0, g.atkDownT - dt);
@@ -6137,6 +6145,7 @@ function vsGuardTick(g, dt) {
   g.target = tgt;
   if (B.ai === 'typhon') { vsTyphonGuard(g, dt, tgt, bd); return; }   // 提豐守衛
   if (B.ai === 'jupiter') { vsJupiterGuard(g, dt, tgt, bd); vsGuardSyncJup(g); return; }   // 木星砲守衛
+  if (B.griffin) { if (g.role === 't') vsGrifTank(g, dt, tgt, bd, foes); else vsGrifNpc(g, dt, foes); return; }   // 格里芬步戰協同組
   const atk = g.atkDownT > 0 ? 1 - (g.atkDownPct || 0.5) : 1;
   if (B.lancer) { g.rkT = Math.max(0, (g.rkT ?? 1.5) - dt); if (g.reloadT > 0 && g.special) { g.reloadT -= dt; if (g.reloadT <= 0) g.ammo = B.magazine; } }
   if (g.special && B.lancer && vsLancerSpecial(g, dt, tgt, foes, atk)) return;
@@ -6325,6 +6334,145 @@ function vsJupiterGuard(g, dt, tgt, bd) {
 }
 // 連線的客人端只收到 special（t／flat／fa）：t＝砲管角度＋1（0＝收起、1＝平射、2＝高射），flat＝蓄力中，fa＝瞄準方向
 function vsGuardSyncJup(g) { const C = g.jCharge; g.special = { t: (g.jAng ?? -1) + 1, flat: !!C, fa: C ? (C.mode === 'flat' ? C.a ?? 0 : Math.atan2((C.ty ?? g.y) - g.y, (C.tx ?? g.x) - g.x)) : 0, jup: true }; }
+// ── 格里芬步戰協同組 ──
+function vsGrifMember(team, slot, gi, role, D, p) {
+  const npc = role !== 't', hp = npc ? D.maxHp * 10 : VEH.abrams.hp;
+  const g = { guard: true, vsTeam: team, id: 'griffin:' + (npc ? 'e' : 't') + ':' + D.id, B: GRIF_B, npc: D, role, gid: team + slot, gi, slot,
+    name: npc ? D.name : '艾布蘭（' + D.name + '）', x: p.x, y: p.y, r: npc ? 15 : VEH.abrams.r, hp, maxHp: hp, barY: npc ? 70 : 112,
+    T: { hp, evade: npc ? evadeRate(D) : 0, armor: npc ? 0 : VEH.abrams.armor, shield: 0, shieldRegen: 15, ai: 'guard' }, shield: 0,
+    ammo: D.weapon.magazine, reloadT: 0, cool: rand(0.3, 1), atkT: 9, animT: 0, aimT: 0, mode: 'stand', phase: Math.random() * 5, ph: Math.random() * 5, faceLeft: team === 'red', angle: 0, special: null,
+    dead: false, respawnT: 0, target: null, touchCd: 0, magsDone: 0, charges: 2, rollT: 0, stepT: 0 };
+  if (!npc) Object.assign(g, { ride: g, drvHp: D.maxHp * 10, drvMax: D.maxHp * 10, tsx: team === 'red' ? -1 : 1, el: 0, shake: 0, recoil: 0, jolt: 0, dist: 0, thr: 0, mgEl: 0, vreload: rand(1, 2.5) });   // ride＝自己：被子彈打時用方向護甲
+  return g;
+}
+function vsMakeGriffin(team, slot) {
+  const pool = NPC_HIGH().sort(() => Math.random() - 0.5), ids = pool.slice(0, 3).map((id) => NPC_DEFS[id]);   // 隨機 3 名高階 NPC（第一個開坦克）
+  const L = vsPatrol(team), p = vsJupPoint(team, slot), along = L.horiz ? p.y : p.x;
+  const off = (d) => vsLinePt(L, along + d, (L.f0 + L.f1) / 2);
+  return [vsGrifMember(team, slot, 0, 't', ids[0], p), vsGrifMember(team, slot, 1, 'e', ids[1], off(-90)), vsGrifMember(team, slot, 2, 'e', ids[2], off(90))];
+}
+function vsGriffinRespawn(g, dt) {   // 整組都陣亡了才重生（由組裡第一個成員計時）
+  if (g.gi !== 0) return;
+  const M = vs.guards.filter((o) => o.gid === g.gid); if (M.some((o) => !o.dead)) return;
+  g.wipeT = (g.wipeT ?? VS_GUARD.respawn) - dt; if (g.wipeT > 0) return;
+  const fresh = vsMakeGriffin(g.vsTeam, g.slot); M.sort((a, b) => a.gi - b.gi).forEach((o, k) => { for (const key of Object.keys(o)) delete o[key]; Object.assign(o, fresh[k]); burst(o.x, o.y, VS_TEAMCOL[o.vsTeam], 14); });
+  vsSync();
+}
+function vsGrifEject(g) {   // 坦克被擊毀：爆炸，駕駛（生命 ×10）在原地跳出來繼續打
+  const x = g.x, y = g.y, D = g.npc;
+  blasts.push({ x, y, r: 150, life: 0.5, max: 0.5, level: 3 }); burst(x, y, '#ffb347', 30); burst(x, y, '#ff6b3d', 22); sfx.boom();
+  for (let i = 0; i < 14; i++) { const a = rand(0, Math.PI * 2), sp = rand(40, 200); vehFx.push({ kind: 'smoke', gx: x + rand(-40, 40), gy: y + rand(-15, 15), h: rand(5, 40), vx: Math.cos(a) * sp, vy: Math.sin(a) * sp * 0.5, vh: rand(20, 60), r: rand(10, 18), gr: rand(16, 30), life: rand(1.2, 2.2), max: 2.2, drag: 2 }); }
+  floatText(x, y - 100, '艾布蘭被擊毀', '#ff8f83');
+  if (!(g.drvHp > 0)) { g.dead = true; g.hp = 0; vsSync(); return; }
+  Object.assign(g, { role: 'd', id: 'griffin:e:' + D.id, name: D.name, r: 15, hp: g.drvHp, maxHp: g.drvMax, barY: 70, ride: null, shield: 0, special: null,
+    T: { hp: g.drvMax, evade: evadeRate(D), armor: 0, shield: 0, shieldRegen: 15, ai: 'guard' }, ammo: D.weapon.magazine, reloadT: 0, cool: 0.6, atkT: 9, invT: 0.8 });
+  floatText(x, y - 70, D.name + ' 跳車', '#ffd27a');
+}
+// 組裡的坦克（還活著）：步行組員跟著它
+const vsGrifTankOf = (g) => vs.guards.find((o) => o.gid === g.gid && o.role === 't' && !o.dead);
+function vsGrifTarget(g, foes, range) {   // 大本營（含外圍警戒區）裡、射程內最近的敵人
+  const b = vsBase(g.vsTeam), A = VS_GUARD.alert; let tgt = null, bd = Infinity;
+  for (const u of foes) { if (u.x < b.x0 - A || u.x > b.x1 + A || u.y < b.y0 - A || u.y > b.y1 + A) continue; const d = Math.hypot(u.x - g.x, u.y - g.y); if (d < bd) { bd = d; tgt = u; } }
+  return { tgt, bd, inR: tgt && bd <= range };
+}
+function vsGrifTank(g, dt, tgt0, bd0, foes) {
+  const T = VEH.abrams, am = T.ammo.find((a) => a.id === 'm830'), PL = vsPatrol(g.vsTeam), along = (u) => (PL.horiz ? u.y : u.x);
+  const { tgt, bd, inR } = vsGrifTarget(g, foes, am.range);
+  g.vreload = Math.max(0, (g.vreload || 0) - dt); g.recoil = Math.max(0, (g.recoil || 0) - dt / 0.7); g.jolt = Math.max(0, (g.jolt || 0) - dt / 0.35);
+  // 移動：沿巡邏線開到最靠近敵人的地方（射程內就停），沒有敵人就在線上巡邏；速度不超過護航人形，隊形才跟得上
+  let dest;
+  if (tgt) dest = vsLinePt(PL, along(tgt), (PL.f0 + PL.f1) / 2);
+  else { g.wanderT = (g.wanderT || 0) - dt; if (!g.wander || (Math.hypot(g.wander.x - g.x, g.wander.y - g.y) < 40 && g.wanderT <= 0)) { g.wander = vsLinePt(PL, rand(PL.a0, PL.a1), (PL.f0 + PL.f1) / 2); g.wanderT = rand(1.5, 3.5); } dest = g.wander; }
+  const dx = dest.x - g.x, dy = dest.y - g.y, dd = Math.hypot(dx, dy), stop = dd < 40 || (inR && bd < am.range * 0.8);
+  const esc = vs.guards.filter((o) => o.gid === g.gid && o !== g && !o.dead), vmax = Math.min(T.speed, ...esc.map((o) => o.npc.speed));
+  g.thr = stop ? Math.max(0, g.thr - dt / T.brake) : Math.min(1, g.thr + dt / T.accel);
+  if (g.thr > 0.002 && dd > 1) {
+    const step = vmax * g.thr * dt, x0 = g.x, y0 = g.y; moveWithCover(g, dx / dd * Math.min(step, dd), dy / dd * Math.min(step, dd));
+    if (PL.horiz) { g.x = clamp(g.x, PL.f0, PL.f1); g.y = clamp(g.y, PL.a0, PL.a1); } else { g.y = clamp(g.y, PL.f0, PL.f1); g.x = clamp(g.x, PL.a0, PL.a1); }
+    const mx = g.x - x0; g.dist += Math.hypot(mx, g.y - y0); if (mx < -0.4) g.faceLeft = true; else if (mx > 0.4) g.faceLeft = false;
+  }
+  g.moving = g.thr > 0.05; g.mode = g.moving ? 'walk' : 'stand';
+  g.shake += (g.thr - g.shake) * (1 - Math.exp(-dt * 6));
+  // 砲塔：朝目標那一邊（換邊先變窄再翻面），砲管跟著瞄準上下轉
+  const hs = g.faceLeft ? -1 : 1, A = tgt ? Math.atan2(tgt.y - g.y, tgt.x - g.x) : (hs > 0 ? 0 : Math.PI), tf = Math.cos(A) >= 0 ? 1 : -1;
+  g.tsx = tf > g.tsx ? Math.min(tf, g.tsx + 2 * dt / T.flip) : Math.max(tf, g.tsx - 2 * dt / T.flip);
+  const face = g.tsx >= 0 ? 1 : -1, V = Object.assign(Object.create(g), { T }), m = vehMuzzle(V);
+  const z = tgt ? vehBodyH(tgt) / 2 : 0, Ag = tgt ? Math.atan2(tgt.y + (m.h - z) / VIEW3D.squash - m.y, tgt.x - m.x) : A;
+  const sa = Math.atan2(Math.sin(Ag) * VIEW3D.squash, Math.cos(Ag)), la = face > 0 ? sa : Math.atan2(Math.sin(sa), -Math.cos(sa));
+  g.el += ((tgt ? clamp(la, -T.elev * DEG, (face !== hs ? T.depRear : T.dep) * DEG) : 0) - g.el) * (1 - Math.exp(-dt * 10));
+  // 開火：M830GF（碰撞引信）。砲彈走守衛的平射榴彈：在砲口高度直線飛，撞到敵人或飛完射程就爆炸（範圍 100、850 傷害）
+  if (inR && g.vreload <= 0 && Math.abs(g.tsx) >= 0.95 && Math.cos(Ag - A) > 0.8) {
+    const atk = g.atkDownT > 0 ? 1 - (g.atkDownPct || 0.5) : 1, dx2 = Math.cos(Ag), dy2 = Math.sin(Ag);
+    vsShells.push({ g, flat: true, heat: true, sx: m.x, sy: m.y, x: m.x, y: m.y, dx: dx2, dy: dy2, v: am.speed, range: am.range, h: m.h, t: 0, r: am.blast, dmg: am.dmg * atk });
+    g.vreload = T.reload; g.recoil = 1; g.jolt = 1; g.lastShot = gameTime;
+    vehFx.push({ kind: 'flash', gx: m.x + dx2 * 10, gy: m.y + dy2 * 10, h: m.h, r: 16, life: 0.09, max: 0.09 });
+    for (let i = 0; i < 10; i++) { const sp = rand(60, 360), a = Ag + rand(-0.35, 0.35); vehFx.push({ kind: 'smoke', gx: m.x, gy: m.y, h: m.h + rand(-2, 2), vx: Math.cos(a) * sp, vy: Math.sin(a) * sp, vh: rand(4, 30), r: rand(5, 9), gr: rand(18, 34), life: rand(1.0, 1.6), max: 1.6, drag: 3.2 }); }
+    if (Math.hypot(g.x - player.x, g.y - player.y) < 1000) { shake = Math.max(shake, 4); sfx.boom(); }
+  }
+  g.special = { t: g.tsx + 1, flat: false, fa: g.el };   // 連線的客人端：砲塔寬度、砲管角度
+}
+function vsGrifNpc(g, dt, foes) {
+  const D = g.npc, wp = D.weapon, m = ASSETS[D.sprite] && ASSETS[D.sprite].meta, atkDur = m ? m.attack.dur : wp.anim, PR = D.prone;
+  g.cool -= dt; g.atkT += dt; g.animT += dt; g.invT = (g.invT || 0) - dt; g.moving = false; g.mode = 'stand';
+  if (g.reloadT > 0) { g.reloadT -= dt; if (g.reloadT <= 0) g.ammo = wp.magazine; }
+  if (g.poseT > 0) { g.poseT -= dt; if (g.poseT <= 0) g.pose = g.pose === 'goingDown' ? 'down' : g.pose === 'goingUp' ? 'stand' : g.pose; }
+  const PL = vsPatrol(g.vsTeam);
+  const move = (dx, dy, sp) => { const x0 = g.x, y0 = g.y; moveWithCover(g, dx * sp * dt, dy * sp * dt); if (PL.horiz) { g.x = clamp(g.x, PL.f0 - 40, PL.f1 + 40); g.y = clamp(g.y, PL.a0, PL.a1); } else { g.y = clamp(g.y, PL.f0 - 40, PL.f1 + 40); g.x = clamp(g.x, PL.a0, PL.a1); } if (Math.hypot(g.x - x0, g.y - y0) > 0.05) { g.moving = true; g.mode = 'walk'; } };
+  // 躲子彈（高階 NPC）：看到 0.5 秒內會打中自己的子彈，每 0.7 秒判斷一次，6 成往側面閃
+  if (g.stepT > 0) { g.stepT -= dt; move(Math.cos(g.stepDir), Math.sin(g.stepDir), D.speed); g.dodgeT = g.stepT; return; }
+  g.dodgeT = 0; g.rollT -= dt;
+  if (D.dodgeBullets && g.rollT <= 0) {
+    const threat = g.vsTeam === vs.myTeam ? 'e' : 'p'; let th = null;
+    for (const b of bullets) {
+      if (b.team !== threat) continue; const px = g.x - b.x, py = g.y - b.y; if (px * px + py * py > 380 * 380) continue;
+      const vv = b.vx * b.vx + b.vy * b.vy, t = (px * b.vx + py * b.vy) / vv; if (t <= 0 || t > 0.5) continue;
+      const mx = px - b.vx * t, my = py - b.vy * t; if (Math.hypot(mx, my) < g.r + b.r + 6 && (!th || t < th.t)) th = { b, t, mx, my };
+    }
+    if (th) { g.rollT = 0.7; if (Math.random() < 0.6) { const b = th.b, side = (th.mx * -b.vy + th.my * b.vx) >= 0 ? 1 : -1; g.stepDir = Math.atan2(b.vy, b.vx) + side * Math.PI / 2; g.stepT = 0.22; if (PR) { g.pose = 'stand'; g.poseT = 0; } return; } }
+  }
+  const { tgt, bd, inR } = vsGrifTarget(g, foes, D.lockRange);
+  const tank = vsGrifTankOf(g);
+  if (inR) {   // 射程內有敵人：停下來開火（沒有走射能力的要先趴下）
+    g.faceLeft = tgt.x < g.x; g.aimA = Math.atan2(tgt.y - g.y, tgt.x - g.x); g.angle = g.aimA;
+    if (PR && g.pose !== 'down') { if (g.pose !== 'goingDown') { g.pose = 'goingDown'; g.poseT = PR.down; } return; }
+    if (g.cool > 0 || g.reloadT > 0) return;
+    if (g.ammo <= 0) { g.reloadT = wp.reload; return; }
+    const sc = m ? m.scale : 0.3, mx = g.x + (g.faceLeft ? -1 : 1) * (m ? (m.muzzle[0] - m.cx) * sc : 20), my = g.y + (m ? (m.muzzle[1] - m.cy) * sc : -30);
+    const ang = Math.atan2(tgt.y - my, tgt.x - mx), mid = (wp.pellets - 1) / 2, atk = g.atkDownT > 0 ? 1 - (g.atkDownPct || 0.5) : 1;
+    for (let i = 0; i < wp.pellets; i++) {
+      const sp = rand(wp.speed[0], wp.speed[1]), a = ang + (i - mid) * wp.spread + rand(-wp.jitter, wp.jitter), life = bulletRange(D, false) / sp;
+      const bl = { x: mx, y: my, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp, age: 0, life, maxLife: life, r: wp.radius, src: g, pellet: wp.pellets > 1 };
+      if (g.vsTeam === vs.myTeam) Object.assign(bl, { team: 'p', def: VS_GUARD_DEF({ bulletDmg: wp.damage }), buff: atk, crit: critRate(D), fromClone: true });
+      else { const crit = Math.random() < critRate(D); Object.assign(bl, { team: 'e', dmg: wp.damage * (crit ? 1.5 : 1) * atk }); }
+      bullets.push(bl);
+    }
+    g.ammo--; g.cool = wp.cooldown; g.atkT = 0; g.animT = 0; g.lastShot = gameTime; burst(mx, my, '#f6cb76', 3);
+    const dd = Math.hypot(g.x - player.x, g.y - player.y), vol = 0.3 * (1 - dd / 1300); if (vol > 0.04) playShot(wp.class, vol, wp.class + ':npc');
+    if (g.ammo <= 0) g.reloadT = wp.reload;
+    return;
+  }
+  if (g.ammo < wp.magazine && !(g.reloadT > 0)) g.reloadT = wp.reload;   // 空檔補滿彈匣
+  // 跟著坦克（坦克前後各一名）；坦克沒了就在巡邏線上找最近敵人的位置
+  let dest = null;
+  if (tank) { const ax = PL.horiz ? 0 : 1, ay = PL.horiz ? 1 : 0, o = g.gi === 1 ? -80 : 80; dest = { x: tank.x + ax * o, y: tank.y + ay * o }; }
+  else if (tgt) dest = vsLinePt(PL, PL.horiz ? tgt.y : tgt.x, (PL.f0 + PL.f1) / 2);
+  if (!dest || g.atkT < atkDur) return;
+  const dx = dest.x - g.x, dy = dest.y - g.y, d = Math.hypot(dx, dy);
+  if (d < 24) return;
+  if (PR && (g.pose || 'stand') !== 'stand') { if (g.pose !== 'goingUp') { g.pose = 'goingUp'; g.poseT = PR.up; } return; }
+  move(dx / d, dy / d, Math.min(D.speed, d / dt)); if (Math.abs(dx) > 2) g.faceLeft = dx < 0;
+}
+function drawGrifMember(g) {
+  if (g.role === 't') {
+    if (vs && vs.guest && g.special) { g.tsx = g.special.t - 1; g.el = g.special.fa; if (g.lastShot != null) g.recoil = Math.max(0, 1 - (gameTime - g.lastShot) / 0.7); }   // 客人端：同步來的砲塔狀態
+    const V = Object.assign(Object.create(g), { T: VEH.abrams, rider: { def: g.npc, invT: 0 }, tsx: g.tsx ?? 1, el: g.el || 0, shake: g.shake || 0, dist: g.dist || 0 });
+    drawVehicle(V);
+  } else {
+    const o = Object.create(g); o.def = g.npc; o.hp = o.maxHp = 1; o.dead = false;
+    if (vs && vs.guest) { o.atkT = gameTime - (g.lastShot ?? -9); o.animT = o.atkT; }
+    drawNpc(o);
+  }
+}
 const vsGuardFoes = (team) => (team === vs.myTeam ? enemies : [...(vsDead() ? [] : [player]), ...clones, ...aiAllies]).filter((u) => !u.guard);
 // 碰撞傷害：貼著巨劍士會被撞傷（跟原本的精英一樣）
 function vsGuardTouch(g, foes) {
@@ -6354,7 +6502,9 @@ function drawVsShells() {
   for (const s of vsShells) {
     if (s.flat) {
       const q = proj(s.x, s.y); upright(q, s.x, s.y);
-      ctx.fillStyle = '#ffb347'; ctx.beginPath(); ctx.arc(s.x, s.y - (s.h || 30), 5, 0, Math.PI * 2); ctx.fill();
+      const im = s.heat && vehImg('veh_heat');
+      if (im) { const L = 30, a = Math.atan2((s.dy || 0) * VIEW3D.squash, s.dx || 1); ctx.save(); ctx.translate(s.x, s.y - (s.h || 30)); ctx.rotate(a); ctx.drawImage(im, -L / 2, -L * im.naturalHeight / im.naturalWidth / 2, L, L * im.naturalHeight / im.naturalWidth); ctx.restore(); }   // 格里芬坦克的 M830GF
+      else { ctx.fillStyle = '#ffb347'; ctx.beginPath(); ctx.arc(s.x, s.y - (s.h || 30), 5, 0, Math.PI * 2); ctx.fill(); }
       continue;
     }
     const k = Math.min(1, s.t / s.T);
@@ -6369,16 +6519,20 @@ function drawVsShells() {
   ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
 }
 const VS_GUARD_DEF = (B) => ({ weapon: { damage: B.bulletDmg }, skill: null });   // 友隊守衛的子彈走玩家方的命中判定，用這個當「人形數值」
-function vsDamageGuard(g, amount, pierce) {
+function vsDamageGuard(g, amount, pierce, dirA = null) {
   if (g.dead) return;
   const ar = g.T.armor;
-  if (ar && !pierce && (amount <= ar ? Math.random() < ENEMY_BLOCK.low : Math.random() < ENEMY_BLOCK.high)) amount = Math.max(1, amount - ar);
+  if (g.role === 't') {   // 格里芬的坦克：方向護甲（正面／側面／背部）
+    const tz = tankZone(g.faceLeft ? Math.PI : 0, dirA), av = ar * tz.k;
+    if (!pierce && av > 0 && Math.random() < tz.p) { amount = Math.max(1, amount - av); floatText(g.x + rand(-20, 20), g.y - 70, tz.name + '格擋', '#cfd8dc'); }
+  } else if (ar && !pierce && (amount <= ar ? Math.random() < ENEMY_BLOCK.low : Math.random() < ENEMY_BLOCK.high)) amount = Math.max(1, amount - ar);
   if (g.shield > 0) { const use = Math.min(g.shield, amount); g.shield -= use; amount -= use; if (g.shield <= 0) g.shieldT = g.T.shieldRegen; }
   g.hp -= amount; burst(g.x, g.y - 20, '#ffd27a', 3);
   if (g.hp <= 0) vsGuardDown(g);
 }
 function vsGuardDown(g) {
   if (g.dead) return;
+  if (g.role === 't') { vsGrifEject(g); return; }   // 格里芬的坦克被擊毀：駕駛跳車步行
   g.dead = true; g.respawnT = VS_GUARD.respawn; g.hp = 0;
   burst(g.x, g.y, '#ffb347', 30); sfx.boom(); vsSync();
 }
@@ -6391,7 +6545,8 @@ function drawGuard(g) {
     ctx.strokeStyle = 'rgba(255,120,110,0.45)'; ctx.lineWidth = 1.5; ctx.beginPath(); ctx.arc(g.x, g.y, g.r, 0, Math.PI * 2); ctx.stroke();
     const moving = g.mode === 'walk' || g.mode === 'stopping' || g.mode === 'starting';
     drawHydraImg(g, hydraKey(g, g.special ? g.special.t : null, moving, gameTime - (g.lastShot ?? -9), g.reloadT > 0));
-  } else if (g.B.ai === 'jupiter') {
+  } else if (g.B.griffin) drawGrifMember(g);
+  else if (g.B.ai === 'jupiter') {
     if (vs && vs.guest && g.special) { const a = g.special.t - 1; g.jAng = a; g.jMode = a < 0 ? 'off' : a >= 0.999 ? 'high' : 'flat'; }   // 客人端：每一幀從同步的砲管角度還原姿勢
     drawJupiter(g);
   } else if (g.B.lancer) {
@@ -6400,7 +6555,7 @@ function drawGuard(g) {
     drawLancerGuard(g);
   } else drawGreatsword(g);
   const q = proj(g.x, g.y); upright(q, g.x, g.y);
-  const w = 60, y = g.y - (g.B.barY || (g.B.ai === 'typhon' ? 100 : 118)), col = VS_TEAMCOL[g.vsTeam];
+  const w = g.B.griffin && g.role !== 't' ? 40 : 60, y = g.y - (g.barY || g.B.barY || (g.B.ai === 'typhon' ? 100 : 118)), col = VS_TEAMCOL[g.vsTeam];
   ctx.fillStyle = '#26343b'; ctx.fillRect(g.x - w / 2, y, w, 5);
   ctx.fillStyle = col; ctx.fillRect(g.x - w / 2, y, w * Math.max(0, g.hp) / g.maxHp, 5);
   if (g.shield > 0) { ctx.fillStyle = '#8fd0ff'; ctx.fillRect(g.x - w / 2, y - 4, w * Math.min(1, g.shield / g.T.shield), 3); }
@@ -6736,6 +6891,7 @@ function netGuestUpdate(dt) {
 const netDefOf = (id) => CHARACTERS[id] || cfg;
 function netMakeUnit(r) {
   const kind = r[1];
+  if (kind === 'g' && String(r[2]).startsWith('griffin:')) { const [, k, nid] = String(r[2]).split(':'), D = NPC_DEFS[nid]; return { guard: true, id: r[2], B: GRIF_B, npc: D, role: k === 't' ? 't' : 'e', r: k === 't' ? VEH.abrams.r : 15, barY: k === 't' ? 112 : 70, T: { shield: 0 }, phase: Math.random() * 5, ph: Math.random() * 5, special: null, mode: 'stand', shiftT: 0, x: r[4], y: r[5], tsx: 1, el: 0, dist: 0, gi: 1 }; }   // 格里芬步戰協同組的組員
   if (kind === 'g') { const B = vsGuardB(r[2]); return { guard: true, id: r[2], B, r: B.radius, T: { shield: B.shield || 0 }, phase: Math.random() * 5, special: null, mode: 'stand', shiftT: 0, x: r[4], y: r[5] }; }
   const def = netDefOf(r[2]);
   return { fighter: true, def, r: def.radius, x: r[4], y: r[5], angle: 0, effects: [], gold: [], trail: [], name: r[15] || def.name };
@@ -6746,7 +6902,8 @@ function netApply(dt) {
   if (S !== net.lastSnap) {
     net.lastSnap = S;
     for (const r of S.u) {
-      let o = net.units.get(r[0]); if (!o) { o = netMakeUnit(r); net.units.set(r[0], o); }
+      let o = net.units.get(r[0]); if (o && o.guard && o.id !== r[2]) o = null;   // 守衛換了身分（格里芬的駕駛跳車）：重建
+      if (!o) { o = netMakeUnit(r); net.units.set(r[0], o); }
       o.tx = r[4]; o.ty = r[5]; o.angle = r[6] / 100; o.hp = r[7]; o.maxHp = r[8];
       const fl = r[9]; o.moving = !!(fl & 1); o.aiming = !!(fl & 2); o.faceLeft = !!(fl & 4); o.isClone = !!(fl & 16); o.level = fl & 32 ? 'elite' : fl & 128 ? 'human' : 'normal'; o.invT = fl & 64 ? 0.1 : 0; o.rest = !!(fl & 256); o.arForm = !!(fl & 512);
       const shot = r[10] / 100; if (shot > (o.shot || 0) + 0.02 && o.def) { const dd = Math.hypot(o.x - player.x, o.y - player.y), vol = 0.45 * (1 - dd / 1300); if (vol > 0.04 && !o.isClone) playShot(o.def.weapon.class, vol); }
@@ -7930,14 +8087,14 @@ function packsFor(charId, level) {
   if (list.some((pid) => pid === 'witch') && teamIds().some((id) => CHARACTERS[id].proto === 'witch')) list.push('dino');   // 協議同歸的魔女：召喚兵蟻
   if (level === 'collapse') list.push(packOf(BOSSES.typhon.assets));   // 塌縮之谷：開場動畫裡的提豐
   if (level === 'defense' || level === 'collapse') list.push(...(defLobby || (defLobby = defDefaultLobby())).slots.slice(0, level === 'collapse' ? 3 : 4).map((x) => packOf(CHARACTERS[x.id].assets)));   // 滅星行動：大廳裡的 AI 隊友
-  if (level === 'versus') { vsGuardId = VS_GUARD_POOL[Math.floor(Math.random() * VS_GUARD_POOL.length)]; list.push(...vsLobbyPacks(), packOf(vsGuardB(vsGuardId).assets)); }   // 雲圖對戰：大廳裡所有 AI 的角色＋這場抽到的守衛
+  if (level === 'versus') { vsGuardId = VS_GUARD_POOL[Math.floor(Math.random() * VS_GUARD_POOL.length)]; list.push(...vsLobbyPacks(), ...vsGuardPacks(vsGuardId)); }   // 雲圖對戰：大廳裡所有 AI 的角色＋這場抽到的守衛
   return [...new Set(list)];
 }
 // 在選單停留時先在背景下載：目前的人形；選了亂序戰事再加第一階段的敵人（Boss 要等開局抽了才知道）
 function prefetch() {
   const list = teamIds().map((id) => packOf(CHARACTERS[id].assets));
   if (levelPhases()) list.push(...levelPhases()[0].packs);
-  if (selectedLevel === 'versus') list.push(...vsLobbyPacks(), ...VS_GUARD_POOL.map((id) => packOf(vsGuardB(id).assets)));
+  if (selectedLevel === 'versus') list.push(...vsLobbyPacks(), ...VS_GUARD_POOL.flatMap((id) => vsGuardPacks(id)));
   for (const pid of new Set(list)) ensurePack(pid).catch(() => {});
 }
 function silhouette(im) {
@@ -9513,8 +9670,11 @@ function drawVehicle(V) {
   ctx.translate(hs * (T.piv[0] - T.ax) + hx, T.piv[1] - T.ay + ty); ctx.scale(V.tsx, 1); ctx.translate(-T.piv[0], -T.piv[1]);
   const u = V.rider;
   if (u) {   // 人形立繪：畫在砲塔組最底下（不會蓋到砲塔上的武器），只露出腰部以上
-    const D = u === player ? cfg : u.def, im = D && vehImg(D.portrait), pv = D && (imgs[D.id] || {})[D.frames.preview];
-    if (im && pv && pv.complete && pv.naturalWidth) {
+    const D = u === player ? cfg : u.def, im = D && vehImg(D.portrait), nm = D && D.codexCls === 'NPC' && ASSETS[D.sprite] && ASSETS[D.sprite].meta, pv = D && !nm && D.frames ? (imgs[D.id] || {})[D.frames.preview] : null;
+    if (im && nm && nm.rects && nm.rects.w01) {   // NPC 駕駛（雲圖對戰的格里芬步戰協同組）：人物高度＝待機圖裡從頭頂到腳底
+      const r = nm.rects.w01, k = Math.max(20, nm.cy - r[1]) * nm.scale * T.doll / T.sc / im.naturalHeight, ch = im.naturalHeight * T.cut;
+      ctx.drawImage(im, 0, 0, im.naturalWidth, ch, T.hatch[0] - im.naturalWidth * k / 2, T.hatch[1] - ch * k, im.naturalWidth * k, ch * k);
+    } else if (im && pv && pv.complete && pv.naturalWidth) {
       if (!pv._fh) {   // 待機圖裡人物的實際高度（素材像素）
         const c = document.createElement('canvas'); c.width = pv.naturalWidth; c.height = pv.naturalHeight; const g = c.getContext('2d'); g.drawImage(pv, 0, 0);
         const d = g.getImageData(0, 0, c.width, c.height).data; let t0 = -1, t1 = -1;
