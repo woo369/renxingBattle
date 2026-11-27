@@ -4784,13 +4784,23 @@ const VS_ELITE = {
 // 所有精銳：隊友正在跟敵人交戰時會主動過去支援
 const VS_ELITE_DEFAULT = { dodgeFree: 0.3 };
 // 大本營守衛：從精英敵人裡挑（目前只有巨劍士），一場抽一次，雙方一樣；只在自己的大本營裡活動，無限重生
-const VS_GUARD_POOL = ['greatsword', 'hydra', 'typhon'];
+const VS_GUARD_POOL = ['greatsword', 'hydra', 'typhon', 'lancer'];
 // 守衛的數值：巨劍士用 Boss 資料；九頭蛇用普通敵人的數值（原汁原味）
-const HYDRA_GUARD = { name: '九頭蛇', hydra: true, hp: HYDRA.hp * 10 /* 對戰守衛：生命 ×10 */, armor: HYDRA.armor, evade: 0, radius: HYDRA.radius, speed: HYDRA.speed, lockRange: HYDRA.lockRange,
+const HYDRA_GUARD = { name: '九頭蛇', hydra: true, hp: HYDRA.hp * 10 /* 對戰守衛：生命 ×10 */, armor: HYDRA.armor, evade: 0, radius: HYDRA.radius, speed: HYDRA.speed, lockRange: HYDRA.lockRange * 1.8 /* 對戰守衛：鎖敵 ×1.8 */,
   shift: HYDRA.shift, aimDelay: 0.2, bulletDmg: HYDRA.bulletDmg, fireCooldown: HYDRA.fireCooldown / 4 /* 對戰守衛：射速 ×4（火力壓制） */, magazine: HYDRA.magazine * 4 /* 彈匣也 ×4：不然換彈時間會吃掉大半的火力 */, reload: HYDRA.reload,
-  bulletSpeed: HYDRA.bulletSpeed, bulletLife: 1.3, bulletR: HYDRA.bulletR, barY: 92,
+  bulletSpeed: HYDRA.bulletSpeed, bulletLife: HYDRA.lockRange * 1.8 * 1.2 / HYDRA.bulletSpeed /* 子彈飛得到鎖敵距離 */, bulletR: HYDRA.bulletR, barY: 92,
   get assets() { return ASSETS.hydra; } };
-const vsGuardB = (id) => id === 'hydra' ? HYDRA_GUARD : BOSSES[id];
+// 槍騎兵守衛：普通敵人槍騎兵的數值，生命 ×10、傷害 ×2、射速 ×2、彈匣 ×4、鎖敵 ×2（機砲兩輪 → 火箭彈 → 撞擊，撞擊只在巡邏帶裡）
+const LANCER_GUARD = { name: '槍騎兵', lancer: true, hp: LANCER.hp * 10, armor: LANCER.armor, evade: 0, radius: LANCER.radius, speed: LANCER.speed, lockRange: LANCER.lockRange * 2,
+  shield: LANCER.shield, shieldRegen: LANCER.shieldRegen, shift: 0.3, aimDelay: 0.2,
+  bulletDmg: LANCER.bulletDmg * 2, fireCooldown: LANCER.fireCooldown / 2, magazine: LANCER.magazine * 4, reload: LANCER.reload,
+  bulletSpeed: LANCER.bulletSpeed, bulletLife: LANCER.lockRange * 2 * 1.2 / LANCER.bulletSpeed, bulletR: LANCER.bulletR, bulletStyle: 'shell', bulletThin: 0.5,
+  rocket: { ...LANCER.lrocket, dmg: LANCER.lrocket.dmg * 2 }, ram: { ...LANCER.ram, dmg: LANCER.contactDmg * 2 }, barY: 80,
+  get assets() { return ASSETS.lancer; } };
+// 巨劍士守衛：Boss 資料，鎖敵 ×1.8（子彈飛行時間跟著拉長）；用 Object.create 保留 Boss 資料上的 getter
+let GS_GUARD = null;
+const gsGuard = () => GS_GUARD || (GS_GUARD = Object.assign(Object.create(BOSSES.greatsword), { lockRange: BOSSES.greatsword.lockRange * 1.8, bulletLife: BOSSES.greatsword.lockRange * 1.8 * 1.2 / BOSSES.greatsword.bulletSpeed }));
+const vsGuardB = (id) => id === 'hydra' ? HYDRA_GUARD : id === 'lancer' ? LANCER_GUARD : id === 'greatsword' ? gsGuard() : BOSSES[id];
 const VS_GUARD = { count: 4, respawn: 3, alert: 260 };   // 數值全照原本的精英；大本營外 260 內的敵人也會被攻擊
 let vsGuardId = 'greatsword';
 const ROLE_OF = { AR: 'dps', RF: 'dps', MG: 'dps', SG: 'front', SMG: 'front', HG: 'support' };
@@ -6119,6 +6129,8 @@ function vsGuardTick(g, dt) {
   g.target = tgt;
   if (B.ai === 'typhon') { vsTyphonGuard(g, dt, tgt, bd); return; }   // 提豐守衛
   const atk = g.atkDownT > 0 ? 1 - (g.atkDownPct || 0.5) : 1;
+  if (B.lancer) { g.rkT = Math.max(0, (g.rkT ?? 1.5) - dt); if (g.reloadT > 0 && g.special) { g.reloadT -= dt; if (g.reloadT <= 0) g.ammo = B.magazine; } }
+  if (g.special && B.lancer && vsLancerSpecial(g, dt, tgt, foes, atk)) return;
   // 榴彈齊射
   if (g.special && B.hydra) {
     // 九頭蛇守衛：機槍掃射（2 秒 16 發、命中減速）
@@ -6209,20 +6221,59 @@ function vsGuardTick(g, dt) {
   if (g.reloadT > 0) { g.reloadT -= dt; if (g.reloadT <= 0) { g.ammo = B.magazine; g.aimT = B.aimDelay; } }
   else if (tgt && g.mode === 'stand' && g.aimT <= 0 && g.cool <= 0 && bd <= B.lockRange * 1.15) {
     g.gun = (g.gun || 0) ^ 1;   // 兩門機砲輪流（九頭蛇只有一門主砲）
-    const mz = spritePoint(g, m, B.hydra ? m.muzzle : m.muzzles[g.gun]), a = Math.atan2(tgt.y - mz.y, tgt.x - mz.x) + rand(-0.04, 0.04);
-    const bl = { x: mz.x, y: mz.y, vx: Math.cos(a) * B.bulletSpeed, vy: Math.sin(a) * B.bulletSpeed, age: 0, life: B.bulletLife, maxLife: B.bulletLife, r: B.bulletR || 6, src: g, boss: true };
+    const mz = spritePoint(g, m, m.muzzles ? m.muzzles[g.gun] : m.muzzle), a = Math.atan2(tgt.y - mz.y, tgt.x - mz.x) + rand(-0.04, 0.04);
+    const bl = { x: mz.x, y: mz.y, vx: Math.cos(a) * B.bulletSpeed, vy: Math.sin(a) * B.bulletSpeed, age: 0, life: B.bulletLife, maxLife: B.bulletLife, r: B.bulletR || 6, src: g, boss: true, style: B.bulletStyle, thin: B.bulletThin };
     if (g.vsTeam === vs.myTeam) Object.assign(bl, { team: 'p', def: VS_GUARD_DEF(B), buff: atk, crit: 0, fromClone: true });
     else Object.assign(bl, { team: 'e', dmg: B.bulletDmg * atk });
     bullets.push(bl); burst(mz.x, mz.y, '#ffd27a', 4); g.cool = B.fireCooldown; g.lastShot = gameTime;
     const dd = Math.hypot(g.x - player.x, g.y - player.y), vol = 0.35 * (1 - dd / 1300); if (vol > 0.04) playShot(B.hydra ? 'MCN' : 'ACS', vol, B.hydra ? 'MCN:g' : 'ACS');
     if (--g.ammo <= 0) {
       g.magsDone = (g.magsDone || 0) + 1;
-      if (B.hydra && g.magsDone >= HYDRA.sweep.afterMags) { g.magsDone = 0; g.ammo = B.magazine; g.special = { t: 0, n: 0, last: { x: tgt.x, y: tgt.y } }; floatText(g.x, g.y - 90, '機槍掃射', '#ffb347'); }
+      if (B.lancer) { g.reloadT = B.reload; if (g.magsDone >= B.ram.afterMags && g.rkT <= 0) vsLancerRocket(g, tgt, atk); }   // 兩輪機砲 → 火箭彈（填裝好才發）→ 撞擊
+      else if (B.hydra && g.magsDone >= HYDRA.sweep.afterMags) { g.magsDone = 0; g.ammo = B.magazine; g.special = { t: 0, n: 0, last: { x: tgt.x, y: tgt.y } }; floatText(g.x, g.y - 90, '機槍掃射', '#ffb347'); }
       else if (!B.hydra && g.magsDone >= sp.afterMags) { g.magsDone = 0; g.special = { t: 0, arcs: 0, flat: false, fa: g.angle, last: { x: tgt.x, y: tgt.y } }; floatText(g.x, g.y - 120, '榴彈齊射', '#ffb347'); }
       else g.reloadT = B.reload;
     }
   }
   vsGuardTouch(g, foes);
+}
+// 槍騎兵守衛：火箭彈（special.flat＝false，播發射動畫）→ 撞擊（special.flat＝true）。用 special 表示，連線的客人端也看得到動畫
+function vsLancerRocket(g, tgt, atk) {
+  const B = g.B, R = B.rocket, m = B.assets.meta, p = spritePoint(g, m, m.rocket), d = Math.min(Math.hypot(tgt.x - g.x, tgt.y - g.y), B.lockRange * 1.2), a = Math.atan2(tgt.y - g.y, tgt.x - g.x);
+  vsShells.push({ g, sx: g.x, sy: g.y, h0: g.y - p.y, hx: p.x - g.x, tx: g.x + Math.cos(a) * d, ty: g.y + Math.sin(a) * d, t: 0, T: Math.max(0.3, d / R.speed), r: R.r, dmg: R.dmg * atk, peak: R.peak });
+  burst(p.x, p.y, '#ffb347', 10); g.rkT = R.reload; g.magsDone = 0;
+  g.special = { t: 0, flat: false, fa: a };
+}
+function vsLancerSpecial(g, dt, tgt, foes, atk) {
+  const B = g.B, X = B.ram, m = B.assets.meta, S = g.special; S.t += dt;
+  if (!S.flat) {   // 火箭彈發射動畫播完 → 撞擊：立刻獲得 20 護盾
+    g.moving = false;
+    if (S.t < m.rocketAnim.dur) return true;
+    g.special = { t: 0, flat: true, fa: tgt ? Math.atan2(tgt.y - g.y, tgt.x - g.x) : g.angle, d: 0, hit: new Set() };
+    g.shield = Math.max(0, g.shield) + X.shield; g.shieldT = 0; floatText(g.x, g.y - 70, '撞擊', '#ffb347'); burst(g.x, g.y - 20, '#8fd0ff', 12);
+    return true;
+  }
+  // 撞擊：先停住鎖定，接著朝目標衝刺（跟著轉向、只在巡邏帶裡），撞到人或衝滿 500 就停
+  const want = tgt ? Math.atan2(tgt.y - g.y, tgt.x - g.x) : S.fa;
+  if (S.t < X.windup) { S.fa = want; g.moving = false; g.faceLeft = Math.cos(S.fa) < 0; return true; }
+  let da = want - S.fa; da = Math.atan2(Math.sin(da), Math.cos(da)); S.fa += clamp(da, -2.2 * dt, 2.2 * dt); g.faceLeft = Math.cos(S.fa) < 0; g.angle = S.fa;
+  const PL = vsPatrol(g.vsTeam), step = X.speed * dt, x0 = g.x, y0 = g.y;
+  moveWithCover(g, Math.cos(S.fa) * step, Math.sin(S.fa) * step);
+  if (PL.horiz) { g.x = clamp(g.x, PL.f0, PL.f1); g.y = clamp(g.y, PL.a0, PL.a1); } else { g.y = clamp(g.y, PL.f0, PL.f1); g.x = clamp(g.x, PL.a0, PL.a1); }
+  const moved = Math.hypot(g.x - x0, g.y - y0); S.d += moved; g.moving = true;
+  if (Math.random() < 0.5) particles.push({ x: g.x + rand(-20, 20), y: g.y + rand(-6, 6), vx: -Math.cos(S.fa) * 60, vy: -Math.sin(S.fa) * 60, life: 0.35, max: 0.35, color: '#b9ad94' });
+  let hit = false;
+  for (const u of foes) if (!S.hit.has(u) && !(u.invT > 0) && Math.hypot(u.x - g.x, u.y - g.y) < g.r + u.r + 12) { S.hit.add(u); vsHurt(u, X.dmg * atk, g, false); hit = true; burst(u.x, u.y, '#ff8a5a', 10); }
+  if (hit || S.d >= X.dist || moved < step * 0.2) { g.special = null; g.cool = 0.6; g.aimT = 0; g.mode = 'stand'; }
+  return true;
+}
+function drawLancerGuard(g) {
+  const pe = Object.create(g), S = g.special;
+  pe.T = { ...g.T, ai: 'lancer', sprite: 'lancer' };
+  pe.rkAnim = S && !S.flat ? S.t : null; pe.ramT = S && S.flat ? S.t : null;
+  pe.moving = (S && S.flat) ? S.t >= g.B.ram.windup : (!S && (g.mode === 'walk' || g.mode === 'stopping' || g.mode === 'starting'));
+  pe.shot = Math.max(0, 0.08 - (gameTime - (g.lastShot ?? -9)));
+  drawSpriteEnemy(pe);
 }
 const vsGuardFoes = (team) => (team === vs.myTeam ? enemies : [...(vsDead() ? [] : [player]), ...clones, ...aiAllies]).filter((u) => !u.guard);
 // 碰撞傷害：貼著巨劍士會被撞傷（跟原本的精英一樣）
@@ -6290,6 +6341,10 @@ function drawGuard(g) {
     ctx.strokeStyle = 'rgba(255,120,110,0.45)'; ctx.lineWidth = 1.5; ctx.beginPath(); ctx.arc(g.x, g.y, g.r, 0, Math.PI * 2); ctx.stroke();
     const moving = g.mode === 'walk' || g.mode === 'stopping' || g.mode === 'starting';
     drawHydraImg(g, hydraKey(g, g.special ? g.special.t : null, moving, gameTime - (g.lastShot ?? -9), g.reloadT > 0));
+  } else if (g.B.lancer) {
+    const q0 = proj(g.x, g.y); ground(q0, g.x, g.y);
+    ctx.strokeStyle = 'rgba(255,120,110,0.45)'; ctx.lineWidth = 1.5; ctx.beginPath(); ctx.arc(g.x, g.y, g.r, 0, Math.PI * 2); ctx.stroke();
+    drawLancerGuard(g);
   } else drawGreatsword(g);
   const q = proj(g.x, g.y); upright(q, g.x, g.y);
   const w = 60, y = g.y - (g.B.barY || (g.B.ai === 'typhon' ? 100 : 118)), col = VS_TEAMCOL[g.vsTeam];
