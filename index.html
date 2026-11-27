@@ -4825,6 +4825,8 @@ const VS_ELITE = {
   sat8: { dodgeFree: 0.3, front: true, shieldNear: true },
   // M1918：把自己當主力輸出（群體裡由她帶頭、其他人跟著她）；技能先換彈，換到快好時才按，讓技能一開始就拿到 3 發強化子彈
   m1918: { dodgeFree: 0.3, carry: true, reloadSkill: true },
+  // 維爾德MKII：把自己當前排（防暴盾＋敵人命中／傷害下降，適合扛傷害）；隊友也把她當前排看待
+  wilde: { dodgeFree: 0.3, front: true },
 };
 // 所有精銳：隊友正在跟敵人交戰時會主動過去支援
 const VS_ELITE_DEFAULT = { dodgeFree: 0.3 };
@@ -4859,12 +4861,14 @@ const vsGuardPacks = (id) => id === 'griffin' ? NPC_HIGH().map((n) => NPC_DEFS[n
 const VS_GUARD = { count: 4, respawn: 3, alert: 260 };   // 數值全照原本的精英；大本營外 260 內的敵人也會被攻擊
 let vsGuardId = 'greatsword';
 const ROLE_OF = { AR: 'dps', RF: 'dps', MG: 'dps', SG: 'front', SMG: 'front', HG: 'support' };
+const vsRoleOf = (u) => (u.level === 'elite' && (VS_ELITE[vsUnitDef(u).id] || {}).front ? 'front' : ROLE_OF[vsUnitDef(u).weapon.class]);   // 精銳裡設定成前排的（例：維爾德MKII）就算前排
 const VS_TEAMCOL = { blue: '#4aa8ff', red: '#ff5a50' };
 const VS_TEAMNAME = { blue: '藍隊', red: '紅隊' };
 let vs = null, vsHitBy = null, vsLobby = null;
 const vsDead = () => !!(player && ((vs && player.deadT > 0) || player.defDown));   // 對戰倒下等待重生／滅星行動倒下觀戰
 const vsRange = (D) => bulletRange(D, false);
-const vsRandId = () => { const ids = Object.keys(CHARACTERS); return ids[Math.floor(Math.random() * ids.length)]; };
+const ELITE_SKIP = ['deagle', 'ots14'];   // 精銳 AI 不會選的人形（上限太低）
+const vsRandId = (lv) => { const ids = Object.keys(CHARACTERS).filter((id) => lv !== 'elite' || !ELITE_SKIP.includes(id)); return ids[Math.floor(Math.random() * ids.length)]; };
 function vsDefaultLobby() {
   return { team: 'blue', blue: Array.from({ length: 4 }, () => ({ id: vsRandId(), level: 'normal' })), red: Array.from({ length: 5 }, () => ({ id: vsRandId(), level: 'normal' })) };
 }
@@ -4906,7 +4910,7 @@ function buildLobby() {
       const add = document.createElement('div'); add.className = 'vs-add';
       for (const [lv, label] of [['normal', '＋普通 AI'], ['elite', '＋精銳 AI']]) {
         const b = document.createElement('button'); b.type = 'button'; b.className = 'btn'; b.textContent = label; b.disabled = L[t].length >= cap;
-        b.addEventListener('click', () => { if (L[t].length < cap) { L[t].push({ id: vsRandId(), level: lv }); netLobbyChanged(); prefetch(); } });
+        b.addEventListener('click', () => { if (L[t].length < cap) { L[t].push({ id: vsRandId(lv), level: lv }); netLobbyChanged(); prefetch(); } });
         add.appendChild(b);
       }
       col.appendChild(add);
@@ -5239,6 +5243,7 @@ function vsUpdate(dt) {
   vsPickups();
   for (const f of vs.fighters) vsFighterTick(f, dt);
   for (const g of vs.guards) vsGuardTick(g, dt);
+  vehShotsTick(dt);   // 格里芬主戰坦克的砲口火光、砲口煙：原本只有訓練場會更新 → 對戰裡火花停在原地不消失
   vsUpdateShells(dt);
   vsUpdateNades(dt);
   vsSync();
@@ -5444,7 +5449,7 @@ function vsEliteGroup(f) {
     if (sc > bs) { bs = sc; best = { members: g, others, cx, cy }; }
   }
   if (!best) return null;
-  const rank = (u) => vsClonesOf(u) * 10 + (u === player || u.remote ? 5 : 0) + (ROLE_OF[vsUnitDef(u).weapon.class] === 'support' ? -3 : 0) + ((u.seed || 0) % 1);   // 輔助不當帶頭者
+  const rank = (u) => vsClonesOf(u) * 10 + (u === player || u.remote ? 5 : 0) + (vsRoleOf(u) === 'support' ? -3 : 0) + ((u.seed || 0) % 1);   // 輔助不當帶頭者
   const lead = best.members.filter((u) => u.level !== 'elite').sort((a, b) => rank(b) - rank(a))[0] || best.members.slice().sort((a, b) => rank(b) - rank(a))[0];
   const carry = best.members.find((u) => u.level === 'elite' && !u.isClone && (VS_ELITE[vsUnitDef(u).id] || {}).carry);   // 主力輸出的精銳（M1918）：由她帶頭
   best.leader = carry || lead; return best;
@@ -5519,7 +5524,7 @@ function vsThink(f) {
   if (f.parts >= expandCost(f.def) && f.clones.length < CLONE.maxCount) vsExpand(f);
   // 角色定位
   const friends = vsFriendsOf(f).filter((u) => u !== f && !u.isClone && !u.clone && !u.guard && Math.hypot(u.x - f.x, u.y - f.y) < 700);
-  const roleOf = (u) => ROLE_OF[vsUnitDef(u).weapon.class];
+  const roleOf = vsRoleOf;
   // 精銳：知道自己要跟的「群體」，前排／輸出／輔助都以群體成員來判斷
   const grp = elite && !vs.night ? vsEliteGroup(f) : null; f.group = grp;
   const pool = grp ? grp.others : friends;
@@ -5931,7 +5936,7 @@ function vsMaybeSkill(f, tgt, vis, force) {
       const near = friends.filter((u) => Math.hypot(u.x - f.x, u.y - f.y) <= sk.radius);
       if (E && E.shieldNear && !force) {
         // 精銳 S.A.T.8：身邊有前排／輔助隊友才開；等太久（有目標超過 6 秒）或自己血少才自己開
-        const guard = near.filter((u) => !u.isClone && !u.clone && ['front', 'support'].includes(ROLE_OF[vsUnitDef(u).weapon.class])).length;
+        const guard = near.filter((u) => !u.isClone && !u.clone && ['front', 'support'].includes(vsRoleOf(u))).length;
         f.iwWait = tgt ? (f.iwWait || 0) + 0.2 : 0;
         if (!tgt || !(guard >= 1 || f.hp < f.maxHp * 0.5 || f.iwWait > 6)) return;
         f.iwWait = 0;
@@ -11001,7 +11006,7 @@ function buildDefLobby() {
   const add = document.createElement('div'); add.className = 'vs-add';
   for (const [lv, label] of [['normal', '＋普通 AI'], ['elite', '＋精銳 AI']]) {
     const b = document.createElement('button'); b.type = 'button'; b.className = 'btn'; b.textContent = label; b.disabled = L.slots.length >= MAXS;
-    b.addEventListener('click', () => { if (L.slots.length >= MAXS) return; const used = new Set([selectedId, ...L.slots.map((x) => x.id)]), pool = Object.keys(CHARACTERS).filter((id) => !used.has(id)); L.slots.push({ id: pool[Math.floor(Math.random() * pool.length)] || vsRandId(), level: lv }); netLobbyChanged(); prefetch(); });
+    b.addEventListener('click', () => { if (L.slots.length >= MAXS) return; const used = new Set([selectedId, ...L.slots.map((x) => x.id)]), pool = Object.keys(CHARACTERS).filter((id) => !used.has(id) && (lv !== 'elite' || !ELITE_SKIP.includes(id))); L.slots.push({ id: pool[Math.floor(Math.random() * pool.length)] || vsRandId(lv), level: lv }); netLobbyChanged(); prefetch(); });
     add.appendChild(b);
   }
   col.appendChild(add);
