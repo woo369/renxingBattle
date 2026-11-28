@@ -18692,6 +18692,59 @@ function drawGround(t) {
     }
   }
 }
+/* 物件遮住玩家時半透明：
+   擋在玩家前面（排序比玩家晚畫）、而且畫面上的範圍蓋到玩家上半身的地圖物件（建築、掩體、樹、岩石…），那一個物件單獨變半透明。
+   做法：畫物件前先把那塊畫面存起來 → 照常畫物件 → 再把存起來的背景用 (1−透明度) 蓋回去＝物件變半透明（不用改每個物件的畫法）。
+   只有真的擋住的那一兩個物件會多做兩次小範圍的貼圖，幾乎不吃效能；進出遮擋時淡入淡出 */
+const OCC_ALPHA = 0.35;
+const OCC_K = new Set(['t', 'r', 'h', 'i', 'T', 'C', 'X', 'k', 'w', 'S', 'V', 'Z', 'c']);
+let occCv = null, occCx = null;
+function occPlayerRect() {   // 玩家在畫面上的頭到腰（搭乘坦克：整台坦克上半部）
+  if (!player || state !== 'play' || player.hp <= 0) return null;
+  const q = proj(player.x, player.y), k = q.k, R = player.ride;
+  return R ? { x0: q.x - 70 * k, x1: q.x + 70 * k, y0: q.y - 120 * k, y1: q.y - 30 * k } : { x0: q.x - 13 * k, x1: q.x + 13 * k, y0: q.y - 60 * k, y1: q.y - 24 * k };
+}
+// 物件在畫面上的範圍（寧可大一點：大出來的部分合成前後一樣，不影響畫面；只會影響判斷有沒有擋到）
+function occBox(o, k) {
+  const up = (ax, ay, hw, H, below = 8) => { const q = proj(ax, ay); return { x0: q.x - hw * q.k, x1: q.x + hw * q.k, y0: q.y - H * q.k, y1: q.y + below * q.k }; };
+  if (o.hgt && o.w) {   // 方塊（牆、掩體、大樓）：四個角＋高度
+    const c = [proj(o.x - o.w / 2, o.y - o.h / 2), proj(o.x + o.w / 2, o.y - o.h / 2), proj(o.x + o.w / 2, o.y + o.h / 2), proj(o.x - o.w / 2, o.y + o.h / 2)];
+    return { x0: Math.min(...c.map((p) => p.x)) - 4, x1: Math.max(...c.map((p) => p.x)) + 14, y0: Math.min(...c.map((p) => p.y - o.hgt * p.k)) - 4, y1: Math.max(...c.map((p) => p.y)) + 8 };
+  }
+  if (k === 't') { const s = o.sz || 1; return up(o.x, o.y, 46 * s, (o.fir ? 92 : 110) * s); }
+  if (k === 'r') return up(o.cx, o.cy + o.W * 0.24, o.W * 0.62, o.W * 0.95);
+  if (k === 'i') return up(o.x, o.y, o.r * 1.25, o.r * 1.15);
+  if (k === 'C') { const im = (imgs[packBox.cave] || {})[o.img], h = im ? o.iw * im.height / im.width : o.iw; return up(o.x, o.y + 6, o.iw / 2 + 4, h + 6); }
+  if (k === 'S') { const im = (imgs[packBox.defbase] || {})[o.img], h = im ? o.w * im.height / im.width : o.w; return up(o.x, o.y + 6, o.w / 2 + 4, h + 6); }
+  if (k === 'V') return up(o.x, o.y, (o.T ? o.T.rx : 70) + 50, 135, 20);
+  if (k === 'Z') return up(o.park ? o.park.x : o.x, o.park ? o.park.y : o.y, 80, 125);
+  if (k === 'c') return up(o.x, o.y, 30, 55, 24);
+  if (o.kind === 'pillbox') return up(o.x, o.y + o.r * 0.45, o.r * 1.25, o.r * 1.8);
+  if (o.kind === 'crate' || o.kind === 'drum') return up(o.x, o.y, (o.r || 20) * 1.4, (o.r || 20) * 2.6);
+  if (o.kind === 'bush' || o.kind === 'rubble' || o.kind === 'lowwall') return null;   // 矮的：不會擋到上半身
+  if (o.w && o.h) {   // 有寬高的建築：從前緣往上
+    const H = { house: 170, tent: 140, factory: 230, safehouse: 230, garage: 175, guardhouse: 150, console: 70, ironfence: 70, tower: 260 }[o.kind] || 140;
+    return up(o.x, o.y + o.h / 2, o.w / 2 + (o.kind === 'safehouse' ? 110 : 34), H, 14);
+  }
+  if (o.r) return up(o.x, o.y, o.r * 1.3, o.r * 2.6);
+  return null;
+}
+function occBegin(o, k, P) {
+  const b = occBox(o, k); let target = 1;
+  if (b && b.x0 < P.x1 && b.x1 > P.x0 && b.y0 < P.y1 && b.y1 > P.y0) target = OCC_ALPHA;
+  o._occA = (o._occA ?? 1) + (target - (o._occA ?? 1)) * 0.2; if (Math.abs(o._occA - target) < 0.01) o._occA = target;   // 淡入淡出
+  if (!b || o._occA > 0.99) return null;
+  const W = canvas.width, Hc = canvas.height, sx = Math.max(0, Math.floor(b.x0 * DPR)), sy = Math.max(0, Math.floor(b.y0 * DPR)), ex = Math.min(W, Math.ceil(b.x1 * DPR)), ey = Math.min(Hc, Math.ceil(b.y1 * DPR)), w = ex - sx, h = ey - sy;
+  if (w <= 0 || h <= 0) return null;
+  if (!occCv) { occCv = document.createElement('canvas'); occCx = occCv.getContext('2d'); }
+  if (occCv.width < w || occCv.height < h) { occCv.width = Math.max(occCv.width, w); occCv.height = Math.max(occCv.height, h); }
+  occCx.setTransform(1, 0, 0, 1, 0, 0); occCx.clearRect(0, 0, w, h); occCx.drawImage(canvas, sx, sy, w, h, 0, 0, w, h);   // 畫物件前的背景
+  return { sx, sy, w, h, a: o._occA };
+}
+function occEnd(R) {   // 背景用 (1−a) 蓋回去：物件就只剩 a 的不透明度
+  ctx.save(); ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.globalAlpha = 1 - R.a; ctx.globalCompositeOperation = 'source-over'; ctx.filter = 'none';
+  ctx.drawImage(occCv, 0, 0, R.w, R.h, R.sx, R.sy, R.w, R.h); ctx.restore(); ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+}
 function drawCrate(b) {
   const q = proj(b.x, b.y), x = b.x, y = b.y;
   ground(q, x, y);
@@ -18733,7 +18786,12 @@ function draw(t) {
   drawNpcCorpses();   // 倒下的敵對 NPC（訓練場）：畫在地上，其他角色會蓋過去
   const actors = [...mapActors(), ...(isTrain() && trainCrew && !trainCrew.dead && !trainCrew.inTank ? [{ it: trainCrew, k: 'N' }] : []), ...(bigMap() && MAPGEN.npcs ? MAPGEN.npcs.map((it) => ({ it, k: 'N' })) : []), ...nightActors(), ...covers().map((it) => ({ it, k: 'c' })), ...enemies.map((it) => ({ it, k: 'e' })), ...pAnts.map((it) => ({ it, k: 'ant' })), ...aiAllies.map((it) => ({ it, k: 'a' })), ...(isTrain() && trainVeh && trainVeh.rider !== player ? [{ it: trainVeh, k: 'V' }] : []), ...(player && state !== 'menu' ? [...(!vsDead() ? [{ it: player, k: 'p' }] : []), ...(!vsDead() || isDef() ? clones.map((it) => ({ it, k: 'm' })) : [])] : [])].sort((a, b) => a.it.y - b.it.y);
   drawLater = []; drawMiniBossLater = [];
+  const occP = occPlayerRect();
   for (const { it, k } of actors) {
+    let occ = null;
+    try {   // finally：就算下面用 continue 跳過，也會把半透明合成回去
+    if (occP && OCC_K.has(k) && it.y > player.y && Math.abs(it.x - player.x) < 900 && it.y - player.y < 700) occ = occBegin(it, k, occP);   // 擋在玩家前面的物件：半透明
+    else if (it._occA !== undefined && it._occA < 1) it._occA = 1;   // 玩家走到前面了：恢復
     if (k === 'B') { drawDefBase(); continue; }   // 滅星行動的基地（很寬：不做畫面外判斷）
     if (k === 'F') { drawDefFence(it.i); continue; }
     if (k === 'S') { drawDefThing(it); continue; }
@@ -18824,6 +18882,7 @@ function draw(t) {
       drawHuntAim(it);
       drawBirds();
     }
+    } finally { if (occ) occEnd(occ); }
   }
   ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
   for (const e of drawLater) { if (e.marked) drawDeterMark(e); if (e.atkDownT > 0 || e.jhT > 0 || e.wdT > 0) drawAtkDownMark(e); if (e.avT > 0) drawAvengerMark(e); if (preyN(e)) drawPreyMark(e); if (gameTime < (e.mstU || 0)) drawWatchMark(e); if (e.skullT > 0) drawSkullMark(e); }
