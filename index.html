@@ -851,7 +851,9 @@ const SKILL_WOLF = {
   cooldown: 8,               // 冷卻 8 秒
   desc: '被動：子彈命中的目標與上一發不同時，這一發造成 2 次傷害，並獲得 1 層標記（最多 3 層）。\n主動：6 秒內每次攻擊都造成 2 次傷害。若持有標記，會消耗全部標記轉換為「狼影」：每層使每次攻擊額外追加一段 10% 的普攻傷害（可暴擊），持續 60 秒，最多 3 層。\n羈絆「忤逆小隊」：施放主動技能時，半徑 500 範圍內的其他忤逆小隊隊員獲得 2 層狼影，持續 5 秒。\n羈絆「AN-94 與 AK-12」：AN-94 位於 AK-12 周圍 700 範圍內時，若 AK-12 因增益使射速超過每秒 5 發，AK-12 的射速 −30%、傷害 +50%；增益消退、射速回到每秒 5 發以下後恢復原狀。',
 };
-const wolfOwner = (src) => (!src || src === player || src.clone || clones.includes(src) ? player : (src.lead || src));
+// 被動的主人：擴編的分身（跟目前操控的是同一個人形）算玩家本人；夜戰／隊友這種「別的人形」的 AI 隊友算他自己
+// （原本所有隊友都算玩家 → 例：AK-15 當隊友時，她的怒火、監視增益跑到玩家身上）
+const wolfOwner = (src) => (!src || src === player ? player : (src.clone || clones.includes(src)) && !(src.def && cfg && src.def.id !== cfg.id) ? player : (src.lead || src));
 const wolfSkillOf = (o) => { const D = o === player ? cfg : o.def; return D && D.skill && D.skill.id === 'wolfpack' ? D.skill : null; };
 // 被動判定：回傳這一發要不要造成 2 次傷害（順便記錄目標、給標記）
 function wolfHit(shooter, target) {
@@ -3388,8 +3390,11 @@ const CYC_CMD = { ...CYCLOPS,
   tier: 3,                   // 三階敵人
   speed: 200,
   lockRange: 350, stopRange: 320,
+  evade: 0.3,                // 會躲子彈：迴避率 30%
   command: { auraEvery: 5, auraR: 600, auraTime: 3, dmg: 0.1, evadeMul: 1.2,   // 鼓舞：每 5 秒，600 內友軍傷害 +10%、迴避率 ×1.2，3 秒
-    orderEvery: 5, orderR: 500, allies: 5, flank: 190, behind: 30, moveMax: 4 } };   // 指揮：500 內正規軍友軍超過 5 個時每 5 秒，兩個正規軍友軍以 1.2 倍速跑到目標兩側（距離 190）；不會指揮其他勢力，也不會指揮其他指揮獨眼巨人
+    orderEvery: 5, orderR: 500, allies: 1, flank: 190, behind: 30, moveMax: 4,   // 指揮：500 內正規軍友軍 2 個以上時每 5 秒，兩個正規軍友軍以 1.2 倍速跑到目標兩側（距離 190）；不會指揮其他勢力，也不會指揮其他指揮獨眼巨人
+    orderEv: 0.3,            // 被指揮到的友軍：5 秒內迴避率至少 30%
+    needAllies: 2, loiterR: 480 } };   // 500 內友軍不到 2 個：不開火，在目標周圍 480 左右徘徊，等友軍到齊才指揮、開始攻擊
 // 獨眼巨人Lite：正規軍一階普通敵人，獨眼巨人的簡配版，服務安保型機器人，只配備步槍
 const CYC_LITE = { ...ENEMY,
   name: '獨眼巨人Lite',
@@ -8866,7 +8871,7 @@ const ENEMY_CODEX = () => [
     desc: '獨眼巨人的簡配版，屬於服務安保型的機器人，只配備步槍。在 250 以內停下來射擊，3 發打完要換彈 3 秒。',
     where: '出現：夜戰（正規軍，第一階段）' },
   { id: 'cycc', rank: 'normal', T: CYC_CMD, name: '指揮獨眼巨人', weapon: '步槍', img: ASSETS.ui.codex_cycc,
-    desc: '指揮特化的獨眼巨人，頭盔塗著深綠色迷彩、後腦勺有一根天線。每 5 秒鼓舞 600 範圍內的友軍：傷害 +10%、迴避率 ×1.2，持續 3 秒。身邊 500 範圍內的正規軍友軍超過 5 個時，每 5 秒會指揮兩個正規軍友軍停下手邊的動作，以 1.2 倍速跑到你的左右兩側，圍成凹字型的包圍網（不會指揮其他勢力，也不會指揮其他指揮獨眼巨人）。',
+    desc: '指揮特化的獨眼巨人，頭盔塗著深綠色迷彩、後腦勺有一根天線。每 5 秒鼓舞 600 範圍內的友軍：傷害 +10%、迴避率 ×1.2，持續 3 秒。會躲子彈（迴避率 30%）。身邊 500 範圍內的友軍不到 2 個時不會單獨進攻，只會在你附近徘徊、不開火；友軍到齊（2 個以上）才開始攻擊，並每 5 秒指揮兩個正規軍友軍停下手邊的動作，以 1.2 倍速跑到你的左右兩側，圍成凹字型的包圍網；被指揮到的友軍 5 秒內迴避率至少 30%（不會指揮其他勢力，也不會指揮其他指揮獨眼巨人）。',
     where: '出現：夜戰（正規軍，第三階段）' },
   { id: 'cyclops', rank: 'normal', T: CYCLOPS, name: '獨眼巨人', weapon: '步槍', img: ASSETS.ui.codex_cyc,
     desc: '正規軍的制式步兵機器人，有多種延伸型。在稍遠的距離停下來連續射擊，打完一個彈匣才換彈。',
@@ -13620,7 +13625,7 @@ function preyOnAdd(u, sk) {
   x.n = Math.min(sk.prey.max, x.n + 1); x.t = x.max = sk.prey.time; x.evade = -0.01 * x.n; x.armorFlat = -x.n; x.mark = '獵' + x.n; x.name = '獵物標記 ' + x.n + ' 層：迴避 −' + x.n + '%、護甲 −' + x.n + '、每次受到的傷害 +' + x.n;
   if (u === player) renderEffects(true);
 }
-const enemyEvade0 = (e) => Math.max(0, nightEv() - nightAcc() + (e.boss ? e.evadeBoost ?? e.B.evade : e.T.evade) * (e.cmdT > gameTime ? 1.2 : 1) - (!e.fighter && e.jamUntil > gameTime ? 0.3 : 0) - (e.debuffT > 0 ? e.evadeDown || 0 : 0) - (gameTime < (e.shredUntil || 0) ? e.shredN * e.shredPer : 0) - (gameTime < (e.m327U || 0) ? e.m327N * e.m327Per : 0) + (e.fighter ? effSum(e, 'evade') : 0));
+const enemyEvade0 = (e) => Math.max(0, nightEv() - nightAcc() + (e.boss ? e.evadeBoost ?? e.B.evade : e.cmdEvU > gameTime ? Math.max(e.T.evade, CYC_CMD.command.orderEv) : e.T.evade) * (e.cmdT > gameTime ? 1.2 : 1) - (!e.fighter && e.jamUntil > gameTime ? 0.3 : 0) - (e.debuffT > 0 ? e.evadeDown || 0 : 0) - (gameTime < (e.shredUntil || 0) ? e.shredN * e.shredPer : 0) - (gameTime < (e.m327U || 0) ? e.m327N * e.m327Per : 0) + (e.fighter ? effSum(e, 'evade') : 0));
 const enemyEvade = (e) => Math.max(0, enemyEvade0(e) - 0.01 * preyN(e));   // 獵物標記：每層迴避 −1%
 /* 暴擊：暴擊率＝自身暴擊率 ± 自身給予的暴擊增益 ± 他人給予的暴擊增益 ＋ 易傷，暴擊時傷害 ×2
    例：亨利（10%）打易傷 20% 的敵人，身上有蜂鳥給的暴擊 +25% → 10 + 25 + 20 = 55% */
@@ -16624,10 +16629,17 @@ function kccoShelterTick(dt) {
 // ・500 範圍內正規軍友軍超過 5 個時，每 5 秒指揮一次：兩個正規軍友軍停下手邊的動作（移動速度暫時 ×1.2），跑到交戰目標的左右兩側，和指揮者這一側圍成凹字型
 function cmdTick(e, dt) {
   const C = e.T.command;
+  e.cmdCntT = (e.cmdCntT ?? 0) - dt;
+  if (e.cmdCntT <= 0) {   // 每 0.5 秒數一次身邊的友軍（不算 Boss、不算其他指揮獨眼巨人）
+    e.cmdCntT = 0.5;
+    const n = enemies.filter((o) => o !== e && o.hp > 0 && !o.boss && !o.noCount && !(o.T && o.T.command) && Math.hypot(o.x - e.x, o.y - e.y) <= C.orderR).length;
+    const was = e.cmdAlone; e.cmdAlone = n < C.needAllies;
+    if (was && !e.cmdAlone) { floatText(e.x, e.y - 80, '全員進攻！', '#6f9bff'); e.cmdOrderT = Math.min(e.cmdOrderT ?? 0, 0.2); }   // 友軍到齊：馬上指揮
+  }
   e.cmdAuraT = (e.cmdAuraT ?? 1) - dt;
   if (e.cmdAuraT <= 0) {
     e.cmdAuraT = C.auraEvery; e.cmdPulse = gameTime;
-    for (const o of enemies) if (o.hp > 0 && !o.boss && Math.hypot(o.x - e.x, o.y - e.y) <= C.auraR) o.cmdT = gameTime + C.auraTime;
+    for (const o of enemies) if (o !== e && o.hp > 0 && !o.boss && Math.hypot(o.x - e.x, o.y - e.y) <= C.auraR) o.cmdT = gameTime + C.auraTime;   // 鼓舞友軍（不含自己：自己的迴避維持 30%）
   }
   e.cmdOrderT = (e.cmdOrderT ?? 3) - dt;
   if (e.cmdOrderT <= 0) {
@@ -16639,10 +16651,21 @@ function cmdTick(e, dt) {
       // 兩側：以「指揮者→目標」為軸，一個去左邊、一個去右邊（靠近哪邊就去哪邊）
       const ax = Math.atan2(player.y - e.y, player.x - e.x), nx = -Math.sin(ax), ny = Math.cos(ax);
       const sides = two.length === 2 && ((two[0].x - player.x) * nx + (two[0].y - player.y) * ny) < ((two[1].x - player.x) * nx + (two[1].y - player.y) * ny) ? [-1, 1] : [1, -1];
-      two.forEach((o, k) => { o.cmdMove = { side: two.length === 2 ? sides[k] : (((o.x - player.x) * nx + (o.y - player.y) * ny) < 0 ? -1 : 1), t: 0, by: e }; o.swingT = null; o.reloadT = o.reloadT || 0; });
+      two.forEach((o, k) => { o.cmdEvU = gameTime + C.orderEvery; o.cmdMove = { side: two.length === 2 ? sides[k] : (((o.x - player.x) * nx + (o.y - player.y) * ny) < 0 ? -1 : 1), t: 0, by: e }; o.swingT = null; o.reloadT = o.reloadT || 0; });
       if (two.length) floatText(e.x, e.y - 80, '包圍！', '#6f9bff');
     } else e.cmdOrderT = 1;   // 條件不成立：每秒再檢查一次
   }
+}
+// 指揮獨眼巨人身邊友軍不到 2 個：不開火，在目標周圍繞圈徘徊（偶爾換方向），保持在開火距離外
+function cmdLoiter(e, dt) {
+  const C = e.T.command, dx = e.x - player.x, dy = e.y - player.y;
+  if (e.loiA == null) { e.loiA = Math.atan2(dy, dx); e.loiDir = Math.random() < 0.5 ? -1 : 1; e.loiFlip = rand(2.5, 5); }
+  e.loiFlip -= dt; if (e.loiFlip <= 0) { e.loiDir *= -1; e.loiFlip = rand(2.5, 5); }
+  e.loiA += e.loiDir * 0.3 * dt;
+  const gx = player.x + Math.cos(e.loiA) * C.loiterR, gy = player.y + Math.sin(e.loiA) * C.loiterR, d = Math.hypot(gx - e.x, gy - e.y);
+  e.faceLeft = player.x < e.x; e.angle = Math.atan2(player.y - e.y, player.x - e.x);   // 一直盯著目標
+  if (d > 8) { const st = Math.min(d, (e.T.speed || 100) * 0.65 * dt); e.moving = true; e.phase += dt; moveWithCover(e, (gx - e.x) / d * st, (gy - e.y) / d * st); } else e.moving = false;
+  if (e.reloadT > 0) { e.reloadT -= dt; if (e.reloadT <= 0) e.ammo = e.T.magazine; }
 }
 // 被指揮的友軍：停下目前動作，跑到目標的身側（回傳 true＝這一幀由指揮控制）
 function cmdMoveTick(e, dt) {
@@ -17880,7 +17903,7 @@ function update(dt) {
         continue;
       }
     }
-    if (e.T?.command) cmdTick(e, dt);   // 指揮獨眼巨人：鼓舞、指揮包圍
+    if (e.T?.command) { cmdTick(e, dt); if (e.cmdAlone) { cmdLoiter(e, dt); continue; } else e.loiA = null; }   // 指揮獨眼巨人：鼓舞、指揮包圍；身邊友軍不到 2 個只徘徊不攻擊
     if (e.cmdMove && cmdMoveTick(e, dt)) continue;   // 被指揮：先跑到目標身側
     if (e.T?.deployer && !e.dropped && imgs['enemy_' + e.T.sprite] && meyedTick(e, dt, toward)) continue;   // 陣地獨眼巨人：先去卸下捍衛者
     if (e.T?.ai === 'sam') { if (dist > far) { enemies.splice(i, 1); continue; } updateSam(e, dt, toward, dist); continue; }
