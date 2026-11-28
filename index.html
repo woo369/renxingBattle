@@ -1392,11 +1392,11 @@ const CHARACTERS = {
       name: '異類相斥',
       icon: 'skill_repel',
       front: { half: 30, resist: 0.2 },        // 被動：正前方 ±30°（共 60°）來的攻擊 −20%
-      range: 100, arc: 150, push: 50,          // 主動：前方半徑 100、150° 扇形，擊退 50
+      range: 300, arc: 150, push: 50,          // 主動：前方距離 300、150° 扇形，擊退 50
       permShield: 0.7,                         // 永久護盾：砍掉目前護盾的 70%
       armor: { per: 0.2, max: 1, time: 8 },    // 每擊退 1 個敵人：護甲 +20%（8 秒，最多 +100%）
       cooldown: 14,
-      desc: '被動：以自身朝向為準，來自正前方 ±30°（共 60°）的攻擊，傷害減少 20%。\n主動：向前方放出不造成傷害的衝擊波，把半徑 100、150° 扇形內的敵人擊退 50，並清除目標身上的增益效果：有時效的護盾直接驅散，永久護盾則削去目前護盾量的 70%（只剩 30%）。每擊退 1 個敵人，自身護甲提升 20%，持續 8 秒，最多提升 100%。冷卻 14 秒。',
+      desc: '被動：以自身朝向為準，來自正前方 ±30°（共 60°）的攻擊，傷害減少 20%。\n主動：向前方放出不造成傷害的衝擊波，把距離 300、150° 扇形內的敵人擊退 50，並清除目標身上的增益效果：有時效的護盾直接驅散，永久護盾則削去目前護盾量的 70%（只剩 30%）。每擊退 1 個敵人，自身護甲提升 20%，持續 8 秒，最多提升 100%。冷卻 14 秒。',
     },
     portrait: 'portrait_ltlx',
     assets: ASSETS.ltlx,
@@ -4926,7 +4926,7 @@ function drawBigMapHud() {
 const VS = { cloneBounty: 2, killBonus: 3, hpMul: 3, win: 30, startParts: 10, respawn: 5, view: 1000, partEvery: 0.625, partMax: 32, medEvery: 4.5, medMax: 4, medHeal: 50, baseMed: 3, catchUp: 10, catchUpRate: 1.5, basePartMax: 8, pickR: 22, steal: 0.5, spawnInv: 2 };
 const VS_ELITE = {
   // HK433：彈匣滿了才開技能（不滿先換彈）、優先移動躲子彈、必中才閃避並保留 1 次（生命 ≤ 25% 才無限制）、預判瞄準、找掩體、輸出太多時換位置夾擊
-  hk433: { dodgeFree: 0.25, fullMagSkill: true, cover: true, flank: true },
+  hk433: { dodgeFree: 0.25, fullMagSkill: true, cover: true },   // 不繞側（取消夾擊）
   // 沙漠之鷹：擴編不到 2 次先撿零件，之後當輸出；彈匣滿了才開技能；優先打血少的敵人（含擴編人形）；閃避保留 1 次（生命 ≤ 50% 才無限制）
   deagle: { dodgeFree: 0.5, fullMagSkill: true, lowHpFirst: true, collectUntil: 2 },
   // X95：前排兼輸出；彈匣滿了才開花之鎖；優先打「已損失生命比例」最高的敵人（花之鎖傷害最高）
@@ -4943,6 +4943,19 @@ const VS_ELITE = {
   m1918: { dodgeFree: 0.3, carry: true, reloadSkill: true },
   // 維爾德MKII：把自己當前排（防暴盾＋敵人命中／傷害下降，適合扛傷害）；隊友也把她當前排看待
   wilde: { dodgeFree: 0.3, front: true },
+  // P22：本體很脆、輔助很強 —— 只跟在輸出身邊，站在前排和輸出之間（更靠近輸出，3 成的位置）；敵人靠太近就往輸出那邊退；技能等群體所有人都在 500 內才放
+  p22: { dodgeFree: 0.5, slot: 'between', k: 0.3, fragile: true, roleAs: 'support', coverAll: 500 },
+  // K5：輔助兼前排 —— 群體沒有前排就頂上去，有前排就夾在前排和輸出中間；技能等 650 內蓋到整個群體才放，
+  //     並微調位置讓普攻超過 20 的敵人進到 750 內（多拿立場盾）
+  k5: { dodgeFree: 0.3, slot: 'between', k: 0.5, frontIfNone: true, roleAs: 'support', coverAll: 650, heavyReach: true },
+  // HS2000：輔助兼半前排 —— 夾在前排和輸出中間，讓 650 的技能蓋到整個群體；遇到敵人才放
+  hs2000: { dodgeFree: 0.3, slot: 'between', k: 0.5, roleAs: 'support', coverAll: 650 },
+  // M327：副輸出兼副前排 —— 群體有前排時當輸出，靠近手槍人形（吃增益、觸發被動）；特種彈至少 8 發才開技能
+  m327: { dodgeFree: 0.3, slot: 'nearHG', sp8: true },
+  // 80式：比其他輸出更靠近前排（被動 300 內的金盾套到前排身上）；趴射死角多，更注意站位
+  type80: { dodgeFree: 0.3, slot: 'nearFront', deadAware: true },
+  // MG338、Kord、NTW-20、QBU-88：趴下起身慢或槍管長，射擊死角比一般人形多 → 更注意敵人是否在死角，提早調整站位
+  mg338: { dodgeFree: 0.3, deadAware: true }, kord: { dodgeFree: 0.3, deadAware: true }, ntw20: { dodgeFree: 0.3, deadAware: true }, qbu88: { dodgeFree: 0.3, deadAware: true },
 };
 // 所有精銳：隊友正在跟敵人交戰時會主動過去支援
 const VS_ELITE_DEFAULT = { dodgeFree: 0.3 };
@@ -5599,16 +5612,16 @@ function vsGroupIntent(L, grp, dirX) {
 }
 function vsGroupGoal(f, grp, tgt, goal, role, range, dirX, dpsF) {
   const L = grp.leader; if (L === f) return goal;
-  const side = Math.sin(f.seed || 0);
+  const side = Math.sin(f.seed || 0), PL = vs.night ? null : vsTeamPlan(f.vsTeam), fw = (PL && PL.fwd) || { x: dirX, y: 0 }, pv = { x: -fw.y, y: fw.x };   // 前方＝群體的前方（會變動）
   // 輔助（精銳蜂鳥等）：跟在輸出身邊（優先擴編多的輸出）
   if (role === 'support') {
     const d = dpsF.slice().sort((a, b) => vsClonesOf(b) - vsClonesOf(a) || Math.hypot(a.x - f.x, a.y - f.y) - Math.hypot(b.x - f.x, b.y - f.y))[0] || L;
     if (tgt) { const ad = Math.hypot(tgt.x - d.x, tgt.y - d.y) || 1; return { x: d.x + (tgt.x - d.x) / ad * 60 - (tgt.y - d.y) / ad * side * 40, y: d.y + (tgt.y - d.y) / ad * 60 + (tgt.x - d.x) / ad * side * 40 }; }
-    return { x: d.x - dirX * 60, y: d.y + side * 70 };
+    return { x: d.x - fw.x * 60 + pv.x * side * 70, y: d.y - fw.y * 60 + pv.y * side * 70 };
   }
   if (!tgt) {   // 沒有目標：在帶頭者附近依定位站好（前排在前、輸出在中間偏後）
-    if (role === 'front') return { x: L.x + dirX * 130, y: L.y + side * 90 };
-    return { x: L.x - dirX * 50, y: L.y + side * 110 };
+    if (role === 'front') return { x: L.x + fw.x * 130 + pv.x * side * 90, y: L.y + fw.y * 130 + pv.y * side * 90 };
+    return { x: L.x - fw.x * 50 + pv.x * side * 110, y: L.y - fw.y * 50 + pv.y * side * 110 };
   }
   if (!goal) return goal;
   const gx = goal.x - L.x, gy = goal.y - L.y, gd = Math.hypot(gx, gy), R = 380;   // 有目標：照原本的走位，但不離開群體 380 以外
@@ -5643,6 +5656,15 @@ function vsTeamPlan(team) {
   const P = (vs.plan || (vs.plan = {}))[team] || (vs.plan[team] = { mode: 'farm', next: 0, scout: null, intel: null, cx: 0, cy: 0 });
   if (gameTime < P.next) return P; P.next = gameTime + 0.5;
   const mem = vsTeamUnits(team), avg = mem.length ? mem.reduce((a, u) => a + vsClonesOf(u), 0) / mem.length : 0;
+  { /* 群體的「前方」：會變動 —— 敵人可能在的地方（最近的情報 → 敵方大本營 → 地圖中心）為主，加上群體最近的行進趨勢 */
+    const g0 = mem.filter((u) => u !== P.scout), n0 = g0.length || 1, cx = g0.reduce((a, u) => a + u.x, 0) / n0, cy = g0.reduce((a, u) => a + u.y, 0) / n0;
+    const seen = vs.intel && vs.intel[team], eb = (MAPGEN.bases || []).find((b) => b.team && b.team !== team);
+    const goal = P.intel || (seen && gameTime - seen.t < 60 ? seen : null) || eb || { x: 0, y: 0 };
+    let tx = goal.x - cx, ty = goal.y - cy, tl = Math.hypot(tx, ty) || 1; tx /= tl; ty /= tl;
+    if (P.lc) { const vx = (cx - P.lc.x) / 0.5, vy = (cy - P.lc.y) / 0.5, vl = Math.hypot(vx, vy); if (vl > 20) { const k = Math.min(1, vl / 120); P.tr = { x: (P.tr ? P.tr.x * 0.7 : 0) + vx / vl * k * 0.3, y: (P.tr ? P.tr.y * 0.7 : 0) + vy / vl * k * 0.3 }; } }
+    P.lc = { x: cx, y: cy };
+    const fx = tx + (P.tr ? P.tr.x : 0) * 0.6, fy = ty + (P.tr ? P.tr.y : 0) * 0.6, fl = Math.hypot(fx, fy) || 1; P.fwd = { x: fx / fl, y: fy / fl };
+  }
   if (P.mode === 'farm' && avg >= 2) { P.mode = 'push'; P.intel = null; const u = mem[0]; if (u) floatText(u.x, u.y - 80, '全隊整編：轉為進攻', '#ffe08a'); }
   else if (P.mode === 'push' && avg < 1.2) { P.mode = 'farm'; P.scout = null; P.intel = null; }
   if (P.mode !== 'push') return P;
@@ -5657,12 +5679,41 @@ function vsTeamPlan(team) {
   if (P.intel && g.length && Math.hypot(P.cx - P.intel.x, P.cy - P.intel.y) < 300 && !(seen && gameTime - seen.t < 3)) P.intel = null;   // 到了卻沒看到人：清掉，偵察兵再出去
   return P;
 }
+// 精銳的專屬站位（回傳 null＝照原本的走位）
+function vsEliteSlot(f, E, P, fronts, dpsF, pool, tgt, vis, goal, range, dirX) {
+  const fw = (P && P.fwd) || { x: dirX, y: 0 }, pv = { x: -fw.y, y: fw.x }, sd = Math.sin(f.seed || 0);
+  const near = (arr) => { let b = null, bd = Infinity; for (const u of arr) { const d = Math.hypot(u.x - f.x, u.y - f.y); if (d < bd) { bd = d; b = u; } } return b; };
+  const fr = near(fronts), dp = near(dpsF);
+  let g = null;
+  if (E.slot === 'between') {   // 前排和輸出之間（k＝從輸出往前排走幾成）
+    if (E.frontIfNone && !fronts.length) g = null;
+    else if (fr && dp) g = { x: dp.x + (fr.x - dp.x) * E.k + pv.x * sd * 30, y: dp.y + (fr.y - dp.y) * E.k + pv.y * sd * 30 };
+    else if (dp) g = { x: dp.x - fw.x * 50 + pv.x * sd * 50, y: dp.y - fw.y * 50 + pv.y * sd * 50 };
+    else if (fr) g = { x: fr.x - fw.x * 120 + pv.x * sd * 40, y: fr.y - fw.y * 120 + pv.y * sd * 40 };
+    if (E.fragile && tgt) {   // P22：敵人靠太近就往輸出那邊退
+      const d = Math.hypot(tgt.x - f.x, tgt.y - f.y);
+      if (d < 230) { const ax = dp ? dp.x : f.x - fw.x * 150, ay = dp ? dp.y : f.y - fw.y * 150, ux = (f.x - tgt.x) / (d || 1), uy = (f.y - tgt.y) / (d || 1); g = { x: (ax + f.x + ux * 160) / 2, y: (ay + f.y + uy * 160) / 2 }; }
+    }
+    if (E.heavyReach && f.skillCd < 2.5) {   // K5：普攻超過 20 的敵人在 750～1000 → 往前一點讓牠進到 750 內
+      const sk = f.def.skill, hv = vis.find((u) => fateAtk(u) > sk.heavyAtk && Math.hypot(u.x - f.x, u.y - f.y) > sk.scan - 40 && Math.hypot(u.x - f.x, u.y - f.y) < 1000);
+      if (hv) { const d = Math.hypot(hv.x - f.x, hv.y - f.y); g = { x: hv.x + (f.x - hv.x) / d * (sk.scan - 70), y: hv.y + (f.y - hv.y) / d * (sk.scan - 70) }; }
+    }
+  } else if (E.slot === 'nearFront' && fr) {   // 80式：貼在前排後面（被動 300 內）
+    g = { x: fr.x - fw.x * 120 + pv.x * sd * 60, y: fr.y - fw.y * 120 + pv.y * sd * 60 };
+    if (tgt && Math.hypot(g.x - tgt.x, g.y - tgt.y) > range * 0.95) g = null;   // 那裡打不到目標：照原本的走位
+  } else if (E.slot === 'nearHG' && fronts.length) {   // M327：靠近手槍人形（不超過 220）
+    const hg = near(pool.filter((u) => vsUnitDef(u).weapon.class === 'HG'));
+    if (hg && goal) { const d = Math.hypot(goal.x - hg.x, goal.y - hg.y); if (d > 220) g = { x: hg.x + (goal.x - hg.x) / d * 220, y: hg.y + (goal.y - hg.y) / d * 220 }; }
+    else if (hg && !goal) g = { x: hg.x - fw.x * 40 + pv.x * sd * 80, y: hg.y - fw.y * 40 + pv.y * sd * 80 };
+  }
+  return g;
+}
 // 進攻狀態下（非偵察兵）沒有目標時要去的地方：回報的敵人位置 → 跟在偵察兵後面 → 自己往前搜索
 function vsPushGoal(f, P, dirX) {
   const seen = vs.intel && vs.intel[f.vsTeam];
   if (seen && gameTime - seen.t < 12) return { x: seen.x, y: seen.y };
   if (P.intel) return { x: P.intel.x, y: P.intel.y };
-  if (P.scout && vsAlive(P.scout)) { const sd = Math.sin(f.seed || 0); return { x: P.scout.x - dirX * 450, y: P.scout.y + sd * 110 }; }
+  if (P.scout && vsAlive(P.scout)) { const sd = Math.sin(f.seed || 0), fw = P.fwd || { x: dirX, y: 0 }; return { x: P.scout.x - fw.x * 450 - fw.y * sd * 110, y: P.scout.y - fw.y * 450 + fw.x * sd * 110 }; }
   return vsHuntGoal(f, dirX, true);
 }
 // 偵察兵：搜索 → 看到敵人就回報並撤回群體（不戀戰）→ 在群體裡等到情報用完再出去
@@ -5675,11 +5726,12 @@ function vsScoutGoal(f, P, vis, dirX, med) {
   if (med && f.hp < f.maxHp * 0.35) return { x: med.x, y: med.y, item: true };
   const back = { x: P.cx, y: P.cy };
   if (f.scoutState === 'return') { if (Math.hypot(f.x - back.x, f.y - back.y) < 260) f.scoutState = 'wait'; return back; }
-  if (f.scoutState === 'wait') { if (!P.intel) { f.scoutState = 'search'; f.scoutPt = null; } else return { x: back.x + dirX * 80, y: back.y + Math.sin(f.seed || 0) * 90 }; }
+  if (f.scoutState === 'wait') { if (!P.intel) { f.scoutState = 'search'; f.scoutPt = null; } else { const fw = P.fwd || { x: dirX, y: 0 }; return { x: back.x + fw.x * 80, y: back.y + fw.y * 80 + Math.sin(f.seed || 0) * 90 }; } }
   // 搜索：往群體前方 700～1100 的地方探，到了（或 8 秒沒到）就換下一個點
   if (!f.scoutPt || Math.hypot(f.scoutPt.x - f.x, f.scoutPt.y - f.y) < 150 || gameTime > f.scoutPt.until) {
     for (let k = 0; k < 10; k++) {
-      const x = clamp(P.cx + dirX * rand(700, 1100), -MAPGEN.hw * 0.92, MAPGEN.hw * 0.92), y = rand(-0.8, 0.8) * MAPGEN.hh;
+      const fw = P.fwd || { x: dirX, y: 0 }, d0 = rand(700, 1100), sw = rand(-550, 550);   // 往群體「前方」（會變動）探索，左右散開
+      const x = clamp(P.cx + fw.x * d0 - fw.y * sw, -MAPGEN.hw * 0.92, MAPGEN.hw * 0.92), y = clamp(P.cy + fw.y * d0 + fw.x * sw, -MAPGEN.hh * 0.9, MAPGEN.hh * 0.9);
       if (!mapSolidAt(x, y, 40)) { f.scoutPt = { x, y, until: gameTime + 8 }; break; }
     }
   }
@@ -5723,6 +5775,9 @@ function vsThink(f) {
   if (E && E.carry) role = 'dps';   // 主力輸出
   if (E && E.collectCalm && !fighting.length && !tgt && f.clones.length < E.collectCalm) role = 'collect';
   if (push && role === 'collect') role = 'dps';   // 隊伍進攻中：收集型精銳也一起上
+  if (E && E.roleAs) role = E.roleAs;                              // P22／K5／HS2000：輔助
+  if (E && E.frontIfNone && !fronts.length) role = 'front';        // K5：群體沒有前排就頂上
+  if (E && E.slot === 'nearHG' && fronts.length) role = 'dps';     // M327：有前排時當輸出
   f.role = role;
   const dirX = f.vsTeam === 'blue' ? 1 : -1;
   const nearestItem = (list, maxD) => { let it = null, bd = maxD; for (const p of list) { const d = Math.hypot(p.x - f.x, p.y - f.y); if (d < bd) { bd = d; it = p; } } return it; };
@@ -5791,12 +5846,15 @@ function vsThink(f) {
   }
   if (grp && grp.leader === f && !tgt && !(goal && goal.item && f.hp < f.maxHp * 0.35)) goal = vsGroupIntent(f, grp, dirX);   // 精銳帶頭者：照群體投票的結果行動（進攻／收集／撤退）
   else if (grp && !(goal && goal.item)) goal = vsGroupGoal(f, grp, tgt, goal, role, range, dirX, dpsF);   // 精銳：跟著群體行動（補血、撿零件等更優先的事除外）
+  if (E && E.slot && !(goal && goal.item)) { const sg = vsEliteSlot(f, E, plan, fronts, dpsF, pool, tgt, vis, goal, range, dirX); if (sg) goal = sg; }   // 精銳的專屬站位
   // 精銳（機槍、長槍管）：站到目標的左邊或右邊，讓目標落在槍能轉到的角度內（上下死角之外）
-  if (elite && tgt && hasDeadZone(D) && !(goal && goal.item)) {
-    const side = Math.sign(f.x - tgt.x) || (f.seed % 2 < 1 ? 1 : -1), kd = clamp(Math.hypot(tgt.x - f.x, tgt.y - f.y), range * 0.55, range * 0.85);
-    const lim = Math.max(4, Math.min(D.anim.aimUp, D.anim.aimDown) * 0.7) * DEG, gx = tgt.x + side * kd * Math.cos(lim * 0.5);
-    const maxDy = Math.abs(gx - tgt.x) * Math.tan(lim), gy = tgt.y + clamp(f.y - tgt.y, -maxDy, maxDy);
-    if (!goal || inDeadZone(D, goal.x, goal.y, tgt.x, tgt.y, 3) || inDeadZone(D, f.x, f.y, tgt.x, tgt.y, 3)) goal = { x: gx, y: gy, dz: true };
+  // 死角特別多的精銳（80式、MG338、Kord、NTW-20、QBU-88）：判斷更嚴、角度留更多餘裕，還會看目標正在往哪走，提早換位置
+  if (elite && tgt && (hasDeadZone(D) || (E && E.deadAware)) && !(goal && goal.item)) {
+    const da = !!(E && E.deadAware), tx = tgt.x + (da ? (tgt.vx || 0) * 0.6 : 0), ty = tgt.y + (da ? (tgt.vy || 0) * 0.6 : 0);
+    const side = Math.sign(f.x - tx) || (f.seed % 2 < 1 ? 1 : -1), kd = clamp(Math.hypot(tx - f.x, ty - f.y), range * 0.55, range * 0.85);
+    const lim = Math.max(4, Math.min(D.anim.aimUp, D.anim.aimDown) * (da ? 0.5 : 0.7)) * DEG, gx = tx + side * kd * Math.cos(lim * 0.5);
+    const maxDy = Math.abs(gx - tx) * Math.tan(lim), gy = ty + clamp(f.y - ty, -maxDy, maxDy), mg = da ? 7 : 3;
+    if (!goal || inDeadZone(D, goal.x, goal.y, tx, ty, mg) || inDeadZone(D, f.x, f.y, tx, ty, mg)) goal = { x: gx, y: gy, dz: true };
   }
   if (push && plan.scout === f) goal = vsScoutGoal(f, plan, vis, dirX, med);   // 偵察兵：搜索／回報／撤回（壓過其他走位）
   if (gameTime < (f.detourUntil || 0)) goal = f.detour;   // 卡住時的繞路點
@@ -5960,6 +6018,16 @@ function vsMaybeSkill(f, tgt, vis, force) {
   // 精銳（例如 HK433、沙漠之鷹）：彈匣不是滿的就先換彈，滿了才開技能
   const magReady = () => { if (!force && E && (E.fullMagSkill || f.level === 'elite') && f.ammo < mag) { vsReload(f); return false; } return true; };
   const friends = vsFriendsOf(f), foes = vsFoesOf(f);
+  // 精銳輔助（P22／K5／HS2000）：等群體所有人都進到技能範圍才放；等超過 3.5 秒且蓋到 6 成以上也放
+  const covOK = (R) => {
+    if (force || !E || !E.coverAll) return true;
+    const mem = f.group ? f.group.others : friends.filter((u) => u !== f && !u.isClone && !u.clone && !u.guard && Math.hypot(u.x - f.x, u.y - f.y) < 900);
+    if (!mem.length) return true;
+    const inn = mem.filter((u) => Math.hypot(u.x - f.x, u.y - f.y) <= R - 15).length;
+    if (inn === mem.length) return true;
+    if (f.covSince == null || gameTime - f.covSince > 8) f.covSince = gameTime;
+    return gameTime - f.covSince > 3.5 && inn / mem.length >= 0.6;
+  };
   switch (sk.id) {
     case 'glory': case 'sixkill': case 'waltz': case 'deter': case 'lockon':
       if (!inRange || !magReady()) return;
@@ -5996,8 +6064,8 @@ function vsMaybeSkill(f, tgt, vis, force) {
       if (!force && !(inRange && (f.ammo <= 1 || f.reloadT > 0))) return;   // AI：彈匣快空或正在換彈時用（立刻換好）
       castMirror(f, sk); f.skillCd = sk.cooldown; break;
     case 'bulwark':
-      if (!force && !inRange) return;   // AI：敵人進入射程就用
-      castBulwark(f, sk); break;
+      if (!force && !(inRange && covOK(sk.radius))) return;   // AI：敵人進入射程就用（精銳：等群體都在 650 內）
+      castBulwark(f, sk); f.covSince = null; break;
     case 'bloodfire':
       if (!force && !(f.def.m6rf && tgt && dist < 260)) return;   // AI：步槍模式下，敵人貼近到霰彈槍射程才切回去
       castBlood(f, sk); break;
@@ -6030,7 +6098,7 @@ function vsMaybeSkill(f, tgt, vis, force) {
       castRepel(f, sk); break;
     }
     case 'blackswamp':
-      if (!force && !(inRange && (f.sp327 || 0) >= 4)) return;   // AI：敵人在射程內、特種彈至少 4 發才用
+      if (!force && !(inRange && (f.sp327 || 0) >= (E && E.sp8 ? 8 : 4))) return;   // AI：敵人在射程內、特種彈至少 4 發才用（精銳：8 發）
       f.buffT = sk.duration; floatText(f.x, f.y - 52, '黑沼特攻', '#ff6b6b'); break;
     case 'drinkwar':
       if (!force && !inRange) return;   // AI：敵人進入射程就喝
@@ -6059,13 +6127,17 @@ function vsMaybeSkill(f, tgt, vis, force) {
     }
     case 'decisive': {   // 範圍內有隊友、而且在交戰中才放
       const mates = fateAllies(f, sk.radius).filter((a) => a !== f);
-      if (!force && !(inRange && mates.length)) return;
-      castDecisive(f, sk); f.skillCd = sk.cooldown; break;
+      if (!force && !(inRange && mates.length && covOK(sk.radius))) return;   // 精銳：等群體所有人都在 500 內
+      castDecisive(f, sk); f.skillCd = sk.cooldown; f.covSince = null; break;
     }
     case 'fate': {
       const near = foes.filter((u) => u && !u.dead && u.hp > 0 && Math.hypot(u.x - f.x, u.y - f.y) <= sk.scan);
-      if (!force && !(inRange && near.length)) return;
-      castFate(f, sk); f.skillCd = sk.cooldown; break;
+      if (!force && !(inRange && near.length && covOK(sk.radius))) return;   // 精銳：等 650 內蓋到整個群體
+      if (!force && E && E.heavyReach) {   // 精銳 K5：附近有普攻超過 20 的敵人卻還在 750 外 → 先等牠進來（最多 3 秒），多拿立場盾
+        const hv = foes.some((u) => fateAtk(u) > sk.heavyAtk && Math.hypot(u.x - f.x, u.y - f.y) < 1000), inn = foes.some((u) => fateAtk(u) > sk.heavyAtk && Math.hypot(u.x - f.x, u.y - f.y) <= sk.scan);
+        if (hv && !inn) { if (f.hvSince == null || gameTime - f.hvSince > 8) f.hvSince = gameTime; if (gameTime - f.hvSince < 3) return; }
+      }
+      castFate(f, sk); f.skillCd = sk.cooldown; f.covSince = null; f.hvSince = null; break;
     }
     case 'riotshield': {
       const near = foes.filter((u) => u && !u.dead && u.hp > 0 && Math.hypot(u.x - f.x, u.y - f.y) <= sk.radius);
@@ -8288,7 +8360,7 @@ let best = Number(store.get('rxxlc-best')) || 0;
    每個人形／敵人的動畫圖放在 assets/<素材包>.json；網頁本身只帶設定（meta）與介面圖（ui）。
    離線單檔版會把圖片直接打包進網頁，這時就不用另外下載。 */
 const ASSET_BASE = 'assets/';
-const ASSET_VER = {"triple_crown":"42a6eaf59e","hk433":"df9cc9f7f7","type82":"19d6eb08aa","mh":"d23c2759a3","ouro":"ab4a21e936","cyc":"e3e7f09e34","meye":"a41da84ea9","hb":"dba320370d","dreamer":"87285c47db","scarecrow":"498db0f898","xm":"08da1bca4f","wasp":"0d68029acb","beast":"c322e71a84","lion":"3c116d5e13","intr":"e0de4d19e7","ceye":"82a6aca9a7","cent":"c58be64dbf","sws":"54ff5cb0d8","ouroE":"28421ec974","arch":"fcf8a15108","judge":"0904b780f7","lycan":"21ec39a3b9","aegis":"722f1b93d1","scep":"80de946a2c","hind":"a262c79af5","hindb":"7254d52230","spk":"0e62710a7f","cycl":"3a9c2e4863","orth":"9c90fcde75","defd":"f956f38dd2","meyed":"4b09be5366","cycc":"bc2c5abc77","ti":"07477aefc9","lcan":"5b4b46404f","aeq":"3b96bb238d","scout":"cd3b141af2","hammer":"b9220bbb9f","gsw":"43b26bea32","mino":"5aa7e3b31c","agent":"462fa8a126","de":"a0d77eed11","vhs":"48d898f5b3","sp9":"d43d1c3717","sat8":"59d571a15b","m110":"12ad1ce260","kord":"f4dbe7d0e1","t561":"5c635a3d9d","rpk":"29db8d90a9","x95":"7e54a51692","carc":"e53118059f","qbu":"c58ec9b7b2","js9":"03d38ccb7b","a545":"27ec9c0b1e","m327":"5a0edf9239","hs2000":"386bb679a4","maxim":"44eefbe620","c14":"5a7d88d016","lynx":"3b35ad681f","vepr":"92599c5ba5","m43":"e0946c81d9","cf05":"03e91467ef","apc":"d2864c0e2a","m1":"d22e6b28c6","ak47":"b028b322c8","m1014":"92d8a1ba05","qsb":"84e6728a11","tmp":"6955c1ca7b","hk23":"b71daae737","arx":"be1893c679","m14":"d075a74229","p30":"df88574ca5","garand":"746158ebaa","c96":"8e7c0cbdf9","ar57":"e0af25f525","cave":"b705beca83","argo":"dafa49b3a2","ltlx":"b6ce01075b","m1918":"53c55d6776","ump45":"bb99d895d1","ots14":"1dfa67ca83","scarh":"913b000e18","scarl":"fd29fe283a","m6":"83431e3f5f","hydra":"b369a4278c","quail":"5bc9991ecd","wb":"a1920ee4d7","aa12":"c0b5a9004a","t100":"63d9404ba2","mg4":"b55fb8363b","t80":"3ddaf16c11","an94":"3070abd310","ak12":"2dae4c8826","ak15":"0b364881fb","p50":"68eba04a46","tkb408":"ea8731c07b","mg338":"afefbde785","ro635":"de6c04375d","wilde":"c54ad51ce0","k5":"7a16da22e3","p22":"8cb9d2423b","m950":"e7757f6551","ntw":"7b558a5c50","dp12":"02850f045c","pal":"ef7f21595c","typ":"fc83ca75b5","ladon":"c871fa41a6","ripper":"0177fde288","pgun":"6c8dcb6da9","striker":"a53db882b5","guard":"40371cd495","dino":"7ccee24d47","scorp":"3fd7432e18","jaeg":"5a8356a33b","dragoon":"2e490725b9","jaguar":"70994c9621","goliath":"a619ae409b","gfac":"c2d3a20712","jupiter":"9825161850","defbase":"6cd68c880e","night":"71559edb8d","lancer":"38f55fae5b","glad":"e0c43bf51c","hanni":"45449ba701","elea":"e316fdb054","witch":"547a075909","intro":"cd1b684ead","exe":"dddfc1dbb9","hunter":"92bfd5255f","moth":"687f8b5ccb","dest":"f6ddf3f6c9","elk":"e4719d2fda","dose":"78ae5bf532","train":"a4311db90c","class_SG":"90e8dc2ebd","class_AR":"582dcf473f","class_SMG":"c9e8bc3f82","class_RF":"a8513f9cba","class_HG":"00e7df89e8","class_MG":"9dfd33ff10","codexf_sf":"2e8c48ef72","codexf_kcco":"d71024ca61","codexf_paradeus":"1a1cfcaad7","codex_menu":"16496f1517"};   // 素材檔的內容雜湊（拆檔版）：網址帶版本，更新後不會吃到瀏覽器裡的舊快取
+const ASSET_VER = {"triple_crown":"42a6eaf59e","hk433":"df9cc9f7f7","type82":"19d6eb08aa","mh":"d23c2759a3","ouro":"ab4a21e936","cyc":"e3e7f09e34","meye":"a41da84ea9","hb":"dba320370d","dreamer":"87285c47db","scarecrow":"498db0f898","xm":"08da1bca4f","wasp":"0d68029acb","beast":"c322e71a84","lion":"3c116d5e13","intr":"e0de4d19e7","ceye":"82a6aca9a7","cent":"c58be64dbf","sws":"54ff5cb0d8","ouroE":"28421ec974","arch":"fcf8a15108","judge":"0904b780f7","lycan":"21ec39a3b9","aegis":"722f1b93d1","scep":"80de946a2c","hind":"a262c79af5","hindb":"7254d52230","spk":"0e62710a7f","cycl":"3a9c2e4863","orth":"9c90fcde75","defd":"f956f38dd2","meyed":"4b09be5366","cycc":"3d385931e2","ti":"07477aefc9","lcan":"5b4b46404f","aeq":"3b96bb238d","scout":"cd3b141af2","hammer":"b9220bbb9f","gsw":"43b26bea32","mino":"5aa7e3b31c","agent":"462fa8a126","de":"a0d77eed11","vhs":"48d898f5b3","sp9":"d43d1c3717","sat8":"59d571a15b","m110":"12ad1ce260","kord":"f4dbe7d0e1","t561":"5c635a3d9d","rpk":"29db8d90a9","x95":"7e54a51692","carc":"e53118059f","qbu":"c58ec9b7b2","js9":"03d38ccb7b","a545":"27ec9c0b1e","m327":"5a0edf9239","hs2000":"386bb679a4","maxim":"44eefbe620","c14":"5a7d88d016","lynx":"3b35ad681f","vepr":"92599c5ba5","m43":"e0946c81d9","cf05":"03e91467ef","apc":"d2864c0e2a","m1":"d22e6b28c6","ak47":"b028b322c8","m1014":"92d8a1ba05","qsb":"84e6728a11","tmp":"6955c1ca7b","hk23":"b71daae737","arx":"be1893c679","m14":"d075a74229","p30":"df88574ca5","garand":"746158ebaa","c96":"8e7c0cbdf9","ar57":"e0af25f525","cave":"b705beca83","argo":"dafa49b3a2","ltlx":"b6ce01075b","m1918":"53c55d6776","ump45":"bb99d895d1","ots14":"1dfa67ca83","scarh":"913b000e18","scarl":"fd29fe283a","m6":"83431e3f5f","hydra":"b369a4278c","quail":"5bc9991ecd","wb":"a1920ee4d7","aa12":"c0b5a9004a","t100":"63d9404ba2","mg4":"b55fb8363b","t80":"3ddaf16c11","an94":"3070abd310","ak12":"2dae4c8826","ak15":"0b364881fb","p50":"68eba04a46","tkb408":"ea8731c07b","mg338":"afefbde785","ro635":"de6c04375d","wilde":"c54ad51ce0","k5":"7a16da22e3","p22":"8cb9d2423b","m950":"e7757f6551","ntw":"7b558a5c50","dp12":"02850f045c","pal":"ef7f21595c","typ":"fc83ca75b5","ladon":"c871fa41a6","ripper":"0177fde288","pgun":"6c8dcb6da9","striker":"a53db882b5","guard":"40371cd495","dino":"7ccee24d47","scorp":"3fd7432e18","jaeg":"5a8356a33b","dragoon":"2e490725b9","jaguar":"70994c9621","goliath":"a619ae409b","gfac":"c2d3a20712","jupiter":"9825161850","defbase":"6cd68c880e","night":"71559edb8d","lancer":"38f55fae5b","glad":"e0c43bf51c","hanni":"45449ba701","elea":"e316fdb054","witch":"547a075909","intro":"cd1b684ead","exe":"dddfc1dbb9","hunter":"92bfd5255f","moth":"687f8b5ccb","dest":"f6ddf3f6c9","elk":"e4719d2fda","dose":"78ae5bf532","train":"a4311db90c","class_SG":"90e8dc2ebd","class_AR":"582dcf473f","class_SMG":"c9e8bc3f82","class_RF":"a8513f9cba","class_HG":"00e7df89e8","class_MG":"9dfd33ff10","codexf_sf":"2e8c48ef72","codexf_kcco":"0e28d02449","codexf_paradeus":"1a1cfcaad7","codex_menu":"16496f1517"};   // 素材檔的內容雜湊（拆檔版）：網址帶版本，更新後不會吃到瀏覽器裡的舊快取
 const assetUrl = (name) => ASSET_BASE + name + '.json' + (ASSET_VER[name] ? '?v=' + ASSET_VER[name] : '');
 const packOf = (assets) => Object.keys(ASSETS).find((k) => ASSETS[k] === assets);
 const packBox = {};                                  // 素材包 → 解碼後的圖片放在 imgs 的哪一格
