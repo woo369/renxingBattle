@@ -10092,23 +10092,65 @@ function drawGarage(o) {
   ctx.strokeStyle = 'rgba(0,0,0,0.35)'; ctx.lineWidth = 2; ctx.strokeRect(L, top, o.w, Hw);
   ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
 }
-function drawGuardHouse(o) {   // 警衛室：小平房＋門＋窗戶（窗內有燈）＋招牌
+function drawGuardHouse(o) {   // 警衛室：全景玻璃的值班亭（底座＋左側階梯、整面玻璃窗、上方機箱、兩側警示柱、頂上的線材與燈光）
   const by = o.y + o.h / 2, q = proj(o.x, by);
-  ground(q, o.x, by); ctx.fillStyle = 'rgba(5,10,8,0.45)'; ctx.fillRect(o.x - o.w / 2 + 10, by - 5, o.w, 22);
-  const dr = crewDoor(); ctx.fillStyle = 'rgba(111,232,255,0.14)'; ctx.beginPath(); ctx.ellipse(dr.x, dr.y, 46, 24, 0, 0, Math.PI * 2); ctx.fill();   // 門口的召喚範圍
+  ground(q, o.x, by); ctx.fillStyle = 'rgba(5,10,8,0.45)'; ctx.beginPath(); ctx.ellipse(o.x, by + 4, o.w * 0.62, 16, 0, 0, Math.PI * 2); ctx.fill();
+  const dr = crewDoor(); ctx.fillStyle = 'rgba(111,232,255,0.14)'; ctx.beginPath(); ctx.ellipse(dr.x, dr.y, 46, 24, 0, 0, Math.PI * 2); ctx.fill();   // 召喚範圍
   ctx.strokeStyle = 'rgba(111,232,255,0.55)'; ctx.lineWidth = 3; ctx.stroke();
   upright(q, o.x, by);
-  const L = o.x - o.w / 2, R = o.x + o.w / 2, Hw = 92, back = 44, top = by - Hw;
-  ctx.fillStyle = '#4b5650'; ctx.beginPath(); ctx.moveTo(R, by); ctx.lineTo(R + 22, by - back * 0.45); ctx.lineTo(R + 22, top - back * 0.45); ctx.lineTo(R, top); ctx.closePath(); ctx.fill();   // 側牆
-  ctx.fillStyle = '#3d4a44'; ctx.beginPath(); ctx.moveTo(L - 8, top); ctx.lineTo(R + 8, top); ctx.lineTo(R + 30, top - back * 0.45); ctx.lineTo(L + 14, top - back * 0.45); ctx.closePath(); ctx.fill();   // 屋頂
-  ctx.fillStyle = '#c8cfc6'; ctx.fillRect(L, top, o.w, Hw);   // 正面（淺色牆）
-  ctx.fillStyle = '#7f8a82'; ctx.fillRect(L, by - 14, o.w, 14);   // 牆腳
-  ctx.fillStyle = '#5b6a62'; ctx.fillRect(o.x - 18, by - 62, 36, 62); ctx.fillStyle = '#3a4640'; ctx.fillRect(o.x - 14, by - 58, 28, 58);   // 門
-  ctx.fillStyle = '#d9b44a'; ctx.beginPath(); ctx.arc(o.x + 8, by - 30, 2.5, 0, Math.PI * 2); ctx.fill();
-  const lit = 0.55 + 0.25 * Math.sin(gameTime * 1.7);
-  for (const wx of [L + 16, R - 46]) { ctx.fillStyle = '#2a3632'; ctx.fillRect(wx, top + 22, 30, 26); ctx.fillStyle = 'rgba(255,226,140,' + lit + ')'; ctx.fillRect(wx + 3, top + 25, 24, 20); ctx.fillStyle = '#2a3632'; ctx.fillRect(wx + 14, top + 25, 2, 20); }   // 窗戶
-  ctx.fillStyle = '#20302a'; ctx.fillRect(o.x - 44, top - 22, 88, 18); ctx.font = '800 12px sans-serif'; ctx.textAlign = 'center'; ctx.fillStyle = '#7fe8ff'; ctx.fillText('警衛室 GUARD', o.x, top - 9);
-  ctx.strokeStyle = 'rgba(0,0,0,0.35)'; ctx.lineWidth = 2; ctx.strokeRect(L, top, o.w, Hw);
+  const W = o.w, L = o.x - W / 2, R = o.x + W / 2, OL = '#262a31';
+  const baseH = 26, glassH = 62, upH = 46, yB = by - baseH, yG = yB - glassH, yU = yG - upH, back = 40, sx = 18, sy = -back * 0.42;
+  const box = (x, y, w, h, fill, lw = 2) => { ctx.fillStyle = fill; ctx.fillRect(x, y, w, h); ctx.strokeStyle = OL; ctx.lineWidth = lw; ctx.strokeRect(x, y, w, h); };
+  // 頂上的燈光（往上散開的光柱）
+  const lg = ctx.createLinearGradient(0, yU - 90, 0, yU); lg.addColorStop(0, 'rgba(235,245,255,0)'); lg.addColorStop(1, 'rgba(235,245,255,0.22)');
+  ctx.fillStyle = lg; ctx.beginPath(); ctx.moveTo(L + 14, yU); ctx.lineTo(R - 14, yU); ctx.lineTo(R + 10, yU - 90); ctx.lineTo(L - 10, yU - 90); ctx.closePath(); ctx.fill();
+  // 兩側的警示柱（黃紫斜紋）
+  for (const px of [L - 20, R + sx + 6]) {   // 右邊那根要放到側牆外面才看得到
+    ctx.save(); ctx.beginPath(); ctx.rect(px, yU + 10, 10, by - 8 - (yU + 10)); ctx.clip();
+    ctx.fillStyle = '#5a3a5e'; ctx.fillRect(px, yU + 10, 10, by - yU); ctx.fillStyle = '#e0a83a';
+    for (let y = yU; y < by + 10; y += 14) { ctx.beginPath(); ctx.moveTo(px, y); ctx.lineTo(px + 10, y - 7); ctx.lineTo(px + 10, y); ctx.lineTo(px, y + 7); ctx.closePath(); ctx.fill(); }
+    ctx.restore(); ctx.strokeStyle = OL; ctx.lineWidth = 2; ctx.strokeRect(px, yU + 10, 10, by - 8 - (yU + 10));
+  }
+  // 右側面（立體）
+  ctx.fillStyle = '#8b929c'; ctx.beginPath(); ctx.moveTo(R, yB); ctx.lineTo(R + sx, yB + sy); ctx.lineTo(R + sx, yU + sy); ctx.lineTo(R, yU); ctx.closePath(); ctx.fill(); ctx.strokeStyle = OL; ctx.lineWidth = 2; ctx.stroke();
+  ctx.fillStyle = '#4c5260'; ctx.beginPath(); ctx.moveTo(R + 4, by); ctx.lineTo(R + 4 + sx, by + sy); ctx.lineTo(R + 4 + sx, yB + sy); ctx.lineTo(R + 4, yB); ctx.closePath(); ctx.fill(); ctx.stroke();
+  // 屋頂
+  ctx.fillStyle = '#d9dde3'; ctx.beginPath(); ctx.moveTo(L - 3, yU); ctx.lineTo(R + 3, yU); ctx.lineTo(R + 3 + sx, yU + sy); ctx.lineTo(L - 3 + sx, yU + sy); ctx.closePath(); ctx.fill(); ctx.stroke();
+  // 頂上的線材（黃、藍、咖啡色）
+  ctx.lineWidth = 2.5; [['#e0b23a', 0], ['#5e8fd0', 4], ['#8a6a3c', 8]].forEach(([c, k]) => { ctx.strokeStyle = c; ctx.beginPath(); ctx.moveTo(R - 18 + k, yU + sy * 0.5); ctx.bezierCurveTo(R - 10 + k, yU - 30, R + 20 + k, yU - 40, R + 34 + k, yU - 70); ctx.stroke(); });
+  // 上方機箱
+  box(L, yU, W, upH, '#c8cdd5');
+  box(R - 64, yU + 7, 54, 24, '#b7bdc6', 1.5); ctx.strokeStyle = '#7d8590'; ctx.lineWidth = 1.5; for (let x = R - 60; x < R - 12; x += 5) { ctx.beginPath(); ctx.moveTo(x, yU + 10); ctx.lineTo(x, yU + 28); ctx.stroke(); }   // 通風格柵
+  box(L + 8, yU + 9, 24, 22, '#b2b8c1', 1.5); ctx.fillStyle = 'rgba(255,255,255,' + (0.75 + 0.2 * Math.sin(gameTime * 2.2)) + ')'; ctx.fillRect(L + 15, yU + 13, 10, 14); ctx.strokeStyle = OL; ctx.lineWidth = 1; ctx.strokeRect(L + 15, yU + 13, 10, 14);   // 小燈箱
+  ctx.fillStyle = '#e7c34a'; ctx.fillRect(L + 40, yU + 6, 16, 7); ctx.fillRect(L + 40, yU + 30, 16, 7); ctx.strokeStyle = OL; ctx.lineWidth = 1; ctx.strokeRect(L + 40, yU + 6, 16, 7); ctx.strokeRect(L + 40, yU + 30, 16, 7);   // 黃色標籤
+  ctx.fillStyle = '#7d8590'; ctx.fillRect(L, yG - 9, W, 9); ctx.fillStyle = '#4a505b'; for (let i = 0; i < 4; i++) { const x = L + 62 + i * 8; ctx.beginPath(); ctx.moveTo(x, yG - 1); ctx.lineTo(x + 5, yG - 8); ctx.lineTo(x + 8, yG - 8); ctx.lineTo(x + 3, yG - 1); ctx.closePath(); ctx.fill(); }   // 斜紋飾條
+  ctx.fillStyle = '#c45a6a'; ctx.fillRect(R - 40, yG - 7, 5, 5); ctx.fillRect(R - 18, yG - 7, 5, 5);
+  ctx.fillStyle = '#20302a'; ctx.fillRect(o.x - 40, yU - 20, 80, 16); ctx.strokeStyle = OL; ctx.lineWidth = 1.5; ctx.strokeRect(o.x - 40, yU - 20, 80, 16); ctx.font = '800 11px sans-serif'; ctx.textAlign = 'center'; ctx.fillStyle = '#7fe8ff'; ctx.fillText('警衛室 GUARD', o.x, yU - 8);   // 招牌
+  // 玻璃窗：後面的內牆（通風口、黃標籤、亮燈）→ 半透明藍色玻璃 → 反光 → 窗框與兩根窗櫺
+  const gx0 = L + 5, gx1 = R - 5, gy0 = yG + 3, gy1 = yB - 3;
+  ctx.fillStyle = '#a7afba'; ctx.fillRect(gx0, gy0, gx1 - gx0, gy1 - gy0);
+  for (const vx of [gx0 + 8, gx1 - 56]) { box(vx, gy0 + 6, 48, 20, '#b9c0c9', 1.2); ctx.strokeStyle = '#7d8590'; ctx.lineWidth = 1.2; for (let x = vx + 4; x < vx + 46; x += 5) { ctx.beginPath(); ctx.moveTo(x, gy0 + 9); ctx.lineTo(x, gy0 + 24); ctx.stroke(); } }
+  ctx.fillStyle = '#e7c34a'; ctx.fillRect(gx0 + 14, gy0 + 32, 14, 7); ctx.fillRect(gx1 - 28, gy0 + 32, 14, 7);
+  ctx.strokeStyle = '#7d8590'; ctx.lineWidth = 1; for (const lx of [gx0 + 30, gx1 - 30]) { ctx.beginPath(); ctx.moveTo(lx, gy0 + 26); ctx.lineTo(lx, gy1 - 6); ctx.stroke(); }
+  ctx.fillStyle = '#5d6672'; ctx.fillRect(gx0, gy1 - 8, gx1 - gx0, 8);   // 室內地板
+  const lit = 0.16 + 0.05 * Math.sin(gameTime * 1.6); ctx.fillStyle = 'rgba(255,248,220,' + lit + ')'; ctx.fillRect(gx0, gy0, gx1 - gx0, (gy1 - gy0) * 0.5);   // 室內燈
+  ctx.fillStyle = 'rgba(140,205,235,0.38)'; ctx.fillRect(gx0, gy0, gx1 - gx0, gy1 - gy0);   // 玻璃
+  ctx.save(); ctx.beginPath(); ctx.rect(gx0, gy0, gx1 - gx0, gy1 - gy0); ctx.clip(); ctx.fillStyle = 'rgba(255,255,255,0.28)';
+  for (const [x0, w0] of [[gx0 + 10, 14], [gx0 + 30, 6], [gx1 - 50, 16]]) { ctx.beginPath(); ctx.moveTo(x0, gy1); ctx.lineTo(x0 + w0, gy1); ctx.lineTo(x0 + w0 + 34, gy0); ctx.lineTo(x0 + 34, gy0); ctx.closePath(); ctx.fill(); }   // 斜斜的反光
+  ctx.restore();
+  ctx.strokeStyle = '#d6dae0'; ctx.lineWidth = 6; ctx.strokeRect(L + 2, yG + 1, W - 4, glassH - 2);   // 窗框
+  ctx.strokeStyle = OL; ctx.lineWidth = 2; ctx.strokeRect(L, yG, W, glassH); ctx.strokeRect(gx0, gy0, gx1 - gx0, gy1 - gy0);
+  for (const mx of [o.x - W * 0.08, o.x + W * 0.08]) { ctx.fillStyle = '#d6dae0'; ctx.fillRect(mx - 3, gy0, 6, gy1 - gy0); ctx.strokeStyle = OL; ctx.lineWidth = 1.5; ctx.strokeRect(mx - 3, gy0, 6, gy1 - gy0); }   // 兩根窗櫺
+  // 底座：狀態燈條、三個圓鈕、黃色面板、下緣的鋸齒飾條
+  box(L - 4, yB, W + 8, baseH, '#d3d7dd');
+  ctx.fillStyle = '#5a5f6a'; ctx.beginPath(); ctx.moveTo(L + 18, yB); ctx.lineTo(R - 18, yB); ctx.lineTo(R - 26, yB + 6); ctx.lineTo(L + 26, yB + 6); ctx.closePath(); ctx.fill();
+  box(L + 10, yB + 9, 46, 8, '#2c323b', 1.2); ctx.fillStyle = '#8fe0ea'; ctx.fillRect(L + 11, yB + 10, 22 + 6 * Math.sin(gameTime * 1.3), 6);   // 狀態燈條
+  for (let i = 0; i < 3; i++) { ctx.fillStyle = '#2c323b'; ctx.beginPath(); ctx.arc(L + 62 + i * 8, yB + 13, 3, 0, Math.PI * 2); ctx.fill(); }
+  box(R - 40, yB + 8, 14, 11, '#e2b63a', 1.2); box(R - 22, yB + 8, 14, 11, '#e2b63a', 1.2);
+  ctx.fillStyle = '#3b414b'; for (let x = L + 30; x < R - 30; x += 10) { ctx.beginPath(); ctx.moveTo(x, by - 2); ctx.lineTo(x + 5, by - 6); ctx.lineTo(x + 10, by - 2); ctx.closePath(); ctx.fill(); }
+  // 左側的階梯
+  ctx.fillStyle = '#8b929c'; ctx.beginPath(); ctx.moveTo(L - 4, yB + 3); ctx.lineTo(L - 4, by); ctx.lineTo(L - 34, by); ctx.closePath(); ctx.fill(); ctx.strokeStyle = OL; ctx.lineWidth = 2; ctx.stroke();
+  ctx.fillStyle = '#4c5260'; for (let i = 0; i < 3; i++) { const t = (i + 1) / 4, x = L - 4 - 30 * t + 6, y = yB + 3 + (by - yB - 3) * t; ctx.fillRect(x - 3, y - 3, 7, 3); }
   ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
 }
 function trainBuild() {   // 地形只建一次（固定亂數種子，每次進來都一樣）
