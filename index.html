@@ -9759,7 +9759,7 @@ function vehTick(dt) {
   const hs = V.faceLeft ? -1 : 1, A = ride ? player.angle : ctg ? Math.atan2(ctg.y - V.y, ctg.x - V.x) : (hs > 0 ? 0 : Math.PI), tf = Math.cos(A) >= 0 ? 1 : -1;
   V.tsx = tf > V.tsx ? Math.min(tf, V.tsx + 2 * dt / T.flip) : Math.max(tf, V.tsx - 2 * dt / T.flip);
   // 砲管的角度＝瞄準線在畫面上的角度（地面方向的 y 要乘 squash），砲管才會跟瞄準線平行
-  const mC = ctg ? vehMuzzle(V) : null, Ag = ride ? vehAimA(V, vehMuzzle(V)) : ctg ? Math.atan2(ctg.y + (mC.h - vehBodyH(ctg) / 2) / VIEW3D.squash - mC.y, ctg.x - mC.x) : A;
+  const mC = ctg ? vehMuzzle(V) : null, Ag = ride ? vehClampA(V, vehAimA(V, vehMuzzle(V))) : ctg ? Math.atan2(ctg.y + (mC.h - vehBodyH(ctg) / 2) / VIEW3D.squash - mC.y, ctg.x - mC.x) : A;
   const face = V.tsx >= 0 ? 1 : -1, sa = Math.atan2(Math.sin(Ag) * VIEW3D.squash, Math.cos(Ag));
   const la = face > 0 ? sa : Math.atan2(Math.sin(sa), -Math.cos(sa));
   const want = ride || ctg ? clamp(la, -T.elev * DEG, (face !== hs ? T.depRear : T.dep) * DEG) : 0;   // 砲塔朝車尾：俯角變小，仰角不變
@@ -9833,6 +9833,13 @@ function vehArcOk(V, Ag, aimP) {
   if (Math.abs((V.el || 0) - la) > 5 * DEG) return { ok: false, why: '砲管轉動中' };   // 砲管還沒轉到位
   return { ok: true };
 }
+// 玩家的主砲：瞄準方向卡在射界邊緣（超出砲管能轉的範圍時，瞄準線／砲彈沿著射界邊緣，不再跟著準星）
+function vehClampA(V, Ag) {
+  const T = V.T, hs = V.faceLeft ? -1 : 1, face = V.tsx >= 0 ? 1 : -1, sq = VIEW3D.squash;
+  const sa = Math.atan2(Math.sin(Ag) * sq, Math.cos(Ag)), la = face > 0 ? sa : Math.atan2(Math.sin(sa), -Math.cos(sa));
+  const lc = clamp(la, -T.elev * DEG, (face !== hs ? T.depRear : T.dep) * DEG); if (lc === la) return Ag;
+  const sc = face > 0 ? lc : Math.PI - lc; return Math.atan2(Math.sin(sc) / sq, Math.cos(sc));
+}
 function vehAimA(V, m) {
   const sq = VIEW3D.squash; let p = null, z = 0; V._aimP = null;
   if (!isTouch() && mouse.seen) p = mouseWorld();
@@ -9848,8 +9855,8 @@ function vehAimA(V, m) {
 }
 function vehFire() {
   const V = player.ride, T = V.T; if (!V || V.reload > 0 || Math.abs(V.tsx) < 0.95) return false;
-  const am = T.ammo[V.ammo || 0], m = vehMuzzle(V), A = vehAimA(V, m), arc = vehArcOk(V, A, V._aimP);
-  if (!arc.ok) { if (!(V.arcMsgT > gameTime)) { floatText(V.x, V.y - 95, arc.why, '#ffb08a'); V.arcMsgT = gameTime + 0.8; } return false; }   // 射擊死角：不開火
+  const am = T.ammo[V.ammo || 0], m = vehMuzzle(V), A = vehClampA(V, vehAimA(V, m));
+  if (!vehArcOk(V, A).ok) return false;   // 砲管還沒轉到位：先不開火（瞄準方向已經卡在射界內）
   vehShots.push({ am, gx: m.x, gy: m.y, h: m.h, dx: Math.cos(A), dy: Math.sin(A), t: 0, d: 0, sabot: true, prox: !!am.fuze && V.fuze === 'prox' });
   V.reload = T.reload; V.recoil = 1; V.jolt = 1; shake = Math.max(shake, 7); abramsShotSfx(true, null, T.reload);   // 艾布蘭炮聲：艙內＋艙外合體＋裝彈機
   vehFx.push({ kind: 'flash', gx: m.x + Math.cos(A) * 10, gy: m.y + Math.sin(A) * 10, h: m.h, r: 16, life: 0.09, max: 0.09 });
@@ -9947,14 +9954,13 @@ function vehToggleFuze() {   // R：切換引信（只有破甲彈有）
 }
 function drawVehAim() {   // 主砲的瞄準線：砲口的高度沿著瞄準方向畫到射程；填裝中變淡、翻面時不畫
   const V = player && player.ride; if (!V || state !== 'play' || Math.abs(V.tsx) < 0.95) return;
-  const m = vehMuzzle(V), A = vehAimA(V, m), R = V.T.ammo[V.ammo || 0].range, arc = vehArcOk(V, A, V._aimP), dead = !arc.ok && arc.why === '射擊死角', ready = !(V.reload > 0) && arc.ok;   // 跟實際彈道同一個方向
-  ctx.save(); ctx.setLineDash(dead ? [3, 9] : [10, 7]); ctx.lineDashOffset = -gameTime * 40; ctx.lineWidth = ready ? 2 : 1.4; ctx.strokeStyle = ready ? 'rgba(255,110,70,0.8)' : dead ? 'rgba(255,90,90,0.4)' : 'rgba(210,210,210,0.35)';   // 射擊死角：稀疏的紅色點線
+  const m = vehMuzzle(V), A = vehClampA(V, vehAimA(V, m)), R = V.T.ammo[V.ammo || 0].range, ready = !(V.reload > 0) && vehArcOk(V, A).ok;   // 跟實際彈道同一個方向（卡在射界邊緣）
+  ctx.save(); ctx.setLineDash([10, 7]); ctx.lineDashOffset = -gameTime * 40; ctx.lineWidth = ready ? 2 : 1.4; ctx.strokeStyle = ready ? 'rgba(255,110,70,0.8)' : 'rgba(210,210,210,0.35)';
   ctx.beginPath();
   for (let i = 0; i <= 24; i++) { const t = R * i / 24, q = proj(m.x + Math.cos(A) * t, m.y + Math.sin(A) * t), y = q.y - m.h * q.k; i ? ctx.lineTo(q.x, y) : ctx.moveTo(q.x, y); }
   ctx.stroke(); ctx.setLineDash([]);
   const qe = proj(m.x + Math.cos(A) * R, m.y + Math.sin(A) * R), ye = qe.y - m.h * qe.k;   // 射程盡頭的小十字
   ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(qe.x - 6, ye); ctx.lineTo(qe.x + 6, ye); ctx.moveTo(qe.x, ye - 6); ctx.lineTo(qe.x, ye + 6); ctx.stroke();
-  if (dead) { const qm = proj(m.x, m.y); ctx.setLineDash([]); ctx.font = 'bold 12px sans-serif'; ctx.textAlign = 'center'; ctx.lineWidth = 3; ctx.strokeStyle = 'rgba(0,0,0,0.6)'; ctx.fillStyle = '#ff9a8a'; const ty = qm.y - m.h * qm.k - 14; ctx.strokeText('射擊死角', qm.x, ty); ctx.fillText('射擊死角', qm.x, ty); }
   ctx.restore();
 }
 function drawVehShots() {
@@ -10125,7 +10131,6 @@ function drawGuardHouse(o) {   // 警衛室：全景玻璃的值班亭（底座�
   ctx.fillStyle = '#e7c34a'; ctx.fillRect(L + 40, yU + 6, 16, 7); ctx.fillRect(L + 40, yU + 30, 16, 7); ctx.strokeStyle = OL; ctx.lineWidth = 1; ctx.strokeRect(L + 40, yU + 6, 16, 7); ctx.strokeRect(L + 40, yU + 30, 16, 7);   // 黃色標籤
   ctx.fillStyle = '#7d8590'; ctx.fillRect(L, yG - 9, W, 9); ctx.fillStyle = '#4a505b'; for (let i = 0; i < 4; i++) { const x = L + 62 + i * 8; ctx.beginPath(); ctx.moveTo(x, yG - 1); ctx.lineTo(x + 5, yG - 8); ctx.lineTo(x + 8, yG - 8); ctx.lineTo(x + 3, yG - 1); ctx.closePath(); ctx.fill(); }   // 斜紋飾條
   ctx.fillStyle = '#c45a6a'; ctx.fillRect(R - 40, yG - 7, 5, 5); ctx.fillRect(R - 18, yG - 7, 5, 5);
-  ctx.fillStyle = '#20302a'; ctx.fillRect(o.x - 40, yU - 20, 80, 16); ctx.strokeStyle = OL; ctx.lineWidth = 1.5; ctx.strokeRect(o.x - 40, yU - 20, 80, 16); ctx.font = '800 11px sans-serif'; ctx.textAlign = 'center'; ctx.fillStyle = '#7fe8ff'; ctx.fillText('警衛室 GUARD', o.x, yU - 8);   // 招牌
   // 玻璃窗：後面的內牆（通風口、黃標籤、亮燈）→ 半透明藍色玻璃 → 反光 → 窗框與兩根窗櫺
   const gx0 = L + 5, gx1 = R - 5, gy0 = yG + 3, gy1 = yB - 3;
   ctx.fillStyle = '#a7afba'; ctx.fillRect(gx0, gy0, gx1 - gx0, gy1 - gy0);
