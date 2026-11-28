@@ -3390,11 +3390,11 @@ const CYC_CMD = { ...CYCLOPS,
   tier: 3,                   // 三階敵人
   speed: 200,
   lockRange: 350, stopRange: 320,
-  evade: 0.3,                // 會躲子彈：迴避率 30%
+  dodgeBullets: 0.3,         // 會躲子彈：看到快打中自己的子彈，30% 機會往側邊閃開（迴避率維持獨眼巨人的 5%）
   command: { auraEvery: 5, auraR: 600, auraTime: 3, dmg: 0.1, evadeMul: 1.2,   // 鼓舞：每 5 秒，600 內友軍傷害 +10%、迴避率 ×1.2，3 秒
-    orderEvery: 5, orderR: 500, allies: 1, flank: 190, behind: 30, moveMax: 4,   // 指揮：500 內正規軍友軍 2 個以上時每 5 秒，兩個正規軍友軍以 1.2 倍速跑到目標兩側（距離 190）；不會指揮其他勢力，也不會指揮其他指揮獨眼巨人
-    orderEv: 0.3,            // 被指揮到的友軍：5 秒內迴避率至少 30%
-    needAllies: 2, loiterR: 480 } };   // 500 內友軍不到 2 個：不開火，在目標周圍 480 左右徘徊，等友軍到齊才指揮、開始攻擊
+    orderEvery: 5, orderR: 500, allies: 4, flank: 190, behind: 30, moveMax: 4,   // 指揮：500 內正規軍友軍 5 個以上時每 5 秒，兩個正規軍友軍以 1.2 倍速跑到目標兩側（距離 190）；不會指揮其他勢力，也不會指揮其他指揮獨眼巨人
+    orderDodge: 5,           // 被指揮到的友軍：5 秒內也會躲子彈（30% 機會往側邊閃）
+    needAllies: 5, loiterR: 480 } };   // 500 內友軍不到 5 個：不開火，在目標周圍 480 左右徘徊，等友軍到齊才指揮、開始攻擊
 // 獨眼巨人Lite：正規軍一階普通敵人，獨眼巨人的簡配版，服務安保型機器人，只配備步槍
 const CYC_LITE = { ...ENEMY,
   name: '獨眼巨人Lite',
@@ -6590,7 +6590,8 @@ function vsGrifTank(g, dt, tgt0, bd0, foes) {
     g.vreload = T.reload; g.recoil = 1; g.jolt = 1; g.lastShot = gameTime;
     vehFx.push({ kind: 'flash', gx: m.x + dx2 * 10, gy: m.y + dy2 * 10, h: m.h, r: 16, life: 0.09, max: 0.09 });
     for (let i = 0; i < 10; i++) { const sp = rand(60, 360), a = Ag + rand(-0.35, 0.35); vehFx.push({ kind: 'smoke', gx: m.x, gy: m.y, h: m.h + rand(-2, 2), vx: Math.cos(a) * sp, vy: Math.sin(a) * sp, vh: rand(4, 30), r: rand(5, 9), gr: rand(18, 34), life: rand(1.0, 1.6), max: 1.6, drag: 3.2 }); }
-    if (Math.hypot(g.x - player.x, g.y - player.y) < 1000) { shake = Math.max(shake, 4); sfx.boom(); }
+    if (Math.hypot(g.x - player.x, g.y - player.y) < 1000) shake = Math.max(shake, 4);
+    abramsShotSfx(false, g, T.reload);   // 艾布蘭炮聲（車外聽到的）＋裝彈機，依距離變小聲
   }
   g.special = { t: g.tsx + 1, flat: false, fa: g.el };   // 連線的客人端：砲塔寬度、砲管角度
 }
@@ -8383,7 +8384,7 @@ let AC = null;
 function audio() {
   if (!AC) { try { AC = new (window.AudioContext || window.webkitAudioContext)(); } catch (e) { AC = null; } }
   if (AC && AC.state === 'suspended') AC.resume().catch(() => {});
-  if (AC) loadShotSamples(AC);
+  if (AC) { loadShotSamples(AC); loadVehSfx(AC); }
   return AC;
 }
 // 所有音效都接到這個音量節點（音效音量滑桿）
@@ -8430,6 +8431,60 @@ function playShot(cls, vol = 1, key = cls, gap) {
   src.buffer = b; src.playbackRate.value = 0.96 + Math.random() * 0.08; g.gain.value = (SHOT_VOL[cls] ?? 0.5) * vol;
   src.connect(g); g.connect(sfxOut(a)); src.onended = () => { shotVoices--; }; src.start();
   return true;
+}
+/* 艾布蘭音效（取自實車錄音，sfx_abrams/）：
+   炮聲：車上＝艙內＋艙外合體、車外＝艙外（依距離變小聲）；之後接裝彈機的聲音，在填裝結束時剛好放完
+   引擎：怠速／行進兩段無縫循環，依油門（V.thr）交叉淡化，行進越快音高稍微拉高；上車淡入、下車／暫停淡出
+   引擎檔存「循環兩遍」：mp3 前後的編碼補白會讓開頭位移，所以用中間那一段當循環區 */
+const VEH_SFX = {"abr_shot_in":"assets/sfx_abr_shot_in.mp3","abr_shot_out":"assets/sfx_abr_shot_out.mp3","abr_load_in":"assets/sfx_abr_load_in.mp3","abr_load_out":"assets/sfx_abr_load_out.mp3","abr_eng_idle":"assets/sfx_abr_eng_idle.mp3","abr_eng_drive":"assets/sfx_abr_eng_drive.mp3"};
+const VEH_LOOP = { abr_eng_idle: 2.3, abr_eng_drive: 4.4 };   // 每段循環的實際長度（秒）
+const vehBuf = {};
+function loadVehSfx(a) {
+  if (loadVehSfx.done || !a) return; loadVehSfx.done = true;
+  for (const [k, u] of Object.entries(VEH_SFX)) fetch(u).then((r) => r.arrayBuffer()).then((ab) => new Promise((ok, no) => a.decodeAudioData(ab, ok, no))).then((b) => { vehBuf[k] = b; }).catch(() => {});
+}
+function playVeh(k, vol, delay = 0) {
+  const a = muted ? null : AC, b = vehBuf[k]; if (!a || !b || vol <= 0.01) return null;
+  const src = a.createBufferSource(), g = a.createGain(), t0 = a.currentTime + delay;
+  src.buffer = b; src.playbackRate.value = 0.97 + Math.random() * 0.06;
+  g.gain.setValueAtTime(0, t0); g.gain.linearRampToValueAtTime(vol, t0 + 0.006);   // 很短的淡入，避免爆音
+  src.connect(g); g.connect(sfxOut(a)); src.start(t0);
+  return src;
+}
+// 艾布蘭開炮：inside＝玩家在這台車上；src＝開炮位置（車外用來算距離）；reload＝填裝秒數（裝彈機聲在填裝結束時放完）
+function abramsShotSfx(inside, src, reload = 5) {
+  if (inside) {
+    if (!playVeh('abr_shot_in', 1)) { sfx.boom(); return; }
+    const L = vehBuf.abr_load_in ? vehBuf.abr_load_in.duration : 4.6; playVeh('abr_load_in', 0.55, Math.max(0.35, reload - L));
+    return;
+  }
+  const d = src ? Math.hypot(src.x - player.x, src.y - player.y) : 0, v = clamp(1 - d / 1500, 0, 1) ** 1.3;
+  if (v <= 0.02) return;
+  if (!playVeh('abr_shot_out', 0.95 * v)) { sfx.boom(); return; }
+  if (d < 700) { const L = vehBuf.abr_load_out ? vehBuf.abr_load_out.duration : 4.2; playVeh('abr_load_out', 0.4 * v, Math.max(0.35, reload - L)); }
+}
+// 引擎聲：玩家坐在艾布蘭上才播
+let vehEng = null;
+function vehEngineTick() {
+  const a = AC, V = player && player.ride;
+  const on = !!(a && !muted && state === 'play' && V && V.kind === 'abrams' && vehBuf.abr_eng_idle && vehBuf.abr_eng_drive);
+  if (on && !vehEng) {
+    const out = a.createGain(); out.gain.setValueAtTime(0, a.currentTime); out.gain.linearRampToValueAtTime(0.42, a.currentTime + 0.8); out.connect(sfxOut(a));   // 上車：0.8 秒淡入
+    const mk = (k) => { const b = vehBuf[k], L = VEH_LOOP[k], s0 = (b.duration - L) / 2, src = a.createBufferSource(), g = a.createGain();
+      src.buffer = b; src.loop = true; src.loopStart = s0; src.loopEnd = s0 + L; g.gain.value = 0; src.connect(g); g.connect(out); src.start(a.currentTime, s0 + Math.random() * L * 0.9); return { src, g }; };
+    vehEng = { out, idle: mk('abr_eng_idle'), drive: mk('abr_eng_drive') };
+  }
+  if (!on && vehEng) {   // 下車、暫停、結束：0.5 秒淡出再停掉
+    const E = vehEng, t = a ? a.currentTime : 0; vehEng = null;
+    try { E.out.gain.cancelScheduledValues(t); E.out.gain.setValueAtTime(E.out.gain.value, t); E.out.gain.linearRampToValueAtTime(0, t + 0.5); E.idle.src.stop(t + 0.55); E.drive.src.stop(t + 0.55); } catch (e) { /* 已經停了 */ }
+    return;
+  }
+  if (vehEng) {
+    const m = clamp(V.thr || 0, 0, 1), t = a.currentTime;   // 等功率交叉淡化：停著＝怠速，油門越大越偏行進
+    vehEng.idle.g.gain.setTargetAtTime(Math.cos(m * Math.PI / 2), t, 0.12);
+    vehEng.drive.g.gain.setTargetAtTime(Math.sin(m * Math.PI / 2) * 0.85, t, 0.12);
+    vehEng.drive.src.playbackRate.setTargetAtTime(0.9 + 0.16 * m, t, 0.2);
+  }
 }
 const sfx = {
   shot(kind, cls) {
@@ -8871,7 +8926,7 @@ const ENEMY_CODEX = () => [
     desc: '獨眼巨人的簡配版，屬於服務安保型的機器人，只配備步槍。在 250 以內停下來射擊，3 發打完要換彈 3 秒。',
     where: '出現：夜戰（正規軍，第一階段）' },
   { id: 'cycc', rank: 'normal', T: CYC_CMD, name: '指揮獨眼巨人', weapon: '步槍', img: ASSETS.ui.codex_cycc,
-    desc: '指揮特化的獨眼巨人，頭盔塗著深綠色迷彩、後腦勺有一根天線。每 5 秒鼓舞 600 範圍內的友軍：傷害 +10%、迴避率 ×1.2，持續 3 秒。會躲子彈（迴避率 30%）。身邊 500 範圍內的友軍不到 2 個時不會單獨進攻，只會在你附近徘徊、不開火；友軍到齊（2 個以上）才開始攻擊，並每 5 秒指揮兩個正規軍友軍停下手邊的動作，以 1.2 倍速跑到你的左右兩側，圍成凹字型的包圍網；被指揮到的友軍 5 秒內迴避率至少 30%（不會指揮其他勢力，也不會指揮其他指揮獨眼巨人）。',
+    desc: '指揮特化的獨眼巨人，頭盔塗著深綠色迷彩、後腦勺有一根天線。每 5 秒鼓舞 600 範圍內的友軍：傷害 +10%、迴避率 ×1.2，持續 3 秒。會躲子彈：看到快打中自己的子彈，有 30% 機會往側邊閃開。身邊 500 範圍內的友軍不到 5 個時不會單獨進攻，只會在你附近徘徊、不開火；友軍到齊（5 個以上）才開始攻擊，並每 5 秒指揮兩個正規軍友軍停下手邊的動作，以 1.2 倍速跑到你的左右兩側，圍成凹字型的包圍網；被指揮到的友軍 5 秒內也會像他一樣躲子彈（不會指揮其他勢力，也不會指揮其他指揮獨眼巨人）。',
     where: '出現：夜戰（正規軍，第三階段）' },
   { id: 'cyclops', rank: 'normal', T: CYCLOPS, name: '獨眼巨人', weapon: '步槍', img: ASSETS.ui.codex_cyc,
     desc: '正規軍的制式步兵機器人，有多種延伸型。在稍遠的距離停下來連續射擊，打完一個彈匣才換彈。',
@@ -9667,7 +9722,7 @@ function vehFire() {
   const V = player.ride, T = V.T; if (!V || V.reload > 0 || Math.abs(V.tsx) < 0.95) return false;
   const am = T.ammo[V.ammo || 0], m = vehMuzzle(V), A = vehAimA(V, m);
   vehShots.push({ am, gx: m.x, gy: m.y, h: m.h, dx: Math.cos(A), dy: Math.sin(A), t: 0, d: 0, sabot: true, prox: !!am.fuze && V.fuze === 'prox' });
-  V.reload = T.reload; V.recoil = 1; V.jolt = 1; shake = Math.max(shake, 7); sfx.boom();
+  V.reload = T.reload; V.recoil = 1; V.jolt = 1; shake = Math.max(shake, 7); abramsShotSfx(true, null, T.reload);   // 艾布蘭炮聲：艙內＋艙外合體＋裝彈機
   vehFx.push({ kind: 'flash', gx: m.x + Math.cos(A) * 10, gy: m.y + Math.sin(A) * 10, h: m.h, r: 16, life: 0.09, max: 0.09 });
   for (let i = 0; i < 14; i++) { const sp = rand(60, 420) * (i < 9 ? 1 : 0.35), a = A + rand(-0.35, 0.35) + (i >= 9 ? rand(-1.6, 1.6) : 0);
     vehFx.push({ kind: 'smoke', gx: m.x, gy: m.y, h: m.h + rand(-2, 2), vx: Math.cos(a) * sp, vy: Math.sin(a) * sp, vh: rand(4, 30), r: rand(5, 9), gr: rand(18, 34), life: rand(1.0, 1.8), max: 1.8, drag: 3.2 }); }
@@ -13625,7 +13680,7 @@ function preyOnAdd(u, sk) {
   x.n = Math.min(sk.prey.max, x.n + 1); x.t = x.max = sk.prey.time; x.evade = -0.01 * x.n; x.armorFlat = -x.n; x.mark = '獵' + x.n; x.name = '獵物標記 ' + x.n + ' 層：迴避 −' + x.n + '%、護甲 −' + x.n + '、每次受到的傷害 +' + x.n;
   if (u === player) renderEffects(true);
 }
-const enemyEvade0 = (e) => Math.max(0, nightEv() - nightAcc() + (e.boss ? e.evadeBoost ?? e.B.evade : e.cmdEvU > gameTime ? Math.max(e.T.evade, CYC_CMD.command.orderEv) : e.T.evade) * (e.cmdT > gameTime ? 1.2 : 1) - (!e.fighter && e.jamUntil > gameTime ? 0.3 : 0) - (e.debuffT > 0 ? e.evadeDown || 0 : 0) - (gameTime < (e.shredUntil || 0) ? e.shredN * e.shredPer : 0) - (gameTime < (e.m327U || 0) ? e.m327N * e.m327Per : 0) + (e.fighter ? effSum(e, 'evade') : 0));
+const enemyEvade0 = (e) => Math.max(0, nightEv() - nightAcc() + (e.boss ? e.evadeBoost ?? e.B.evade : e.T.evade) * (e.cmdT > gameTime ? 1.2 : 1) - (!e.fighter && e.jamUntil > gameTime ? 0.3 : 0) - (e.debuffT > 0 ? e.evadeDown || 0 : 0) - (gameTime < (e.shredUntil || 0) ? e.shredN * e.shredPer : 0) - (gameTime < (e.m327U || 0) ? e.m327N * e.m327Per : 0) + (e.fighter ? effSum(e, 'evade') : 0));
 const enemyEvade = (e) => Math.max(0, enemyEvade0(e) - 0.01 * preyN(e));   // 獵物標記：每層迴避 −1%
 /* 暴擊：暴擊率＝自身暴擊率 ± 自身給予的暴擊增益 ± 他人給予的暴擊增益 ＋ 易傷，暴擊時傷害 ×2
    例：亨利（10%）打易傷 20% 的敵人，身上有蜂鳥給的暴擊 +25% → 10 + 25 + 20 = 55% */
@@ -16651,12 +16706,35 @@ function cmdTick(e, dt) {
       // 兩側：以「指揮者→目標」為軸，一個去左邊、一個去右邊（靠近哪邊就去哪邊）
       const ax = Math.atan2(player.y - e.y, player.x - e.x), nx = -Math.sin(ax), ny = Math.cos(ax);
       const sides = two.length === 2 && ((two[0].x - player.x) * nx + (two[0].y - player.y) * ny) < ((two[1].x - player.x) * nx + (two[1].y - player.y) * ny) ? [-1, 1] : [1, -1];
-      two.forEach((o, k) => { o.cmdEvU = gameTime + C.orderEvery; o.cmdMove = { side: two.length === 2 ? sides[k] : (((o.x - player.x) * nx + (o.y - player.y) * ny) < 0 ? -1 : 1), t: 0, by: e }; o.swingT = null; o.reloadT = o.reloadT || 0; });
+      two.forEach((o, k) => { o.cmdDodgeU = gameTime + C.orderDodge; o.cmdMove = { side: two.length === 2 ? sides[k] : (((o.x - player.x) * nx + (o.y - player.y) * ny) < 0 ? -1 : 1), t: 0, by: e }; o.swingT = null; o.reloadT = o.reloadT || 0; });
       if (two.length) floatText(e.x, e.y - 80, '包圍！', '#6f9bff');
     } else e.cmdOrderT = 1;   // 條件不成立：每秒再檢查一次
   }
 }
-// 指揮獨眼巨人身邊友軍不到 2 個：不開火，在目標周圍繞圈徘徊（偶爾換方向），保持在開火距離外
+// 躲子彈（指揮獨眼巨人本人、被他指揮到的友軍 5 秒內）：看到 0.5 秒內會打中自己的我方子彈，每 0.7 秒判斷一次，30% 往側邊閃開
+// 回傳 true＝這一幀正在側移（不做其他動作）
+function cmdDodge(e, dt) {
+  if (e.stepT > 0) {
+    e.stepT -= dt; const sp = Math.max(e.T.speed || 100, 150) * 1.6, st = sp * dt;
+    e.moving = true; e.phase += dt; moveWithCover(e, Math.cos(e.stepDir) * st, Math.sin(e.stepDir) * st);
+    if (e.reloadT > 0) { e.reloadT -= dt; if (e.reloadT <= 0) e.ammo = e.T.magazine; }
+    return true;
+  }
+  e.dgRollT = (e.dgRollT || 0) - dt; if (e.dgRollT > 0) return false;
+  let th = null;
+  for (const b of bullets) {
+    if (b.team === 'e') continue; const px = e.x - b.x, py = e.y - b.y; if (px * px + py * py > 380 * 380) continue;
+    const vv = b.vx * b.vx + b.vy * b.vy; if (!vv) continue; const t = (px * b.vx + py * b.vy) / vv; if (t <= 0 || t > 0.5) continue;
+    const mx = px - b.vx * t, my = py - b.vy * t; if (Math.hypot(mx, my) < e.r + (b.r || 3) + 6 && (!th || t < th.t)) th = { b, t, mx, my };
+  }
+  if (!th) return false;
+  e.dgRollT = 0.7;
+  if (Math.random() >= CYC_CMD.dodgeBullets) return false;
+  const b = th.b, side = (th.mx * -b.vy + th.my * b.vx) >= 0 ? 1 : -1;
+  e.stepDir = Math.atan2(b.vy, b.vx) + side * Math.PI / 2; e.stepT = 0.22; e.dodgeN = (e.dodgeN || 0) + 1;
+  return true;
+}
+// 指揮獨眼巨人身邊友軍不到 5 個：不開火，在目標周圍繞圈徘徊（偶爾換方向），保持在開火距離外
 function cmdLoiter(e, dt) {
   const C = e.T.command, dx = e.x - player.x, dy = e.y - player.y;
   if (e.loiA == null) { e.loiA = Math.atan2(dy, dx); e.loiDir = Math.random() < 0.5 ? -1 : 1; e.loiFlip = rand(2.5, 5); }
@@ -17903,6 +17981,7 @@ function update(dt) {
         continue;
       }
     }
+    if ((e.T?.dodgeBullets || e.cmdDodgeU > gameTime || e.stepT > 0) && !e.boss && cmdDodge(e, dt)) { if (e.T?.command) cmdTick(e, dt); continue; }   // 躲子彈：側移中
     if (e.T?.command) { cmdTick(e, dt); if (e.cmdAlone) { cmdLoiter(e, dt); continue; } else e.loiA = null; }   // 指揮獨眼巨人：鼓舞、指揮包圍；身邊友軍不到 2 個只徘徊不攻擊
     if (e.cmdMove && cmdMoveTick(e, dt)) continue;   // 被指揮：先跑到目標身側
     if (e.T?.deployer && !e.dropped && imgs['enemy_' + e.T.sprite] && meyedTick(e, dt, toward)) continue;   // 陣地獨眼巨人：先去卸下捍衛者
@@ -19843,7 +19922,7 @@ function frame(t) {
   watchPerf(t - last); syncGodBtn(); syncSkipBtn();
   const dt = clamp((t - last) / 1000, 0, 0.05); last = t;
   try {
-    bgmTick(dt);
+    bgmTick(dt); vehEngineTick();
     if (opening) { openTick(dt); if (opening && opening.world) draw(t); if (opening) drawOpening(); }   // 塌縮之谷第一階段的開場動畫
     else if (cine) { cineTick(dt); draw(t); if (cine) drawCine(); }   // 劇情動畫：遊戲暫停更新，只畫畫面
     else { if (state === 'play') update(dt); draw(t); }
