@@ -5578,7 +5578,8 @@ function vsGroupIntent(L, grp, dirX) {
   const I = L.grpIntent;
   if (!I || gameTime >= I.until) {
     const cx = grp.cx, cy = grp.cy, near = (list, R) => { let it = null, bd = R; for (const p of list) { const d = Math.hypot(p.x - cx, p.y - cy); if (d < bd) { bd = d; it = p; } } return it; };
-    const part = near(parts, 900), med = near(medkits, 1500), clonesAll = grp.members.reduce((a, u) => a + vsClonesOf(u), 0);
+    const PL = vs.night ? null : vsTeamPlan(L.vsTeam), push = PL && PL.mode === 'push';
+    const part = near(parts, push ? 300 : 900), med = near(medkits, 1500), clonesAll = grp.members.reduce((a, u) => a + vsClonesOf(u), 0);
     const v = { attack: 0, collect: 0, retreat: 0 };
     for (const u of grp.members) {
       const hp = u.hp / (u.maxHp || 1);
@@ -5593,6 +5594,7 @@ function vsGroupIntent(L, grp, dirX) {
   const M = L.grpIntent;
   if (M.mode === 'collect' && M.part && parts.includes(M.part)) return { x: M.part.x, y: M.part.y, item: true };
   if (M.mode === 'retreat') return M.med && medkits.includes(M.med) ? { x: M.med.x, y: M.med.y, item: true } : { x: L.x - dirX * 400, y: L.y };
+  { const PL = vs.night ? null : vsTeamPlan(L.vsTeam); if (PL && PL.mode === 'push') return vsPushGoal(L, PL, dirX); }   // 隊伍進攻中：跟著偵察兵的回報走
   return vsHuntGoal(L, dirX);   // 進攻：主動往敵人（或最後看到敵人的地方）推進
 }
 function vsGroupGoal(f, grp, tgt, goal, role, range, dirX, dpsF) {
@@ -5626,6 +5628,63 @@ function hbEliteWant(f, sk, friends) {
   const cur = Object.keys(HB_BIRDS).find((k) => HB_BIRDS[k] === f.birds);
   return cur && lacking(cur) ? f.birds : 0;
 }
+/* 隊伍戰略（雲圖對戰的 AI，每 0.5 秒更新一次）：
+   農：預設。收集零件、守家、看到敵人才打
+   進攻（push）：隊伍夠強（平均每人擴編 ≥ 2 次）就重新組織 —— 不再為了遠處的零件繞路（只撿順路 250 內的），
+     有情報就整群往敵人位置推進；沒情報就派偵察兵（機動最高的手槍／衝鋒槍 AI）脫隊往前搜索，
+     偵察兵一看到敵人就回報（記下位置）並馬上撤回群體，不戀戰；群體跟著回報的位置移動，到了沒看到人就清掉情報、偵察兵再出去找
+   平均擴編掉到 1.2 以下就退回農的狀態 */
+function vsTeamUnits(team) {
+  const L = (vs.fighters || []).filter((u) => u.vsTeam === team && !u.guard && !u.isClone && vsAlive(u));
+  if (vs.myTeam === team && player && !vsDead()) L.push(player);
+  return L;
+}
+function vsTeamPlan(team) {
+  const P = (vs.plan || (vs.plan = {}))[team] || (vs.plan[team] = { mode: 'farm', next: 0, scout: null, intel: null, cx: 0, cy: 0 });
+  if (gameTime < P.next) return P; P.next = gameTime + 0.5;
+  const mem = vsTeamUnits(team), avg = mem.length ? mem.reduce((a, u) => a + vsClonesOf(u), 0) / mem.length : 0;
+  if (P.mode === 'farm' && avg >= 2) { P.mode = 'push'; P.intel = null; const u = mem[0]; if (u) floatText(u.x, u.y - 80, '全隊整編：轉為進攻', '#ffe08a'); }
+  else if (P.mode === 'push' && avg < 1.2) { P.mode = 'farm'; P.scout = null; P.intel = null; }
+  if (P.mode !== 'push') return P;
+  if (!(P.scout && mem.includes(P.scout))) {   // 偵察兵：機動最高的手槍／衝鋒槍（AI 才當，玩家不算）
+    const c = mem.filter((u) => u !== player && !u.remote && ['HG', 'SMG'].includes(vsUnitDef(u).weapon.class)).sort((a, b) => vsUnitDef(b).speed - vsUnitDef(a).speed);
+    P.scout = c[0] || null; if (P.scout) { P.scout.scoutState = 'search'; P.scout.scoutPt = null; floatText(P.scout.x, P.scout.y - 70, '偵察', '#9fe8ff'); }
+  }
+  const g = mem.filter((u) => u !== P.scout), n = g.length || 1;
+  P.cx = g.reduce((a, u) => a + u.x, 0) / n; P.cy = g.reduce((a, u) => a + u.y, 0) / n;
+  if (P.intel && gameTime - P.intel.t > 30) P.intel = null;   // 回報的位置 30 秒後過期
+  const seen = vs.intel && vs.intel[team];
+  if (P.intel && g.length && Math.hypot(P.cx - P.intel.x, P.cy - P.intel.y) < 300 && !(seen && gameTime - seen.t < 3)) P.intel = null;   // 到了卻沒看到人：清掉，偵察兵再出去
+  return P;
+}
+// 進攻狀態下（非偵察兵）沒有目標時要去的地方：回報的敵人位置 → 跟在偵察兵後面 → 自己往前搜索
+function vsPushGoal(f, P, dirX) {
+  const seen = vs.intel && vs.intel[f.vsTeam];
+  if (seen && gameTime - seen.t < 12) return { x: seen.x, y: seen.y };
+  if (P.intel) return { x: P.intel.x, y: P.intel.y };
+  if (P.scout && vsAlive(P.scout)) { const sd = Math.sin(f.seed || 0); return { x: P.scout.x - dirX * 450, y: P.scout.y + sd * 110 }; }
+  return vsHuntGoal(f, dirX, true);
+}
+// 偵察兵：搜索 → 看到敵人就回報並撤回群體（不戀戰）→ 在群體裡等到情報用完再出去
+function vsScoutGoal(f, P, vis, dirX, med) {
+  const foe = vis.find((u) => !u.guard);
+  if (foe) {
+    P.intel = { x: foe.x, y: foe.y, t: gameTime };
+    if (f.scoutState !== 'return') { f.scoutState = 'return'; floatText(f.x, f.y - 70, '發現敵人！回報', '#9fe8ff'); }
+  }
+  if (med && f.hp < f.maxHp * 0.35) return { x: med.x, y: med.y, item: true };
+  const back = { x: P.cx, y: P.cy };
+  if (f.scoutState === 'return') { if (Math.hypot(f.x - back.x, f.y - back.y) < 260) f.scoutState = 'wait'; return back; }
+  if (f.scoutState === 'wait') { if (!P.intel) { f.scoutState = 'search'; f.scoutPt = null; } else return { x: back.x + dirX * 80, y: back.y + Math.sin(f.seed || 0) * 90 }; }
+  // 搜索：往群體前方 700～1100 的地方探，到了（或 8 秒沒到）就換下一個點
+  if (!f.scoutPt || Math.hypot(f.scoutPt.x - f.x, f.scoutPt.y - f.y) < 150 || gameTime > f.scoutPt.until) {
+    for (let k = 0; k < 10; k++) {
+      const x = clamp(P.cx + dirX * rand(700, 1100), -MAPGEN.hw * 0.92, MAPGEN.hw * 0.92), y = rand(-0.8, 0.8) * MAPGEN.hh;
+      if (!mapSolidAt(x, y, 40)) { f.scoutPt = { x, y, until: gameTime + 8 }; break; }
+    }
+  }
+  return f.scoutPt ? { x: f.scoutPt.x, y: f.scoutPt.y } : vsHuntGoal(f, dirX, true);
+}
 function vsThink(f) {
   const D = f.def, elite = f.level === 'elite', E = elite ? (VS_ELITE[D.id] || VS_ELITE_DEFAULT) : null, range = vsRange(D);
   const foes = vsFoesOf(f);
@@ -5638,13 +5697,14 @@ function vsThink(f) {
   f.target = tgt;
   if (vis.some((u) => !u.guard)) { const u = vis.find((u) => !u.guard); (vs.intel || (vs.intel = {}))[f.vsTeam] = { x: u.x, y: u.y, t: gameTime }; }   // 隊伍情報：最後看到敵人的位置
   if (f.parts >= expandCost(f.def) && f.clones.length < CLONE.maxCount) vsExpand(f);
+  const plan = vs.night ? null : vsTeamPlan(f.vsTeam), push = !!(plan && plan.mode === 'push');   // 隊伍戰略：進攻／農
   // 角色定位
   const friends = vsFriendsOf(f).filter((u) => u !== f && !u.isClone && !u.clone && !u.guard && Math.hypot(u.x - f.x, u.y - f.y) < 700);
   const roleOf = vsRoleOf;
   // 精銳：知道自己要跟的「群體」，前排／輸出／輔助都以群體成員來判斷
   const grp = elite && !vs.night ? vsEliteGroup(f) : null; f.group = grp;
   const pool = grp ? grp.others : friends;
-  const fronts = pool.filter((u) => roleOf(u) === 'front'), dpsF = pool.filter((u) => roleOf(u) === 'dps');
+  const fronts = pool.filter((u) => roleOf(u) === 'front' && !(push && plan.scout === u)), dpsF = pool.filter((u) => roleOf(u) === 'dps');   // 偵察兵脫隊中：不當別人跟隨的前排
   let role = ROLE_OF[D.weapon.class];
   if (role === 'front' && !pool.length) role = 'dps';
   if (role === 'support' && !fronts.length) role = 'front';
@@ -5662,10 +5722,11 @@ function vsThink(f) {
   if (E && E.front) role = 'front';
   if (E && E.carry) role = 'dps';   // 主力輸出
   if (E && E.collectCalm && !fighting.length && !tgt && f.clones.length < E.collectCalm) role = 'collect';
+  if (push && role === 'collect') role = 'dps';   // 隊伍進攻中：收集型精銳也一起上
   f.role = role;
   const dirX = f.vsTeam === 'blue' ? 1 : -1;
   const nearestItem = (list, maxD) => { let it = null, bd = maxD; for (const p of list) { const d = Math.hypot(p.x - f.x, p.y - f.y); if (d < bd) { bd = d; it = p; } } return it; };
-  const part = nearestItem(parts, role === 'collect' ? 3000 : 900), hurt = [f, ...f.clones].reduce((a, u) => a + u.maxHp - u.hp, 0), med = (f.hp < f.maxHp * 0.6 || hurt >= 80) ? nearestItem(medkits, 1200) : null;
+  const part = nearestItem(parts, push ? 250 : role === 'collect' ? 3000 : 900), hurt = [f, ...f.clones].reduce((a, u) => a + u.maxHp - u.hp, 0), med = (f.hp < f.maxHp * 0.6 || hurt >= 80) ? nearestItem(medkits, 1200) : null;
   let goal = null;
   if (role === 'collect' && part && !(tgt && Math.hypot(tgt.x - f.x, tgt.y - f.y) < range * 0.5)) goal = { x: part.x, y: part.y, item: true };
   else if (!tgt) {
@@ -5680,7 +5741,7 @@ function vsThink(f) {
     else if (med) goal = { x: med.x, y: med.y, item: true };
     else if (part) goal = { x: part.x, y: part.y, item: true };
     else if (role !== 'front' && fronts.length) { const a = fronts[0]; goal = { x: a.x - dirX * 160, y: a.y + Math.sin(f.seed) * 120 }; }   // 跟在前排後面
-    else goal = vsHuntGoal(f, dirX);   // 往敵方推進（有情報就往敵人最後出現的地方）
+    else goal = push ? vsPushGoal(f, plan, dirX) : vsHuntGoal(f, dirX);   // 往敵方推進（有情報就往敵人最後出現的地方；進攻中跟著偵察兵的回報）
     // 防掛機：超過 5 秒沒有任何動作 → 6 秒內主動出擊（情報 → 最遠的隊友 → 往敵方搜索）
     if ((f.idleT || 0) > 5) { f.huntUntil = gameTime + 6; f.idleT = 0; f.huntPt = null; }
     if (gameTime < (f.huntUntil || 0)) goal = vsHuntGoal(f, dirX, true);
@@ -5737,6 +5798,7 @@ function vsThink(f) {
     const maxDy = Math.abs(gx - tgt.x) * Math.tan(lim), gy = tgt.y + clamp(f.y - tgt.y, -maxDy, maxDy);
     if (!goal || inDeadZone(D, goal.x, goal.y, tgt.x, tgt.y, 3) || inDeadZone(D, f.x, f.y, tgt.x, tgt.y, 3)) goal = { x: gx, y: gy, dz: true };
   }
+  if (push && plan.scout === f) goal = vsScoutGoal(f, plan, vis, dirX, med);   // 偵察兵：搜索／回報／撤回（壓過其他走位）
   if (gameTime < (f.detourUntil || 0)) goal = f.detour;   // 卡住時的繞路點
   if (vs.night) goal = nightLeash(f, tgt, goal);   // 夜戰隊友：跟著玩家
   if (goal) { goal.x = clamp(goal.x, -MAPGEN.hw + 60, MAPGEN.hw - 60); goal.y = clamp(goal.y, -MAPGEN.hh + 60, MAPGEN.hh - 60); }
