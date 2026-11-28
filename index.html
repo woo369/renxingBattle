@@ -6566,7 +6566,7 @@ function vsGrifTank(g, dt, tgt0, bd0, foes) {
   let dest;
   if (tgt) dest = vsLinePt(PL, along(tgt), (PL.f0 + PL.f1) / 2);
   else { g.wanderT = (g.wanderT || 0) - dt; if (!g.wander || (Math.hypot(g.wander.x - g.x, g.wander.y - g.y) < 40 && g.wanderT <= 0)) { g.wander = vsLinePt(PL, rand(PL.a0, PL.a1), (PL.f0 + PL.f1) / 2); g.wanderT = rand(1.5, 3.5); } dest = g.wander; }
-  const dx = dest.x - g.x, dy = dest.y - g.y, dd = Math.hypot(dx, dy), stop = dd < 40 || (inR && bd < am.range * 0.8);
+  const dx = dest.x - g.x, dy = dest.y - g.y, dd = Math.hypot(dx, dy), stop = dd < 40 || (inR && bd < am.range * 0.8 && !(g.arcDeadT > 1.2));   // 目標一直在射擊死角：不停車，繼續開去換角度
   const esc = vs.guards.filter((o) => o.gid === g.gid && o !== g && !o.dead), vmax = Math.min(T.speed, ...esc.map((o) => o.npc.speed));
   g.thr = stop ? Math.max(0, g.thr - dt / T.brake) : Math.min(1, g.thr + dt / T.accel);
   if (g.thr > 0.002 && dd > 1) {
@@ -6584,7 +6584,9 @@ function vsGrifTank(g, dt, tgt0, bd0, foes) {
   const sa = Math.atan2(Math.sin(Ag) * VIEW3D.squash, Math.cos(Ag)), la = face > 0 ? sa : Math.atan2(Math.sin(sa), -Math.cos(sa));
   g.el += ((tgt ? clamp(la, -T.elev * DEG, (face !== hs ? T.depRear : T.dep) * DEG) : 0) - g.el) * (1 - Math.exp(-dt * 10));
   // 開火：M830GF（碰撞引信）。砲彈走守衛的平射榴彈：在砲口高度直線飛，撞到敵人或飛完射程就爆炸（範圍 100、850 傷害）
-  if (inR && g.vreload <= 0 && Math.abs(g.tsx) >= 0.95 && Math.cos(Ag - A) > 0.8) {
+  const arcG = tgt ? vehArcOk(Object.assign(Object.create(g), { T, el: g.el }), Ag, tgt) : { ok: true };
+  g.arcDeadT = inR && !arcG.ok && arcG.why === '射擊死角' ? (g.arcDeadT || 0) + dt : 0;
+  if (inR && g.vreload <= 0 && Math.abs(g.tsx) >= 0.95 && Math.cos(Ag - A) > 0.8 && arcG.ok) {   // 射擊死角：砲管轉不到的方向不開火   // 射擊死角：砲管轉不到的方向不開火
     const atk = g.atkDownT > 0 ? 1 - (g.atkDownPct || 0.5) : 1, dx2 = Math.cos(Ag), dy2 = Math.sin(Ag);
     vsShells.push({ g, flat: true, heat: true, sx: m.x, sy: m.y, x: m.x, y: m.y, dx: dx2, dy: dy2, v: am.speed, range: am.range, h: m.h, t: 0, r: am.blast, dmg: am.dmg * atk });
     g.vreload = T.reload; g.recoil = 1; g.jolt = 1; g.lastShot = gameTime;
@@ -8463,11 +8465,21 @@ function abramsShotSfx(inside, src, reload = 5) {
   if (!playVeh('abr_shot_out', 0.95 * v)) { sfx.boom(); return; }
   if (d < 700) { const L = vehBuf.abr_load_out ? vehBuf.abr_load_out.duration : 4.2; playVeh('abr_load_out', 0.4 * v, Math.max(0.35, reload - L)); }
 }
-// 引擎聲：玩家坐在艾布蘭上才播
+// 引擎聲：有人形在駕駛的艾布蘭才播（玩家、坦克駕駛員、雲圖對戰格里芬的主戰坦克）；只發一個聲音，跟著最近那台
+// 玩家坐在車上＝全音量；在車外依距離變小聲（1300 外聽不到）
+function engineTanks() {
+  const L = [];
+  if (player && player.ride && player.ride.kind === 'abrams') L.push(player.ride);
+  if (trainVeh && trainVeh.rider && trainVeh.rider !== player) L.push(trainVeh);
+  if (vs && vs.guards) for (const g of vs.guards) if (g.role === 't' && !g.dead && g.hp > 0) L.push(g);
+  return L;
+}
 let vehEng = null;
 function vehEngineTick() {
-  const a = AC, V = player && player.ride;
-  const on = !!(a && !muted && state === 'play' && V && V.kind === 'abrams' && vehBuf.abr_eng_idle && vehBuf.abr_eng_drive);
+  const a = AC, inside = player && player.ride && player.ride.kind === 'abrams' ? player.ride : null;
+  let V = inside, vol = 1;
+  if (!V && state === 'play') { let bd = 1300; for (const t of engineTanks()) { const d = Math.hypot(t.x - player.x, t.y - player.y); if (d < bd) { bd = d; V = t; } } if (V) vol = clamp(1 - bd / 1300, 0, 1) ** 1.6; }
+  const on = !!(a && !muted && state === 'play' && V && vol > 0.01 && vehBuf.abr_eng_idle && vehBuf.abr_eng_drive);
   if (on && !vehEng) {
     const out = a.createGain(); out.gain.setValueAtTime(0, a.currentTime); out.gain.linearRampToValueAtTime(0.42, a.currentTime + 0.8); out.connect(sfxOut(a));   // 上車：0.8 秒淡入
     const mk = (k) => { const b = vehBuf[k], L = VEH_LOOP[k], s0 = (b.duration - L) / 2, src = a.createBufferSource(), g = a.createGain();
@@ -8481,6 +8493,7 @@ function vehEngineTick() {
   }
   if (vehEng) {
     const m = clamp(V.thr || 0, 0, 1), t = a.currentTime;   // 等功率交叉淡化：停著＝怠速，油門越大越偏行進
+    vehEng.out.gain.setTargetAtTime(0.42 * vol, t + (vehEng.born && t - vehEng.born < 0.8 ? 0.8 : 0), 0.15); vehEng.born = vehEng.born || t;   // 距離音量（剛開始先讓 0.8 秒的淡入跑完）
     vehEng.idle.g.gain.setTargetAtTime(Math.cos(m * Math.PI / 2), t, 0.12);
     vehEng.drive.g.gain.setTargetAtTime(Math.sin(m * Math.PI / 2) * 0.85, t, 0.12);
     vehEng.drive.src.playbackRate.setTargetAtTime(0.9 + 0.16 * m, t, 0.2);
@@ -9706,8 +9719,20 @@ function vehMuzzle(V) {   // 砲口：地面位置＋離地高度（世界座標
 /* 主砲的瞄準方向：砲彈在砲口的高度 h 飛，畫面上的彈道＝瞄準線。
    讓瞄準線（＝實際彈道）剛好通過準星：地面上的彈道要往後偏 h / squash（手機自動瞄準：通過鎖定目標的身體中間） */
 const vehBodyH = (e) => (e.boss ? e.r * 1.7 : e.r * 2.2);
+/* 射擊死角：砲管只能在仰角／俯角範圍內轉（elev／dep，砲塔朝車尾時俯角 depRear），砲彈又是沿瞄準方向直線飛，
+   所以瞄準方向超出砲管能轉到的範圍（目標在砲管背後、正下方太陡、瞄著自己的車身）就不能開火，免得砲管指一邊、砲彈飛另一邊
+   回傳 { ok, why }；aimP＝瞄準點（地面座標，可省略） */
+function vehArcOk(V, Ag, aimP) {
+  const T = V.T, hs = V.faceLeft ? -1 : 1, face = V.tsx >= 0 ? 1 : -1, DEGT = 2.5 * DEG;
+  const sa = Math.atan2(Math.sin(Ag) * VIEW3D.squash, Math.cos(Ag)), la = face > 0 ? sa : Math.atan2(Math.sin(sa), -Math.cos(sa));
+  const lo = -T.elev * DEG, hi = (face !== hs ? T.depRear : T.dep) * DEG;
+  if (la < lo - DEGT || la > hi + DEGT) return { ok: false, why: '射擊死角' };
+  if (aimP) { const ex = (aimP.x - V.x) / (T.rx + 25), ey = (aimP.y - V.y) / (T.ry + 45); if (ex * ex + ey * ey < 1) return { ok: false, why: '射擊死角' }; }   // 瞄著自己的車身
+  if (Math.abs((V.el || 0) - la) > 5 * DEG) return { ok: false, why: '砲管轉動中' };   // 砲管還沒轉到位
+  return { ok: true };
+}
 function vehAimA(V, m) {
-  const sq = VIEW3D.squash; let p = null, z = 0;
+  const sq = VIEW3D.squash; let p = null, z = 0; V._aimP = null;
   if (!isTouch() && mouse.seen) p = mouseWorld();
   else if (lockedTarget && lockedTarget.hp > 0 && enemies.includes(lockedTarget)) { p = lockedTarget; z = vehBodyH(lockedTarget) / 2; }
   else {   // 沒有準星也沒有鎖定（手機手動拖曳）：瞄準方向附近、射程內最近的敵人身體中間
@@ -9716,11 +9741,13 @@ function vehAimA(V, m) {
     if (p) z = vehBodyH(p) / 2;
   }
   if (!p) return player.angle;
+  V._aimP = { x: p.x, y: p.y };
   return Math.atan2(p.y + (m.h - z) / sq - m.y, p.x - m.x);
 }
 function vehFire() {
   const V = player.ride, T = V.T; if (!V || V.reload > 0 || Math.abs(V.tsx) < 0.95) return false;
-  const am = T.ammo[V.ammo || 0], m = vehMuzzle(V), A = vehAimA(V, m);
+  const am = T.ammo[V.ammo || 0], m = vehMuzzle(V), A = vehAimA(V, m), arc = vehArcOk(V, A, V._aimP);
+  if (!arc.ok) { if (!(V.arcMsgT > gameTime)) { floatText(V.x, V.y - 95, arc.why, '#ffb08a'); V.arcMsgT = gameTime + 0.8; } return false; }   // 射擊死角：不開火
   vehShots.push({ am, gx: m.x, gy: m.y, h: m.h, dx: Math.cos(A), dy: Math.sin(A), t: 0, d: 0, sabot: true, prox: !!am.fuze && V.fuze === 'prox' });
   V.reload = T.reload; V.recoil = 1; V.jolt = 1; shake = Math.max(shake, 7); abramsShotSfx(true, null, T.reload);   // 艾布蘭炮聲：艙內＋艙外合體＋裝彈機
   vehFx.push({ kind: 'flash', gx: m.x + Math.cos(A) * 10, gy: m.y + Math.sin(A) * 10, h: m.h, r: 16, life: 0.09, max: 0.09 });
@@ -9818,13 +9845,14 @@ function vehToggleFuze() {   // R：切換引信（只有破甲彈有）
 }
 function drawVehAim() {   // 主砲的瞄準線：砲口的高度沿著瞄準方向畫到射程；填裝中變淡、翻面時不畫
   const V = player && player.ride; if (!V || state !== 'play' || Math.abs(V.tsx) < 0.95) return;
-  const m = vehMuzzle(V), A = vehAimA(V, m), R = V.T.ammo[V.ammo || 0].range, ready = !(V.reload > 0);   // 跟實際彈道同一個方向
-  ctx.save(); ctx.setLineDash([10, 7]); ctx.lineDashOffset = -gameTime * 40; ctx.lineWidth = ready ? 2 : 1.4; ctx.strokeStyle = ready ? 'rgba(255,110,70,0.8)' : 'rgba(210,210,210,0.35)';
+  const m = vehMuzzle(V), A = vehAimA(V, m), R = V.T.ammo[V.ammo || 0].range, arc = vehArcOk(V, A, V._aimP), dead = !arc.ok && arc.why === '射擊死角', ready = !(V.reload > 0) && arc.ok;   // 跟實際彈道同一個方向
+  ctx.save(); ctx.setLineDash(dead ? [3, 9] : [10, 7]); ctx.lineDashOffset = -gameTime * 40; ctx.lineWidth = ready ? 2 : 1.4; ctx.strokeStyle = ready ? 'rgba(255,110,70,0.8)' : dead ? 'rgba(255,90,90,0.4)' : 'rgba(210,210,210,0.35)';   // 射擊死角：稀疏的紅色點線
   ctx.beginPath();
   for (let i = 0; i <= 24; i++) { const t = R * i / 24, q = proj(m.x + Math.cos(A) * t, m.y + Math.sin(A) * t), y = q.y - m.h * q.k; i ? ctx.lineTo(q.x, y) : ctx.moveTo(q.x, y); }
   ctx.stroke(); ctx.setLineDash([]);
   const qe = proj(m.x + Math.cos(A) * R, m.y + Math.sin(A) * R), ye = qe.y - m.h * qe.k;   // 射程盡頭的小十字
   ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(qe.x - 6, ye); ctx.lineTo(qe.x + 6, ye); ctx.moveTo(qe.x, ye - 6); ctx.lineTo(qe.x, ye + 6); ctx.stroke();
+  if (dead) { const qm = proj(m.x, m.y); ctx.setLineDash([]); ctx.font = 'bold 12px sans-serif'; ctx.textAlign = 'center'; ctx.lineWidth = 3; ctx.strokeStyle = 'rgba(0,0,0,0.6)'; ctx.fillStyle = '#ff9a8a'; const ty = qm.y - m.h * qm.k - 14; ctx.strokeText('射擊死角', qm.x, ty); ctx.fillText('射擊死角', qm.x, ty); }
   ctx.restore();
 }
 function drawVehShots() {
