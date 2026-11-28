@@ -4093,7 +4093,7 @@ function drawBigMapGround(x0, x1, y0, y1) {
   poly(-HX, -HY, HX, HY, null, 'rgba(255,214,120,0.7)', 3);
 }
 // 立體物件（跟角色一起依前後排序）：樹、平房、佔領點旗桿
-const ACTOR_KIND = { pillbox: 'k', factory: 'k', ironfence: 'k', tree: 't', house: 'h', rock: 'r', igloo: 'i', tower: 'T', log: 'L', cprop: 'C', npc: 'N', safehouse: 'X', tent: 'k', crate: 'k', drum: 'k', rwall: 'w', lowwall: 'w', rubble: 'w', bush: 'w', console: 'w', garage: 'w' };   // 半磚（lowrock）跟全磚畫成同一塊岩石
+const ACTOR_KIND = { pillbox: 'k', factory: 'k', ironfence: 'k', tree: 't', house: 'h', rock: 'r', igloo: 'i', tower: 'T', log: 'L', cprop: 'C', npc: 'N', safehouse: 'X', tent: 'k', crate: 'k', drum: 'k', rwall: 'w', lowwall: 'w', rubble: 'w', bush: 'w', console: 'w', garage: 'w', guardhouse: 'w' };   // 半磚（lowrock）跟全磚畫成同一塊岩石
 function mapActors() {
   if (!bigMap() && !isNight() && !isTrain()) return [];
   const vb = viewBounds(), [x0, x1, y0, y1] = viewClip(cam.x - vb.hw - 300, cam.x + vb.hw + 300, cam.y + vb.t - 300, cam.y + vb.b + 400), out = [];
@@ -4357,7 +4357,7 @@ for (const [id, D] of Object.entries(NPC_DEFS)) Object.assign(D, { codexCls: 'NP
 // 總共 15 名倖存人形，每場隨機抽 12 名放到三個據點；還沒做好的先用暫代小人
 const NPC_POOL = ['maxim9', 'c14', 'lynx', 'vepr', 'm43', 'cf05', 'apc', 'm1', 'ak47', 'm1014', 'qsb', 'tmp', 'hk23', 'arx', 'm14'];   // 塌縮之谷第一階段的倖存人形名單（1～15 號，抽 12）
 const NPC_EXTRA = ['p30', 'garand', 'c96', 'ar57'];   // 16 號以後：只在工業小鎮接應的抽取名單裡（跟 1～15 沒抽到的一起抽 3 個）
-const liveNpcs = () => (bigMap() && MAPGEN && MAPGEN.npcs ? MAPGEN.npcs.filter((n) => n.def && !n.dead) : []);
+const liveNpcs = () => (bigMap() && MAPGEN && MAPGEN.npcs ? MAPGEN.npcs.filter((n) => n.def && !n.dead) : isTrain() && trainCrew && !trainCrew.dead && !trainCrew.inTank ? [trainCrew] : []);   // 訓練場：走路中的坦克駕駛員
 function npcReset() {
   const pool = NPC_POOL.slice(); for (let i = pool.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [pool[i], pool[j]] = [pool[j], pool[i]]; }
   let k = 0;
@@ -9557,6 +9557,7 @@ function boardKey(k) { const sm = $('boardBtn').querySelector('small'); if (sm &
    震動：車體、砲塔即時位移，速度越快震得越大。砲塔只會朝正左／正右，換邊時先變窄再翻面；砲管跟著瞄準上下轉（砲塔朝車尾時俯角變小） */
 const VEH = {
   garage: { x: 1230, y: -170, w: 300, h: 150 },
+  guard: { x: 935, y: -150, w: 150, h: 110 },   // 車庫左邊的警衛室（地圖右邊界在 1500）：門口可以召喚坦克駕駛員
   abrams: { name: '艾布蘭主戰坦克', sc: 0.42, ax: 215, ay: 214, r: 32, rx: 70, ry: 24, shadow: [95, 26], speed: 300, accel: 3, coast: 1.5, brake: 1,
     piv: [205, 95], bp: [344, 98], elev: 45, dep: 45, depRear: 20, flip: 0.4,          // 砲塔翻面中心、砲管耳軸；仰角 45°、俯角 45°（砲塔朝車尾 20°；斜視角下要轉這麼多才跟瞄準線平行）；翻面 0.4 秒
     wheels: { x0: 76, dx: 38, n: 7, y: 192, r: 15, skirt: 188 }, sprocket: [44.5, 165.5, 24], track: [66, 340, 207, 214],
@@ -9574,24 +9575,120 @@ const vehDoor = () => ({ x: VEH.garage.x, y: VEH.garage.y + VEH.garage.h / 2 + 4
 function vehAction() {   // 現在按 T（手機：按鈕）會做什麼
   if (!isTrain() || !player || player.hp <= 0) return null;
   if (player.ride) return { id: 'exit', label: '下車' };
-  if (trainVeh) { const T = trainVeh.T, dx = (player.x - trainVeh.x) / (T.rx + 60), dy = (player.y - trainVeh.y) / (T.ry + 60); if (dx * dx + dy * dy < 1) return { id: 'board', label: '上車' }; }
+  if (trainVeh) { const T = trainVeh.T, dx = (player.x - trainVeh.x) / (T.rx + 60), dy = (player.y - trainVeh.y) / (T.ry + 60); if (dx * dx + dy * dy < 1) return { id: 'board', label: trainVeh.rider === trainCrew && trainCrew ? '上車（跟駕駛員交換）' : '上車' }; }
   const d = vehDoor(); if (Math.hypot(player.x - d.x, player.y - d.y) < 170) return { id: 'summon', label: trainVeh ? '召回坦克' : '召喚坦克' };
+  const cd = crewDoor(); if (Math.hypot(player.x - cd.x, player.y - cd.y) < 120) return { id: 'crew', label: trainCrew ? '駕駛員已在隊伍中' : '召喚坦克駕駛員' };
   return null;
 }
 function vehUse(only) {   // only：'summon'（B）／'ride'（T）；不給＝手機按鈕，全部
   const a = vehAction(); if (!a) return false;
-  if (only === 'summon' && a.id !== 'summon') return false;
-  if (only === 'ride' && a.id === 'summon') return false;
+  if (only === 'summon' && a.id !== 'summon' && a.id !== 'crew') return false;
+  if (only === 'ride' && (a.id === 'summon' || a.id === 'crew')) return false;
+  if (a.id === 'crew') { crewSummon(); return true; }
   if (a.id === 'summon') {
+    if (trainVeh && trainVeh.rider === trainCrew && trainCrew) crewEject();   // 召回：駕駛員先下車
     const d = vehDoor(), T = VEH.abrams, hp0 = trainVeh ? trainVeh.hp : T.hp;   // 召回：保留原本的血量
     trainVeh = { kind: 'abrams', T, x: d.x, y: d.y + 60, r: T.r, rx: T.rx, ry: T.ry, speed: T.speed, faceLeft: false, moving: false, shake: 0, rider: null, thr: 0, dir: 0, dist: 0, tsx: 1, el: 0, hp: hp0, maxHp: T.hp };
     burst(trainVeh.x, trainVeh.y, '#ffd76a', 18); floatText(trainVeh.x, trainVeh.y - 90, T.name, '#ffd76a');
   } else if (a.id === 'board') {
+    if (trainVeh.rider === trainCrew && trainCrew) { crewEject(); floatText(trainVeh.x, trainVeh.y - 110, '跟駕駛員交換', '#9fe6a0'); }   // 駕駛員下車，玩家上車
     const V = trainVeh; player.ride = V; V.rider = player; player.r0 = player.r; player.r = V.r; player.x = V.x; player.y = V.y; player.prone = 0; V.thr = 0; updateHp();
     player.stowed = clones.filter((c) => !c.nightAlly); clones = clones.filter((c) => c.nightAlly);
     const ic = ASSETS.ui[V.equip ? V.equip.icon : 'veh_slot']; $('skillImg').src = ic; $('tSkillImg').src = ic; $('skillBtn').title = '坦克裝備（Q）'; $('tDodge').textContent = '機槍'; $('tReload').textContent = '引信'; $('tAmmo').hidden = false; updateSkill();   // 技能鍵＝坦克裝備、閃避鍵＝車頂機槍   // 擴編人形：收進車裡（不畫、打不到、不行動），下車再放出來
     floatText(V.x, V.y - 90, '搭乘：' + V.T.name, '#9fe6a0');
   } else if (a.id === 'exit') vehExit();
+  return true;
+}
+/* ═════ 坦克駕駛員（訓練場警衛室召喚）═════
+   隨機一名友方高階 NPC，佔一個隊友名額。玩家不在坦克上：自己走去開坦克（跟著玩家、主砲打最近的敵人）；
+   玩家在坦克上：當一般隊友跟著打。玩家靠近坦克按 T 上車＝跟駕駛員交換，下車後駕駛員會再回去開。
+   開著坦克時敵人會鎖定坦克，傷害打在坦克上；坦克被擊毀時駕駛員彈出來 */
+let trainCrew = null;
+const crewDoor = () => ({ x: VEH.guard.x, y: VEH.guard.y + VEH.guard.h / 2 + 42 });
+function crewSummon() {
+  if (trainCrew) { floatText(player.x, player.y - 70, '駕駛員已在隊伍中', '#cfd8dc'); return; }
+  if (trainTeamN() >= TRAIN_ALLY_MAX) { floatText(player.x, player.y - 70, '隊伍已滿（最多 ' + TRAIN_ALLY_MAX + ' 名隊友）', '#ff8f83'); return; }
+  if (crewSummon.busy) return;
+  const ids = NPC_HIGH(), id = ids[Math.floor(Math.random() * ids.length)], D = NPC_DEFS[id]; crewSummon.busy = true;
+  ensurePack(D.sprite).then(() => {
+    crewSummon.busy = false; if (!isTrain() || state !== 'play' || trainCrew || trainTeamN() >= TRAIN_ALLY_MAX) return;
+    const d = crewDoor(); trainCrew = npcMake(id, d.x, d.y, { crewNpc: true, joined: true, invT: 0.6, slot: 0, inTank: false });
+    burst(d.x, d.y, '#7fe8ff', 16); floatText(d.x, d.y - 70, D.name + '：坦克駕駛員加入隊伍', '#7fe8ff'); sfx.skill();
+  }, () => { crewSummon.busy = false; floatText(player.x, player.y - 60, '素材載入失敗', '#ff8f83'); });
+}
+function crewEject() {   // 駕駛員下車（站到坦克旁邊）
+  const n = trainCrew, V = trainVeh; if (!n || !n.inTank) return;
+  n.inTank = false; n.r = 15; if (V && V.rider === n) { V.rider = null; V.thr = 0; }
+  if (V) { const sd = player.x > V.x ? -1 : 1; const p = nightSpot(V.x + sd * (V.T.rx + 30), V.y + 18, 18); n.x = p.x; n.y = p.y; n.faceLeft = sd < 0; }
+  n.invT = 0.5; n.moving = false; n.atkT = 9;
+}
+function crewWalk(n, gx, gy, sp, dt) {   // 直接走向目標點（被擋住就左右繞）
+  const dx = gx - n.x, dy = gy - n.y, d = Math.hypot(dx, dy); if (d < 4) { n.moving = false; return d; }
+  const free = (x, y) => { const r0 = n.r; n.r = -12; const h = mapSolidAt(x, y, 12); n.r = r0; return !h; };
+  const a0 = Math.atan2(dy, dx), sd = n.detour || 1; n.moving = false;
+  for (const off of [0, 0.6, -0.6, 1.2, -1.2, 1.8, -1.8]) { const aa = a0 + off * sd, st = Math.min(d, sp * dt), nx = n.x + Math.cos(aa) * st, ny = n.y + Math.sin(aa) * st; if (free(nx, ny)) { n.x = nx; n.y = ny; n.moving = true; n.aimA = aa; if (off) n.detour = Math.sign(off) * sd; if (Math.abs(Math.cos(aa)) > 0.3) n.faceLeft = Math.cos(aa) < 0; break; } }
+  if (!n.moving) n.detour = -sd;
+  n.animT = (n.animT || 0) + dt; return d;
+}
+function crewTick(dt) {
+  const n = trainCrew; if (!n) return;
+  if (n.dead || n.hp <= 0) {   // 陣亡：留下屍體播死亡動畫，空出隊友名額
+    if (n.dieT == null) npcDie(n, 0);
+    const dm = ASSETS[n.def.sprite] && ASSETS[n.def.sprite].meta.death; n.keep = (dm ? dm.dur : 0) + 3; npcCorpses.push(n); trainCrew = null;
+    floatText(n.x, n.y - 60, n.def.name + ' 陣亡，離開隊伍', '#ff8f83'); return;
+  }
+  const V = trainVeh, wantDrive = !!(V && V.hp > 0 && player.ride !== V);
+  if (n.inTank) {
+    if (!wantDrive || !V || V.rider !== n) { crewEject(); return; }
+    n.x = V.x; n.y = V.y; n.r = V.r; n.invT = 0; return;   // 開著坦克：位置跟著坦克（敵人鎖定時就是打坦克）
+  }
+  n.r = 15;
+  if (wantDrive && !V.rider) {   // 走去開坦克
+    const d = crewWalk(n, V.x, V.y, n.def.speed * 1.15, dt);
+    if (d < V.T.rx + 30) { n.inTank = true; V.rider = n; V.thr = 0; V.dir = V.faceLeft ? Math.PI : 0; floatText(V.x, V.y - 100, n.def.name + ' 駕駛坦克', '#7fe8ff'); }
+    return;
+  }
+  // 一般隊友：家＝玩家身後一點；離太遠就全速跟上，否則交給 NPC 的戰鬥邏輯（躲子彈、打最近的敵人）
+  const side = player.faceLeft ? 1 : -1; n.hx = player.x + side * 80; n.hy = player.y + 46;
+  if (Math.hypot(n.hx - n.x, n.hy - n.y) > 280) { crewWalk(n, n.hx, n.hy, n.def.speed * 1.3, dt); n.atkT += dt; return; }
+  npcStep(n, dt, false);
+}
+function crewTarget(V) {   // 駕駛員主砲的目標：射程內最近的敵人
+  const R = V.T.ammo[1].range; let best = null, bd = R;
+  for (const e of enemies) { if (!e || e.hp <= 0 || e.escaped || e.npcAlly || e.dead) continue; const d = Math.hypot(e.x - V.x, e.y - V.y); if (d < bd) { bd = d; best = e; } }
+  return best;
+}
+function crewDriveMove(V, dt) {   // 駕駛員開車：開到玩家旁邊約 230 的位置待命，太遠才動
+  const T = V.T, tg = V.arcDeadT > 1.2 && V.crewTgt && V.crewTgt.hp > 0 ? V.crewTgt : null;   // 目標一直在射擊死角：開到目標左右 380 的位置（同一高度，砲管轉得到）
+  const B = TRAIN.bounds, inX = (x) => x > B.x0 + 160 && x < B.x1 - 160;
+  let sd = tg ? (V.x >= tg.x ? 1 : -1) : V.x >= player.x ? 1 : -1;
+  if (tg && !inX(tg.x + sd * 380)) sd = -sd;   // 那一邊超出場地：換另一邊
+  const gx = clamp(tg ? tg.x + sd * 380 : player.x + sd * 230, B.x0 + 160, B.x1 - 160), gy = clamp(tg ? tg.y - 10 : player.y + 30, B.y0 + 120, B.y1 - 120), dx = gx - V.x, dy = gy - V.y, d = Math.hypot(dx, dy);
+  if (d > (V.thr > 0.05 ? 60 : 160)) { V.dir = Math.atan2(dy, dx); V.thr = Math.min(1, Math.min(d / 260, 1), V.thr + dt / T.accel); }
+  else V.thr = Math.max(0, V.thr - dt / T.coast);
+  V.moving = false;
+  if (V.thr > 0.002) {
+    const st = T.speed * V.thr * dt, x0 = V.x, y0 = V.y, sdt = V.detour || 1;
+    for (const off of [0, 0.6, -0.6, 1.2, -1.2, 1.8, -1.8]) {   // 被擋住（敵人、障礙物）：左右偏一點繞過去
+      const a = V.dir + off * sdt; moveWithCover(V, Math.cos(a) * st, Math.sin(a) * st);
+      if (Math.hypot(V.x - x0, V.y - y0) >= st * 0.5) { if (off) V.detour = Math.sign(off) * sdt; break; }
+      V.x = x0; V.y = y0; if (off === -1.8) V.detour = -sdt;
+    }
+    const mx = V.x - x0, md = Math.hypot(mx, V.y - y0); V.dist += md; V.moving = md > 0.05; if (mx < -0.4) V.faceLeft = true; else if (mx > 0.4) V.faceLeft = false;
+  }
+}
+function crewFire(V, Ag, m, tgt) {   // 駕駛員開炮：精英用穿甲彈、其他用多用途破甲彈
+  const T = V.T, am = T.ammo[tgt.boss ? 0 : 1];
+  vehShots.push({ am, gx: m.x, gy: m.y, h: m.h, dx: Math.cos(Ag), dy: Math.sin(Ag), t: 0, d: 0, sabot: true, prox: false });
+  V.reload = T.reload; V.recoil = 1; V.jolt = 1; if (Math.hypot(V.x - player.x, V.y - player.y) < 600) shake = Math.max(shake, 3);
+  abramsShotSfx(false, V, T.reload);
+  vehFx.push({ kind: 'flash', gx: m.x + Math.cos(Ag) * 10, gy: m.y + Math.sin(Ag) * 10, h: m.h, r: 16, life: 0.09, max: 0.09 });
+  for (let i = 0; i < 10; i++) { const sp = rand(60, 380), a = Ag + rand(-0.35, 0.35); vehFx.push({ kind: 'smoke', gx: m.x, gy: m.y, h: m.h + rand(-2, 2), vx: Math.cos(a) * sp, vy: Math.sin(a) * sp, vh: rand(4, 30), r: rand(5, 9), gr: rand(18, 34), life: rand(1.0, 1.6), max: 1.6, drag: 3.2 }); }
+}
+function crewTankHit(b) {   // 敵方子彈打到駕駛員開的坦克
+  const n = trainCrew, V = trainVeh; if (!n || !n.inTank || !V || V.rider !== n) return false;
+  const ex = (b.x - V.x) / (V.rx + (b.r || 3)), ey = (b.y - (V.y - 20)) / (V.ry + 26 + (b.r || 3)); if (ex * ex + ey * ey >= 1) return false;
+  hitDirA = Math.atan2(-b.vy, -b.vx); vehDamage(V, (b.dmg ?? ENEMY.bulletDmg) * atkMulNow, false, b.apv || 0); burst(b.x, b.y, '#ffd27a', 4);
   return true;
 }
 function vehDamage(V, amt, pierce, pen = 0) {
@@ -9604,7 +9701,7 @@ function vehDamage(V, amt, pierce, pen = 0) {
   if (V.hp <= 0) vehDestroy(V);
 }
 function vehDestroy(V) {
-  const x = V.x, y = V.y; if (V.rider === player) vehExit();
+  const x = V.x, y = V.y; if (V.rider === player) vehExit(); if (trainCrew && V.rider === trainCrew) crewEject();
   blasts.push({ x, y, r: 150, life: 0.5, max: 0.5, level: 3 }); burst(x, y, '#ffb347', 30); burst(x, y, '#ff6b3d', 22); shake = Math.max(shake, 12); sfx.boom();
   for (let i = 0; i < 18; i++) { const a = rand(0, Math.PI * 2), sp = rand(40, 200); vehFx.push({ kind: 'smoke', gx: x + rand(-40, 40), gy: y + rand(-15, 15), h: rand(5, 40), vx: Math.cos(a) * sp, vy: Math.sin(a) * sp * 0.5, vh: rand(20, 60), r: rand(10, 18), gr: rand(20, 40), life: rand(1.6, 2.6), max: 2.6, drag: 2, col: '60,58,56' }); }
   floatText(x, y - 100, V.T.name + '被擊毀', '#ff8f83'); trainVeh = null;
@@ -9645,30 +9742,35 @@ const vehBlocked = (x, y) => mapSolidAt(x, y, 24) || mapSolidAt(x - 44, y, 22) |
 const hitsPlayer = (b) => { if (player.ride) { const V = player.ride, dx = (b.x - player.x) / (V.rx + b.r), dy = (b.y - player.y) / (V.ry + b.r); return dx * dx + dy * dy < 1; } return Math.hypot(b.x - player.x, b.y - player.y) < b.r + player.r; };
 function vehTick(dt) {
   const V = trainVeh; if (!V) return;
-  const T = V.T, ride = player.ride === V;
+  const T = V.T, ride = player.ride === V, crewDrive = !!(trainCrew && V.rider === trainCrew);
+  if (crewDrive) crewDriveMove(V, dt);   // 坦克駕駛員開車：跟著玩家（推開玩家的碰撞照樣做）
   if (ride) {
     if (player.hp <= 0) { vehExit(); return; }
     const dx = player.x - V.x, dy = player.y - V.y, d = Math.hypot(dx, dy);
     if (dx < -0.4) V.faceLeft = true; else if (dx > 0.4) V.faceLeft = false;   // 車身：跟著移動方向
     V.dist += d; V.moving = d > 0.05; V.x = player.x; V.y = player.y;
   } else {
-    V.moving = false; V.thr = 0;
+    if (!crewDrive) { V.moving = false; V.thr = 0; }
     const ex = (player.x - V.x) / (V.rx + player.r), ey = (player.y - V.y) / (V.ry + player.r), e = Math.hypot(ex, ey);   // 停著的坦克：玩家走不進去
     if (e < 1 && e > 0.001) moveWithCover(player, (player.x - V.x) * (1 / e - 1), (player.y - V.y) * (1 / e - 1));
   }
   // 砲塔：朝瞄準的那一邊（正左／正右）；換邊時寬度從 1 → 0 → −1
-  const hs = V.faceLeft ? -1 : 1, A = ride ? player.angle : (hs > 0 ? 0 : Math.PI), tf = Math.cos(A) >= 0 ? 1 : -1;
+  const ctg = crewDrive ? crewTarget(V) : null;   // 駕駛員：主砲瞄最近的敵人
+  const hs = V.faceLeft ? -1 : 1, A = ride ? player.angle : ctg ? Math.atan2(ctg.y - V.y, ctg.x - V.x) : (hs > 0 ? 0 : Math.PI), tf = Math.cos(A) >= 0 ? 1 : -1;
   V.tsx = tf > V.tsx ? Math.min(tf, V.tsx + 2 * dt / T.flip) : Math.max(tf, V.tsx - 2 * dt / T.flip);
   // 砲管的角度＝瞄準線在畫面上的角度（地面方向的 y 要乘 squash），砲管才會跟瞄準線平行
-  const face = V.tsx >= 0 ? 1 : -1, Ag = ride ? vehAimA(V, vehMuzzle(V)) : A, sa = Math.atan2(Math.sin(Ag) * VIEW3D.squash, Math.cos(Ag));
+  const mC = ctg ? vehMuzzle(V) : null, Ag = ride ? vehAimA(V, vehMuzzle(V)) : ctg ? Math.atan2(ctg.y + (mC.h - vehBodyH(ctg) / 2) / VIEW3D.squash - mC.y, ctg.x - mC.x) : A;
+  const face = V.tsx >= 0 ? 1 : -1, sa = Math.atan2(Math.sin(Ag) * VIEW3D.squash, Math.cos(Ag));
   const la = face > 0 ? sa : Math.atan2(Math.sin(sa), -Math.cos(sa));
-  const want = ride ? clamp(la, -T.elev * DEG, (face !== hs ? T.depRear : T.dep) * DEG) : 0;   // 砲塔朝車尾：俯角變小，仰角不變
+  const want = ride || ctg ? clamp(la, -T.elev * DEG, (face !== hs ? T.depRear : T.dep) * DEG) : 0;   // 砲塔朝車尾：俯角變小，仰角不變
   V.el += (want - V.el) * (1 - Math.exp(-dt * 10));
   { const M = T.mg; let ml = 0;   // 車頂機槍：跟它的子彈在畫面上的方向平行（子彈的 y 已經含高度，畫面角度＝atan2(dy·squash, dx)）
     if (ride) { const p = vehMgPoint(V), am = vehMgAim(V, p), sm = Math.atan2((am.y - p.y) * VIEW3D.squash, am.x - p.x); ml = face > 0 ? sm : Math.atan2(Math.sin(sm), -Math.cos(sm)); }
     const wm = ride ? clamp(ml, -M.elev * DEG, M.dep * DEG) : 0; V.mgEl = (V.mgEl || 0) + (wm - (V.mgEl || 0)) * (1 - Math.exp(-dt * 16)); }
   if (ride) vehMgTick(V, dt);
-  V.shake += ((ride ? V.thr : 0) - V.shake) * (1 - Math.exp(-dt * 6));   // 速度越快震得越大
+  const arcC = ctg ? vehArcOk(V, Ag, ctg) : null; V.arcDeadT = arcC && !arcC.ok && arcC.why === '射擊死角' ? (V.arcDeadT || 0) + dt : 0; V.crewTgt = ctg;
+  if (ctg && V.reload <= 0 && Math.abs(V.tsx) >= 0.95 && Math.cos(Ag - A) > 0.8 && arcC.ok) crewFire(V, Ag, mC, ctg);   // 駕駛員開炮（射擊死角一樣不打）
+  V.shake += ((ride || crewDrive ? V.thr : 0) - V.shake) * (1 - Math.exp(-dt * 6));   // 速度越快震得越大
   V.reload = Math.max(0, (V.reload || 0) - dt); V.recoil = Math.max(0, (V.recoil || 0) - dt / 0.7); V.jolt = Math.max(0, (V.jolt || 0) - dt / 0.35);
   vehTrackFx(V, dt);
   if (ride) vehHud(V);
@@ -9990,6 +10092,25 @@ function drawGarage(o) {
   ctx.strokeStyle = 'rgba(0,0,0,0.35)'; ctx.lineWidth = 2; ctx.strokeRect(L, top, o.w, Hw);
   ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
 }
+function drawGuardHouse(o) {   // 警衛室：小平房＋門＋窗戶（窗內有燈）＋招牌
+  const by = o.y + o.h / 2, q = proj(o.x, by);
+  ground(q, o.x, by); ctx.fillStyle = 'rgba(5,10,8,0.45)'; ctx.fillRect(o.x - o.w / 2 + 10, by - 5, o.w, 22);
+  const dr = crewDoor(); ctx.fillStyle = 'rgba(111,232,255,0.14)'; ctx.beginPath(); ctx.ellipse(dr.x, dr.y, 46, 24, 0, 0, Math.PI * 2); ctx.fill();   // 門口的召喚範圍
+  ctx.strokeStyle = 'rgba(111,232,255,0.55)'; ctx.lineWidth = 3; ctx.stroke();
+  upright(q, o.x, by);
+  const L = o.x - o.w / 2, R = o.x + o.w / 2, Hw = 92, back = 44, top = by - Hw;
+  ctx.fillStyle = '#4b5650'; ctx.beginPath(); ctx.moveTo(R, by); ctx.lineTo(R + 22, by - back * 0.45); ctx.lineTo(R + 22, top - back * 0.45); ctx.lineTo(R, top); ctx.closePath(); ctx.fill();   // 側牆
+  ctx.fillStyle = '#3d4a44'; ctx.beginPath(); ctx.moveTo(L - 8, top); ctx.lineTo(R + 8, top); ctx.lineTo(R + 30, top - back * 0.45); ctx.lineTo(L + 14, top - back * 0.45); ctx.closePath(); ctx.fill();   // 屋頂
+  ctx.fillStyle = '#c8cfc6'; ctx.fillRect(L, top, o.w, Hw);   // 正面（淺色牆）
+  ctx.fillStyle = '#7f8a82'; ctx.fillRect(L, by - 14, o.w, 14);   // 牆腳
+  ctx.fillStyle = '#5b6a62'; ctx.fillRect(o.x - 18, by - 62, 36, 62); ctx.fillStyle = '#3a4640'; ctx.fillRect(o.x - 14, by - 58, 28, 58);   // 門
+  ctx.fillStyle = '#d9b44a'; ctx.beginPath(); ctx.arc(o.x + 8, by - 30, 2.5, 0, Math.PI * 2); ctx.fill();
+  const lit = 0.55 + 0.25 * Math.sin(gameTime * 1.7);
+  for (const wx of [L + 16, R - 46]) { ctx.fillStyle = '#2a3632'; ctx.fillRect(wx, top + 22, 30, 26); ctx.fillStyle = 'rgba(255,226,140,' + lit + ')'; ctx.fillRect(wx + 3, top + 25, 24, 20); ctx.fillStyle = '#2a3632'; ctx.fillRect(wx + 14, top + 25, 2, 20); }   // 窗戶
+  ctx.fillStyle = '#20302a'; ctx.fillRect(o.x - 44, top - 22, 88, 18); ctx.font = '800 12px sans-serif'; ctx.textAlign = 'center'; ctx.fillStyle = '#7fe8ff'; ctx.fillText('警衛室 GUARD', o.x, top - 9);
+  ctx.strokeStyle = 'rgba(0,0,0,0.35)'; ctx.lineWidth = 2; ctx.strokeRect(L, top, o.w, Hw);
+  ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+}
 function trainBuild() {   // 地形只建一次（固定亂數種子，每次進來都一樣）
   if (TRAIN.built) return; TRAIN.built = true;
   let sd = 20261120; const R = () => ((sd = Math.imul(sd ^ (sd >>> 15), 2246822519) + 0x6d2b79f5 | 0) >>> 0) / 4294967296, rr = (a, b) => a + R() * (b - a);
@@ -10032,6 +10153,7 @@ function trainBuild() {   // 地形只建一次（固定亂數種子，每次進
     }
   }
   S.push({ kind: 'garage', x: VEH.garage.x, y: VEH.garage.y, w: VEH.garage.w, h: VEH.garage.h });   // 車庫：靠近門口可以召喚載具
+  S.push({ kind: 'guardhouse', x: VEH.guard.x, y: VEH.guard.y, w: VEH.guard.w, h: VEH.guard.h });   // 警衛室：召喚坦克駕駛員
   for (const o of S) { const r = o.w ? Math.max(o.w, o.h) / 2 : o.r; for (let gx = Math.floor((o.x - r) / TRAIN.G); gx <= Math.floor((o.x + r) / TRAIN.G); gx++) for (let gy = Math.floor((o.y - r) / TRAIN.G); gy <= Math.floor((o.y + r) / TRAIN.G); gy++) { const k = gx + ',' + gy; if (!TRAIN.grid.has(k)) TRAIN.grid.set(k, []); TRAIN.grid.get(k).push(o); } }
 }
 const TRAIN_MAP = {
@@ -10122,6 +10244,7 @@ function drawTrainThing(o) {
   }
   if (o.kind === 'console') { drawConsole(o); return; }
   if (o.kind === 'garage') { drawGarage(o); return; }
+  if (o.kind === 'guardhouse') { drawGuardHouse(o); return; }
 }
 function drawConsole(o) {
   const c = o.con, im = imgs[packBox.train] && imgs[packBox.train][c.img], q = proj(o.x, o.y), on = trainState && (c.id === 'ally' ? nightAllies().length > 0 : trainState[c.id] && trainState[c.id].on);
@@ -10151,7 +10274,7 @@ let trainState = null;
 function trainBegin() {
   trainBuild();
   trainState = { allyLoading: false, shadow: { on: false, t: 0, clock: 0 }, sf: { on: false, tier: 0, clock: 0 }, kcco: { on: false, tier: 0, clock: 0 }, para: { on: false, tier: 0, clock: 0 }, open: null };
-  player.x = 0; player.y = 0; cam.x = 0; cam.y = 0; $('trainPanel').hidden = true; trainVeh = null; player.ride = null; vehShots = []; vehFx = [];
+  player.x = 0; player.y = 0; cam.x = 0; cam.y = 0; $('trainPanel').hidden = true; trainVeh = null; trainCrew = null; player.ride = null; vehShots = []; vehFx = [];
 }
 function trainSpot(r) {   // 玩家周圍（地圖內、沒有擋路的地方）
   const B = TRAIN.bounds;
@@ -10186,7 +10309,7 @@ function trainTick(dt) {
   let near = null; for (const c of TRAIN.consoles) if (Math.hypot(player.x - c.x, player.y - (c.y + 30)) < TRAIN.useR) near = c;
   vehTick(dt); vehShotsTick(dt); const va = vehAction();   // 載具：召喚／搭乘／下車
   $('boardBtn').hidden = !near && !va; if (va) $('boardBtn').firstChild.textContent = va.label; else if (near) $('boardBtn').firstChild.textContent = near.name + '操作台';
-  boardKey(va && va.id !== 'summon' ? 'T' : 'B');   // 電腦版的按鍵提示
+  boardKey(va && va.id !== 'summon' && va.id !== 'crew' ? 'T' : 'B');   // 電腦版的按鍵提示（召喚坦克、召喚駕駛員是 B）
   if (!near && !$('trainPanel').hidden) $('trainPanel').hidden = true;
   if (!$('trainPanel').hidden) renderTrainPanel();
 }
@@ -10220,8 +10343,8 @@ function renderTrainPanel(full) {
     }
   }
   const F = S[c.id];
-  if (c.id === 'ally') { const n = nightAllies().length; $('trainStatus').textContent = (S.allyLoading ? '載入素材中…　' : '') + '隊友 ' + n + ' / ' + TRAIN_ALLY_MAX + (n ? '：' + nightAllies().map((u) => u.def.name).join('、') : '');
-    box.querySelectorAll('[data-k^="a_"]').forEach((b) => { b.disabled = n >= TRAIN_ALLY_MAX || !!S.allyLoading; }); const off = box.querySelector('[data-k="off"]'); if (off) off.disabled = !n; return; }
+  if (c.id === 'ally') { const n = trainTeamN(), nm = [...nightAllies().map((u) => u.def.name), ...(trainCrew ? [trainCrew.def.name + '（坦克駕駛員）'] : [])]; $('trainStatus').textContent = (S.allyLoading ? '載入素材中…　' : '') + '隊友 ' + n + ' / ' + TRAIN_ALLY_MAX + (n ? '：' + nm.join('、') : '');
+    box.querySelectorAll('[data-k^="a_"]').forEach((b) => { b.disabled = n >= TRAIN_ALLY_MAX || !!S.allyLoading; }); const off = box.querySelector('[data-k="off"]'); if (off) off.disabled = !nightAllies().length; return; }
   if (c.id === 'npc') { $('trainStatus').textContent = '場上 NPC：' + (trainNpcFoes.size ? [...trainNpcFoes].map((e) => e.def.name).join('、') : '無'); return; }
   if (c.id === 'shadow') { const sh = S.shadow, every = Math.max(0.45, 2.6 * Math.pow(0.5, sh.t / 90)); $('trainStatus').textContent = sh.on ? '計時 ' + Math.floor(sh.t / 60) + ':' + String(Math.floor(sh.t % 60)).padStart(2, '0') + '　生成間隔 ' + every.toFixed(2) + ' 秒　場上 ' + trainCount('shadow') + ' 隻' : '未啟動'; }
   else {
@@ -10231,11 +10354,12 @@ function renderTrainPanel(full) {
   }
 }
 const TRAIN_ALLY_MAX = 4;
+const trainTeamN = () => nightAllies().length + (trainCrew ? 1 : 0);   // 隊友名額：坦克駕駛員也佔一格
 function trainAlly(id) {
-  const D = CHARACTERS[id], S = trainState; if (!D || nightAllies().length >= TRAIN_ALLY_MAX || S.allyLoading) return;
+  const D = CHARACTERS[id], S = trainState; if (!D || trainTeamN() >= TRAIN_ALLY_MAX || S.allyLoading) return;
   S.allyLoading = true;
   Promise.all([ensurePack(packOf(D.assets)), ensureClass(D.weapon.class).catch(() => {})]).then(() => {
-    S.allyLoading = false; if (!isTrain() || state !== 'play' || nightAllies().length >= TRAIN_ALLY_MAX) return;
+    S.allyLoading = false; if (!isTrain() || state !== 'play' || trainTeamN() >= TRAIN_ALLY_MAX) return;
     const a = rand(0, Math.PI * 2), p = nightSpot(player.x + Math.cos(a) * 70, player.y + Math.sin(a) * 70, 20);
     const u = makePlayer(D); u.x = p.x; u.y = p.y; u.angle = Math.PI / 2; u.faceLeft = false;
     Object.assign(u, { clone: true, nightAlly: true, slot: CLONE_SLOTS[nightAllies().length % 4], invT: 0.6, moving: false, aiming: false, shot: 0, trail: [] });
@@ -10492,10 +10616,10 @@ function nightLeash0(f, tgt, goal) {
 function nightEnemyTarget(e) {
   if (phase && phase.collapse) return colEnemyTarget(e);
   if (isDef()) return defEnemyTarget(e);
-  const A = nightAllies(); if (!A.length) return player;
-  if (e.ntg && (e.ntg === player || (e.ntg.hp > 0 && clones.includes(e.ntg))) && gameTime < (e.ntT || 0)) return e.ntg;
+  const A = nightAllies(), crew = isTrain() && trainCrew && !trainCrew.dead ? trainCrew : null; if (!A.length && !crew) return player;   // 訓練場：坦克駕駛員（開著坦克時就是坦克）也會被鎖定
+  if (e.ntg && (e.ntg === player || (e.ntg.hp > 0 && clones.includes(e.ntg)) || (e.ntg === crew)) && gameTime < (e.ntT || 0)) return e.ntg;
   let best = player, bd = Math.hypot(player.x - e.x, player.y - e.y);
-  for (const c of A) { const d = Math.hypot(c.x - e.x, c.y - e.y) * 1.1; if (d < bd) { bd = d; best = c; } }
+  for (const c of crew ? [...A, crew] : A) { const d = Math.hypot(c.x - e.x, c.y - e.y) * 1.1; if (d < bd) { bd = d; best = c; } }
   e.ntg = best; e.ntT = gameTime + 1.2; return best;
 }
 // 脫離卡死：被生成或擠進樹、岩石、湖裡的單位推到外面；敵人原地卡住太久就往旁邊挪
@@ -13576,6 +13700,7 @@ function shootEnemy(e) {
 function damage(amount, pierce, armorPen = 0) {
   if (player && player.fake) { if (player.ctrl) defHitCtrl(amount * atkMulNow); return; }   // 滅星行動：敵人帶路用的假目標／控制室
   if (player.defDown) return;   // 滅星行動／塌縮之谷：倒下（觀戰中）
+  if (nightProxy && player === nightProxy && nightProxy.crewNpc) { const n = nightProxy; if (n.inTank && trainVeh && trainVeh.rider === n) vehDamage(trainVeh, amount * atkMulNow, pierce, armorPen); else npcHurt(n, amount * atkMulNow, 0); return; }   // 訓練場：敵人打的是坦克駕駛員（開著坦克＝打坦克）
   if (nightProxy && player === nightProxy) { damageClone(nightProxy, amount, pierce, armorPen); return; }   // 夜戰：敵人打的是 AI 隊友
   if (!player.ride && ffBlock(player)) return;   // K5 立場盾：不受傷害（穿透護盾也無效）
   lastBlk = false; const shotHit = hitDirA != null;
@@ -18108,7 +18233,8 @@ function update(dt) {
       if (ant) { ant.hp -= b.dmg ?? ENEMY.bulletDmg; burst(b.x, b.y, '#c58cff', 4); bullets.splice(i, 1); continue; }
     }
     if (b.team === 'p' && (orthShieldHit(b, dt) || defdShieldHit(b, dt))) { bullets.splice(i, 1); continue; }   // 歐特魯斯、捍衛者的護盾
-    if (b.team === 'e' && phase && phase.collapse && (npcBulletHit(b) || (b.fac && colFacHit(b)))) { bullets.splice(i, 1); continue; }   // 倖存人形中彈
+    if (b.team === 'e' && phase && phase.collapse && (npcBulletHit(b) || (b.fac && colFacHit(b)))) { bullets.splice(i, 1); continue; }
+    if (b.team === 'e' && isTrain() && trainCrew && (npcBulletHit(b) || crewTankHit(b))) { bullets.splice(i, 1); continue; }   // 訓練場：坦克駕駛員（走路或開著坦克）中彈   // 倖存人形中彈
     if (b.team === 'e') {
       let cHit = null;
       for (const c of clones) if (!(b.missedC && b.missedC.has(c)) && Math.hypot(b.x - c.x, b.y - c.y) < b.r + c.r && !overProne(b, c)) { cHit = c; break; }
@@ -18280,7 +18406,7 @@ function update(dt) {
       } else if (d > 1600 && !m.base) medkits.splice(i, 1);
     }
   }
-  updateClones(dt); if (isNight()) { nightTick(dt); nightLegionTick(dt); } if (isTrain()) trainTick(dt);   // 訓練場：操作台生成敵人
+  updateClones(dt); if (isNight()) { nightTick(dt); nightLegionTick(dt); } if (isTrain()) { trainTick(dt); crewTick(dt); }   // 訓練場：操作台生成敵人
   protoWorld(dt);
   kccoShelterTick(dt);   // 正規軍敵人躲到正規軍護盾後方／裡面
   updateMissiles(dt); updateHomers(dt); updateShockWaves(dt); updateSlashWaves(dt); updateMagicOrbs(dt); updateSmokes(dt);
@@ -18558,7 +18684,7 @@ function draw(t) {
   for (const m of medkits) drawMedkit(m);
   for (const e of enemies) if (e.boss && !e.B.ai) drawBossTargets(e);
   drawNpcCorpses();   // 倒下的敵對 NPC（訓練場）：畫在地上，其他角色會蓋過去
-  const actors = [...mapActors(), ...(bigMap() && MAPGEN.npcs ? MAPGEN.npcs.map((it) => ({ it, k: 'N' })) : []), ...nightActors(), ...covers().map((it) => ({ it, k: 'c' })), ...enemies.map((it) => ({ it, k: 'e' })), ...pAnts.map((it) => ({ it, k: 'ant' })), ...aiAllies.map((it) => ({ it, k: 'a' })), ...(isTrain() && trainVeh && !trainVeh.rider ? [{ it: trainVeh, k: 'V' }] : []), ...(player && state !== 'menu' ? [...(!vsDead() ? [{ it: player, k: 'p' }] : []), ...(!vsDead() || isDef() ? clones.map((it) => ({ it, k: 'm' })) : [])] : [])].sort((a, b) => a.it.y - b.it.y);
+  const actors = [...mapActors(), ...(isTrain() && trainCrew && !trainCrew.dead && !trainCrew.inTank ? [{ it: trainCrew, k: 'N' }] : []), ...(bigMap() && MAPGEN.npcs ? MAPGEN.npcs.map((it) => ({ it, k: 'N' })) : []), ...nightActors(), ...covers().map((it) => ({ it, k: 'c' })), ...enemies.map((it) => ({ it, k: 'e' })), ...pAnts.map((it) => ({ it, k: 'ant' })), ...aiAllies.map((it) => ({ it, k: 'a' })), ...(isTrain() && trainVeh && trainVeh.rider !== player ? [{ it: trainVeh, k: 'V' }] : []), ...(player && state !== 'menu' ? [...(!vsDead() ? [{ it: player, k: 'p' }] : []), ...(!vsDead() || isDef() ? clones.map((it) => ({ it, k: 'm' })) : [])] : [])].sort((a, b) => a.it.y - b.it.y);
   drawLater = []; drawMiniBossLater = [];
   for (const { it, k } of actors) {
     if (k === 'B') { drawDefBase(); continue; }   // 滅星行動的基地（很寬：不做畫面外判斷）
@@ -18567,7 +18693,8 @@ function draw(t) {
     if (k === 'Z') { drawParkedHydra(it); continue; }
     if (k === 'm' && it.mech) { drawMech(it); continue; }
     if (k === 'V') { drawVehicle(it); continue; }                          // 停著的載具
-    if (k === 'w' && it.kind === 'garage') { drawGarage(it); continue; }   // 車庫很寬：不做畫面外判斷
+    if (k === 'w' && it.kind === 'garage') { drawGarage(it); continue; }
+    if (k === 'w' && it.kind === 'guardhouse') { drawGuardHouse(it); continue; }   // 車庫很寬：不做畫面外判斷
     const q = proj(it.x, it.y);
     if (!onScreen(q, 120 * q.k)) continue;
     if (k === 'e' && (it.marked || it.atkDownT > 0 || it.jhT > 0 || it.wdT > 0 || it.avT > 0 || preyN(it) || gameTime < (it.mstU || 0) || it.skullT > 0)) drawLater.push(it);
